@@ -62,3 +62,8 @@ export function lastSetsFor<Se extends { id: string; date: string; status: strin
   }
   return undefined;
 }
+
+/** Blokada kolana w trakcie treningu: zależy od ćwiczenia i dzisiejszego poziomu bezpieczeństwa, nie od planu. */
+export function kneeBlocked(level: string, knee: 'none' | 'low' | 'moderate'): boolean {
+  return level === 'urgent' || (level === 'stop_legs' && knee !== 'none') || (level === 'caution_legs' && knee === 'moderate');
+}

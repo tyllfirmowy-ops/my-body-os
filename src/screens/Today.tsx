@@ -3,6 +3,8 @@ import { AlertTriangle, Baby, ClipboardPaste, Droplets, Moon, RotateCcw, Sunrise
 import { parseSync, type HealthSync } from '../domain/sync';
 import type { ScreenProps } from '../App';
 import { db, now, uid } from '../db/db';
+import { effectiveTemplates } from '../domain/recipes';
+import type { DayTemplateRec } from '../domain/types';
 import { DAY_TEMPLATES } from '../data/foods';
 import { PLAN_COPY } from '../domain/readiness';
 import { addDays, diffDays, formatPl } from '../domain/dates';
@@ -10,7 +12,7 @@ import { mean } from '../domain/calc';
 import { Badge, Bar, Btn, Card, cx, inputCls, Sheet, Stat, Title, toast } from '../ui/kit';
 import { MorningSheet, EveningSheet } from './CheckIns';
 
-export function templateFor(date: string) { return DAY_TEMPLATES[((diffDays('2026-01-05', date) % 3) + 3) % 3]; }
+export function templateFor(date: string, user: DayTemplateRec[] = []) { return effectiveTemplates(DAY_TEMPLATES, user)[((diffDays('2026-01-05', date) % 3) + 3) % 3]; }
 
 export function Today({ data, d, go }: ScreenProps) {
   const [mOpen, setMOpen] = useState(false);
@@ -37,7 +39,7 @@ export function Today({ data, d, go }: ScreenProps) {
   }
   const plan = { ...d.plan!, kcal: d.targets!.kcal, proteinG: d.targets!.proteinG };
   const lvl = d.readiness.level;
-  const tpl = templateFor(d.today);
+  const tpl = templateFor(d.today, data.mealTemplates);
   const w7 = mean(d.weights.filter((w) => w.date > addDays(d.today, -7)).map((w) => w.value));
   const lastW = d.weights.at(-1);
   const goal = data.profile?.goals[0];
@@ -115,7 +117,7 @@ export function Today({ data, d, go }: ScreenProps) {
         </div>
         <div className="mt-4 space-y-2 text-sm">
           {d.targets!.dayType !== 'flat' && <Row k="Typ dnia" v={d.targets!.dayType === 'training' ? `treningowy: ${d.targets!.kcal} kcal, W ${d.targets!.carbsG} g` : `bez treningu: ${d.targets!.kcal} kcal, W ${d.targets!.carbsG} g`} />}
-          <Row k="Jedzenie" v={`Dzień ${tpl.id}: ${tpl.meals.map((m) => m.name).join(' · ')}`} />
+          <Row k="Jedzenie" v={`${tpl.name}: ${tpl.meals.map((m) => m.name).join(' · ')}`} />
           <Row k="Ruch" v={`${d.steps.toLocaleString('pl-PL')} kroków${lvl === 'C' ? ' (opcjonalnie)' : ''}${d.withDaughterToday ? ' · spacer z córką się liczy' : ''}`} />
           <Row k="Trening" v={d.doneToday ? `Trening ${d.doneToday.templateId} zrobiony ✓` : trainingToday ? `Trening ${d.todayWorkout!.templateId} · ok. 60 min + 10–15 min marszu` : d.withDaughterToday ? 'Dzień z córką: bez siłowni' : 'Odpoczynek'} onClick={() => go('training')} />
         </div>

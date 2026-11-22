@@ -17,3 +17,5 @@ v0.6 Kopie zapasowe (`db/backup.ts`):
 - IndexedDB na iOS: dane są w kontenerze przeglądarki lub aplikacji z ekranu głównego (osobne magazyny). Safari może usuwać dane stron nieużywanych przez 7 dni (dotyczy stron w przeglądarce, aplikacji z ekranu głównego zwykle nie). Przy braku miejsca system może wyczyścić dane nieoznaczone jako trwałe, a zapis zgłasza QuotaExceededError. Dlatego: prośba o `persist()`, pokazanie zajętości i przypomnienie o potwierdzonej kopii. Wynik `persist()` na iPhonie wymaga sprawdzenia na urządzeniu.
 
 v0.6 Przepisy i szablony: `domain/recipes.ts` (czyste funkcje, testy w tests/stage3b.test.ts); UI w `screens/Recipes.tsx` (RecipesSheet, RecipeEditor, TemplateEditor). Szablony efektywne = domyślne z `data/foods.ts` nadpisane rekordami z `mealTemplates`. Dopasowanie do celu dnia nadal przez `fitDayToTargets` (bez zmian logiki ETAPU 1).
+
+v0.6 Plany treningowe: `domain/workoutEdit.ts` + `screens/WorkoutEditor.tsx`. Harmonogram nadal planuje tylko sloty A/B (`domain/schedule.ts` bez zmian), treść slotu pochodzi z aktywnego wariantu. Sesja trzyma snapshot planu.

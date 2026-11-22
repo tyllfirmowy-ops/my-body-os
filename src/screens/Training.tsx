@@ -3,7 +3,10 @@ import { ArrowDown, ArrowUp, Check, ChevronLeft, ChevronRight, Info, Play, Repea
 import type { ScreenProps } from '../App';
 import { db, now, uid } from '../db/db';
 import { EXERCISES, exerciseById, WORKOUTS, type Equip, type ExerciseCard, type TemplateExercise } from '../data/exercises';
-import { actualFor, lastSetsFor, setsForSlot, swapExercise, swapOptions } from '../domain/workout';
+import { effectivePlan, sessionPlan } from '../domain/workoutEdit';
+import { WorkoutEditor } from './WorkoutEditor';
+import { Pencil } from 'lucide-react';
+import { actualFor, kneeBlocked, lastSetsFor, setsForSlot, swapExercise, swapOptions } from '../domain/workout';
 import { rigFor } from '../data/rigs';
 import { RigPlayer } from '../ui/RigView';
 import { formatPl, range } from '../domain/dates';
@@ -20,11 +23,14 @@ export function Training({ data, d }: ScreenProps) {
   const c = d.custody!;
   const sum = cycleSummary(c, data.sessions, d.today, d.plan!.workoutsPer14d);
   const next = d.todayWorkout ?? d.upcoming[0];
+  const plans = { A: effectivePlan('A', WORKOUTS, data.workoutTemplates, data.settings?.activeWorkouts), B: effectivePlan('B', WORKOUTS, data.workoutTemplates, data.settings?.activeWorkouts) };
+  const [editSlot, setEditSlot] = useState<'A' | 'B' | null>(null);
 
   async function start(t: 'A' | 'B') {
     if (d.safety.level === 'urgent') return toast('Objaw alarmowy: dziś bez treningu');
     const id = uid();
-    await db.sessions.add({ id, createdAt: now(), updatedAt: now(), date: d.today, templateId: t, status: 'in_progress', order: WORKOUTS[t].map((e) => e.exerciseId), skipped: [], technique: {}, painBefore: d.morningToday?.kneePain, startedAt: now(), source: 'manual' });
+    const pl = plans[t];
+    await db.sessions.add({ id, createdAt: now(), updatedAt: now(), date: d.today, templateId: t, status: 'in_progress', order: pl.items.map((e) => e.exerciseId), plan: structuredClone(pl.items), planName: pl.name, skipped: [], technique: {}, painBefore: d.morningToday?.kneePain, startedAt: now(), source: 'manual' });
     setActive(id);
   }
   if (session) return <SessionView data={data} d={d} s={session} onExit={() => setActive(null)} />;
@@ -65,8 +71,8 @@ export function Training({ data, d }: ScreenProps) {
       </Card>
       {(['A', 'B'] as const).map((t) => (
         <Card key={t}>
-          <Title>Trening {t}</Title>
-          {WORKOUTS[t].map((te) => {
+          <Title right={<button aria-label={`Edytuj plan ${t}`} className="text-xs text-accent flex items-center gap-1" onClick={() => setEditSlot(t)}><Pencil size={12} /> edytuj</button>}>{plans[t].name}{plans[t].custom ? ' (wariant)' : plans[t].edited ? ' (zmieniony)' : ''}</Title>
+          {plans[t].items.map((te) => {
             const e = exerciseById(te.exerciseId);
             return (
               <button key={te.exerciseId} onClick={() => setCard(e)} className="w-full flex justify-between items-center py-2.5 border-b border-line last:border-0 text-left">
@@ -79,6 +85,7 @@ export function Training({ data, d }: ScreenProps) {
       ))}
       <Card><Title>Biblioteka ćwiczeń</Title><div className="flex flex-wrap gap-1.5">{EXERCISES.map((e) => <button key={e.id} onClick={() => setCard(e)} className="rounded-full bg-card2 px-3 py-2 text-sm">{e.namePl}</button>)}</div></Card>
       {card && <ExerciseSheet e={card} data={data} d={d} onClose={() => setCard(null)} onOpen={setCard} />}
+      {editSlot && <WorkoutEditor slot={editSlot} data={data} onClose={() => setEditSlot(null)} />}
     </>
   );
 }
@@ -125,7 +132,7 @@ const Sec = ({ t, children }: { t: string; children: React.ReactNode }) => <div>
 const lastSetsForData = (data: AppData, exerciseId: string, exclude: string) => lastSetsFor(data.sessions, data.sets, exerciseId, exclude);
 
 function SessionView({ data, d, s, onExit }: { data: AppData; d: Derived; s: WorkoutSession; onExit: () => void }) {
-  const tpl = WORKOUTS[s.templateId];
+  const tpl = sessionPlan(s, WORKOUTS);
   const order = s.order.filter((id) => tpl.some((t) => t.exerciseId === id));
   const [idx, setIdx] = useState(() => Number(localStorage.getItem(`ws-idx-${s.id}`) ?? 0));
   const [finish, setFinish] = useState(false);
@@ -141,7 +148,7 @@ function SessionView({ data, d, s, onExit }: { data: AppData; d: Derived; s: Wor
   const earlierInSlot = setsForSlot(allDone, slot).filter((x) => x.exerciseId !== exId && x.done);
   const lvlB = d.readiness.level === 'B';
   const planned = lvlB ? Math.min(2, te.sets) : plannedSetsFor(te.sets, d.weekIdx);
-  const kneeBlock = (d.safety.level === 'stop_legs' && ex.knee !== 'none') || (d.safety.level === 'caution_legs' && ex.knee === 'moderate');
+  const kneeBlock = kneeBlocked(d.safety.level, ex.knee);
   const prev = lastSetsForData(data, exId, s.id);
   const sug: Suggestion = ex.knee === 'moderate' && !data.health?.kneeCleared && !kneeBlock
     ? { action: 'hold', weightKg: 0, targetReps: `${te.repMin}–${te.repMax}`, reason: 'Bez obciążenia do czasu oceny kolana przez specjalistę.' }

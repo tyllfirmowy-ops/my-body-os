@@ -1,7 +1,7 @@
 import Dexie, { type EntityTable } from 'dexie';
 import type {
   BodyMeasurement, CalendarOverride, CustodyConfig, EveningCheckIn, FoodEntry, FoodProduct, HealthProfile, LabResult,
-  MorningCheckIn, PlanVersion, Recipe, DayTemplateRec, RecommendationFeedback, Settings, SymptomLog, UserProfile, WaterLog, WorkoutSession, WorkoutSet,
+  MorningCheckIn, PlanVersion, Recipe, DayTemplateRec, WorkoutTemplateRec, RecommendationFeedback, Settings, SymptomLog, UserProfile, WaterLog, WorkoutSession, WorkoutSet,
 } from '../domain/types';
 
 export class BodyDB extends Dexie {
@@ -24,6 +24,7 @@ export class BodyDB extends Dexie {
   settings!: EntityTable<Settings, 'id'>;
   recipes!: EntityTable<Recipe, 'id'>;
   mealTemplates!: EntityTable<DayTemplateRec, 'id'>;
+  workoutTemplates!: EntityTable<WorkoutTemplateRec, 'id'>;
 
   constructor(name = 'my-body-os') {
     super(name);
@@ -39,12 +40,14 @@ export class BodyDB extends Dexie {
     this.version(2).stores({}).upgrade((tx) => tx.table('entries').toCollection().modify(migrateEntryV2));
     // v3: własne przepisy i edytowalne szablony dni (nowe tabele, istniejące dane bez zmian).
     this.version(3).stores({ recipes: 'id, name', mealTemplates: 'id' });
+    // v4: edytowalne plany treningowe A/B i warianty.
+    this.version(4).stores({ workoutTemplates: 'id, slot' });
   }
 }
 
 export const db = new BodyDB();
-export const TABLES = ['profile', 'health', 'plans', 'morning', 'evening', 'measurements', 'foods', 'entries', 'water', 'sessions', 'sets', 'custody', 'overrides', 'symptoms', 'labs', 'feedback', 'settings', 'recipes', 'mealTemplates'] as const;
-export const CURRENT_SCHEMA = 3;
+export const TABLES = ['profile', 'health', 'plans', 'morning', 'evening', 'measurements', 'foods', 'entries', 'water', 'sessions', 'sets', 'custody', 'overrides', 'symptoms', 'labs', 'feedback', 'settings', 'recipes', 'mealTemplates', 'workoutTemplates'] as const;
+export const CURRENT_SCHEMA = 4;
 export type TableName = (typeof TABLES)[number];
 
 export const uid = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`);

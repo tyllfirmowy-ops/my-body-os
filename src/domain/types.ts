@@ -168,6 +168,17 @@ export interface WorkoutSession extends Meta {
   cardioMin?: number;
   startedAt: number; finishedAt?: number;
   note?: string;
+  /** snapshot planu z chwili startu (edycja szablonu nie zmienia trwających ani zakończonych treningów) */
+  plan?: PlanItem[];
+  planName?: string;
+}
+
+export interface PlanItem { exerciseId: string; sets: number; repMin: number; repMax: number; restSec: number; kneeCaution?: boolean }
+/** Plan treningowy edytowany w aplikacji: id 'A'/'B' nadpisuje domyślny, inne id = własny wariant dla danego slotu. */
+export interface WorkoutTemplateRec extends Meta {
+  slot: 'A' | 'B';
+  name: string;
+  items: PlanItem[];
 }
 
 export interface CustodyConfig { id: 'custody'; cycleStart: LocalDate; confirmed: boolean; updatedAt: number }
@@ -190,6 +201,8 @@ export interface Settings {
   lastExport?: { at: number; total: number; bytes: number; verified: boolean; encrypted: boolean };
   /** użytkownik potwierdził, że plik jest zapisany w Plikach/iCloud */
   lastBackupConfirmedAt?: number;
+  /** aktywny wariant planu dla slotu A/B (brak = domyślny lub edytowany 'A'/'B') */
+  activeWorkouts?: { A?: string; B?: string };
   backupReminderDays: number;
   aiIncludeHealth: boolean;
 }

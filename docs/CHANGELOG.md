@@ -1,5 +1,13 @@
 # Changelog
 ## 0.6.0 — 2026-11-22 (ETAP 3, w toku)
+### 3C Edytor treningów
+- Dexie v4: tabela `workoutTemplates` (plan A/B nadpisuje domyślny, inne id = własny wariant slotu); `Settings.activeWorkouts` wybiera aktywny wariant.
+- Edytor planu (Trening → „edytuj”): zmiana ćwiczenia (filtr grup mięśni), dodawanie, usuwanie, serie, zakres powtórzeń, przerwy, kolejność, zapis jako wariant, przywrócenie domyślnego.
+- Przy starcie treningu plan zapisuje się w sesji (`WorkoutSession.plan`, `planName`): edycja szablonu nie zmienia trwających ani zakończonych treningów; sesje sprzed 0.6 używają planu domyślnego.
+- `domain/workoutEdit.ts` (effectivePlan, variantsFor, sessionPlan, validatePlan): zakresy serii 1–6, powtórzeń 1–30, przerw 30–300 s, bez duplikatów; bez oceny kolana nie można dodać nowego ćwiczenia mocno obciążającego kolano.
+- Reguła blokady kolana w trakcie treningu przeniesiona z UI do `domain/workout.ts` (`kneeBlocked`) i przetestowana; działa po ćwiczeniu, więc obejmuje własne plany.
+- Ekran „Dzisiaj” podpowiada jadłospis z edytowanych szablonów (3B).
+
 ### 3B Przepisy i szablony dni
 - Dexie v3: nowe tabele `recipes` i `mealTemplates` (istniejące dane bez zmian, kopie sprzed v3 nie kasują przepisów przy imporcie).
 - `domain/recipes.ts`: suma przepisu (kcal, B/T/W, błonnik) z modelem kompletności (nieznane makro składnika ≠ 0), porcja, skalowanie porcji, kopia, porcje pod cel posiłku (dzień treningowy / bez treningu), ostrzeżenia i zamienniki dla produktów źle tolerowanych i mlecznych, lista zakupów z szablonów i przepisów, walidacja szablonu.
