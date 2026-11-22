@@ -1,6 +1,7 @@
 # Stan projektu (2026-11-22)
 
-Działa: MVP etapu 1. 44 testy logiki zielone, typecheck czysty, test E2E w headless Chrome (390×844): onboarding z plikiem profilu, check-in, szablon dnia (2458/2450 kcal), seria → odświeżenie → seria zachowana, zakończenie treningu, raport, eksport → usunięcie bazy → import (dane wróciły), brak poziomego scrolla.
+Wersja 0.2.0. Hosting: https://statuesque-sorbet-8dafde.netlify.app (Netlify, auto-deploy z GitHub main, publiczny dostęp). Zainstalowana na iPhonie jako aplikacja www.
+55 testów logiki zielonych, typecheck czysty, E2E w headless Chrome: onboarding, check-iny, dziennik, trening z odświeżeniem, backup/restore, sync #sync, kalkulator.
 
-Otwarte: EVIDENCE.md bez zweryfikowanych linków · brak ilustracji ćwiczeń · brak zdjęć sylwetki · nie testowane na fizycznym iPhonie · npm 10 wymaga `--legacy-peer-deps` (błąd arborist przy vitest).
-Następne: hosting dist/ + instalacja na iPhonie, 7 dni użycia, potem poprawki UX.
+Otwarte: Skrót iOS nieprzetestowany na urządzeniu · EVIDENCE.md bez zweryfikowanych linków · brak ilustracji ćwiczeń i galerii zdjęć · push w PWA (etap 4).
+Następne: tydzień używania, potem poprawki UX z uwag użytkownika.
