@@ -1,0 +1,24 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --bg: #f4f5f6; --card: #ffffff; --card2: #eef0f2; --ink: #14171a; --muted: #5d6670; --line: #dde1e5; --accent: #0d9488; --accent-ink: #ffffff; --warn: #b45309; --danger: #dc2626;
+}
+.dark {
+  --bg: #121417; --card: #1b1f24; --card2: #23282e; --ink: #eef1f4; --muted: #94a0ac; --line: #2c333a; --accent: #2dd4bf; --accent-ink: #062b27; --warn: #f59e0b; --danger: #ef4444;
+}
+@theme inline {
+  --color-bg: var(--bg); --color-card: var(--card); --color-card2: var(--card2); --color-ink: var(--ink); --color-muted: var(--muted);
+  --color-line: var(--line); --color-accent: var(--accent); --color-accent-ink: var(--accent-ink); --color-warn: var(--warn); --color-danger: var(--danger);
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Segoe UI", Roboto, sans-serif;
+}
+html, body { background: var(--bg); color: var(--ink); -webkit-tap-highlight-color: transparent; overscroll-behavior-y: none; }
+body { min-height: 100dvh; }
+input, select, textarea { font-size: 16px; } /* iOS: brak zoomu przy focusie */
+.num { font-variant-numeric: tabular-nums; }
+.safe-b { padding-bottom: max(env(safe-area-inset-bottom), 8px); }
+.safe-t { padding-top: max(env(safe-area-inset-top), 12px); }
+@keyframes rise { from { opacity: 0; transform: translateY(6px) } to { opacity: 1; transform: none } }
+.rise { animation: rise .22s ease-out both; }
+@media (prefers-reduced-motion: reduce) { .rise { animation: none; } }
