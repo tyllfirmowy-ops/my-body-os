@@ -1,0 +1,11 @@
+# Adaptive Coach: audyt przed 5 wdrożeniami (2026-11-22, baza 0.6.1)
+
+| Wdrożenie | Co już istnieje | Brakuje | Ryzyko duplikacji |
+|---|---|---|---|
+| W1 „Co mam teraz zjeść?” | `recipeTotals`, `portionsForKcal`, `recipeEntry`, `productEntry` (recipes.ts), `sumDay` + kompletność (intake.ts), `dayTargets` (cele trening/odpoczynek), `effectiveTemplates`, `usageFrom` (ulubione/częste), tolerancja i nabiał w produktach | wybór i porcjowanie posiłku pod pozostały bilans, UI | niskie: liczenie przez istniejące funkcje |
+| W2 Progres treningowy | `suggestNext` (progression.ts): podwójna progresja, RIR, ból, technika, blokada bezpieczeństwa, brak zwiększania bez danych; RIR zapisywany w seriach; historia per ćwiczenie (`lastSetsFor`); `plannedSetsFor` | wymóg ≥2 kolejnych udanych treningów przed zwiększeniem (dziś wystarcza 1), obniżenie po dłuższej przerwie, jawna akceptacja propozycji w sesji | wysokie: rozbudować `suggestNext`, nie pisać nowego silnika |
+| W3 Adaptacyjny cel kcal | `evaluateAdaptation` (adaptation.ts): kalibracja 14 dni, ≥4 ważenia/tydz., średnie tygodniowe, talia, propozycja kcal/aktywność, cooldown, KCAL_FLOOR; `observedTdee` (energy.ts); `planEdit` (walidacja, 14 dni odstępu); zmiana tylko przez nową `PlanVersion` po akceptacji | uwzględnienie kompletności dziennika i TDEE z danych w samej propozycji, czytelne „dlaczego wstrzymane” | bardzo wysokie: funkcja w dużej mierze jest; tylko domknięcie luk |
+| W4 Trening ratunkowy | plan B w `readiness` (opis skróconego treningu), snapshot planu w sesji (`WorkoutSession.plan`), `effectivePlan`, `kneeBlocked`, `swapOptions`, harmonogram A/B | generator wariantu 15/30/60 min jako snapshot planu (priorytet ćwiczeń, mniej serii) + oznaczenie sesji jako skróconej | średnie: musi tworzyć tylko inny `plan` w istniejącej sesji |
+| W5 Raport 14/28 dni | `weeklyStats(len)` (report.ts, Postępy mają okno 14/28), raport miesięczny, `coach` + `feedback`, `observedTdee`, siła w Postępach | synteza „co działa / co poprawić / co zrobić” z istniejących statystyk, porównanie z poprzednim okresem | średnie: nowy widok tylko jako sekcja istniejącego raportu |
+
+Konflikty i zasady wspólne: rekomendacje nie omijają `safety`; zmiany kcal tylko przez `PlanVersion` (W3); progresja tylko przez `suggestNext` (W2, W4); raport bez nowego ekranu statystyk (W5).

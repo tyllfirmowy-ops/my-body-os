@@ -161,4 +161,26 @@ def recipe_portions_in_diary(pg, url):
     check(pg.get_by_text('E2E porcje (2 porc.)').count() > 0, 'zmiana porcji nie przetrwała odświeżenia')
     return {'kcal_1_porc': k0, 'kcal_2_porc': k1}
 
-ALL = [exercise_card_and_swap, backup_roundtrip, recipe_flow, workout_plan_flow, coach_feedback, food_search, storage_diagnostics, morning_backup_reminder, recipe_portions_in_diary]
+def meal_suggestions(pg, url):
+    demo(pg, url); tab(pg, 'Dieta')
+    eaten0 = int(re.search(r'^(\d+)', pg.locator('.num.text-4xl').first.inner_text()).group(1))
+    pg.get_by_role('button', name='Co mam teraz zjeść?').click(); pg.wait_for_timeout(300)
+    d = dialog(pg)
+    check(d.get_by_text(re.compile('^Zostało:')).count() > 0, 'brak pozostałego bilansu')
+    adds = d.get_by_role('button', name=re.compile('^Dodaj do:'))
+    n = adds.count()
+    check(2 <= n <= 3, f'liczba propozycji {n}, oczekiwano 2–3')
+    first = d.locator('div.rounded-xl.border').first
+    kcal = int(re.search(r'(\d+) kcal · B', first.inner_text()).group(1))
+    title = first.locator('div.font-semibold').first.inner_text()
+    shot(pg, 'meal-suggest.png')
+    adds.first.click(); pg.wait_for_timeout(500)
+    eaten1 = int(re.search(r'^(\d+)', pg.locator('.num.text-4xl').first.inner_text()).group(1))
+    check(abs(eaten1 - eaten0 - kcal) <= 2, f'dziennik +{eaten1 - eaten0} kcal, propozycja {kcal} kcal')
+    pg.reload(); pg.wait_for_timeout(800); tab(pg, 'Dieta')
+    check(int(re.search(r'^(\d+)', pg.locator('.num.text-4xl').first.inner_text()).group(1)) == eaten1, 'wpis nie przetrwał odświeżenia')
+    pg.get_by_role('button', name='Co mam teraz zjeść?').click(); pg.wait_for_timeout(300)
+    check(dialog(pg).get_by_text(re.compile('^Zostało:')).count() > 0, 'arkusz nie otwiera się po dodaniu')
+    return {'suggestions': n, 'first': title, 'kcal': kcal, 'eaten_before': eaten0, 'eaten_after': eaten1}
+
+ALL = [exercise_card_and_swap, backup_roundtrip, recipe_flow, workout_plan_flow, coach_feedback, food_search, storage_diagnostics, morning_backup_reminder, recipe_portions_in_diary, meal_suggestions]

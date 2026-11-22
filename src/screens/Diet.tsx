@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { BookOpen, ChevronLeft, ChevronRight, Copy, ListChecks, Pencil, Plus, Star, Trash2, Siren, Repeat } from 'lucide-react';
+import { BookOpen, Sparkles, ChevronLeft, ChevronRight, Copy, ListChecks, Pencil, Plus, Star, Trash2, Siren, Repeat } from 'lucide-react';
 import type { ScreenProps } from '../App';
 import { db, now, uid } from '../db/db';
 import { dayIntake, targetFor } from '../db/repo';
@@ -10,6 +10,7 @@ import { candidatesForSwap, swapProduct, type ProductMap } from '../domain/nutri
 import { effectiveTemplates, entryPortions, PORTION_LIMITS, productEntry, rescaleRecipeEntry, shoppingFrom } from '../domain/recipes';
 import { validateNutrients } from '../domain/off';
 import { RecipesSheet, TemplateEditor, safeFit } from './Recipes';
+import { MealSuggestSheet } from './MealSuggest';
 import type { AppData } from '../db/repo';
 import type { FoodEntry, FoodProduct } from '../domain/types';
 import { Badge, Bar, Btn, Card, cx, Field, inputCls, NumInput, Sheet, Title, toast } from '../ui/kit';
@@ -24,7 +25,7 @@ export function Diet({ data, d }: ScreenProps) {
   const [date, setDate] = useState(d.today);
   const [addMeal, setAddMeal] = useState<number | null>(null);
   const [edit, setEdit] = useState<FoodEntry | null>(null);
-  const [sheet, setSheet] = useState<'template' | 'shop' | 'sos' | 'product' | 'plan' | 'recipes' | null>(null);
+  const [sheet, setSheet] = useState<'template' | 'shop' | 'sos' | 'product' | 'plan' | 'recipes' | 'suggest' | null>(null);
   const [editTpl, setEditTpl] = useState<ReturnType<typeof effectiveTemplates>[number] | 'new' | null>(null);
   const products = useMemo(() => new Map(data.foods.map((f) => [f.id, f])), [data.foods]);
   const entries = data.entries.filter((e) => e.date === date);
@@ -80,6 +81,7 @@ export function Diet({ data, d }: ScreenProps) {
         {tot && (['protein', 'fat', 'carbs'] as const).some((k) => tot.coverage[k] < 1) && <p className="text-xs text-warn mt-2">Część wpisów to szacunki bez makro: znane białko dla {Math.round(tot.coverage.protein * 100)}% kcal, tłuszcz i węgle dla {Math.round(tot.coverage.carbs * 100)}% kcal. Liczby makro są zaniżone; analizy pomijają makro, gdy pokrycie &lt; 80%.</p>}
         {t.notes.map((n) => <p key={n} className="text-xs text-muted mt-1">{n}</p>)}
         {warnings.map((w) => <p key={w} className="text-xs text-warn mt-1">{w}</p>)}
+        <Btn className="w-full mt-3" onClick={() => setSheet('suggest')}><Sparkles size={16} className="inline -mt-0.5" /> Co mam teraz zjeść?</Btn>
         {(tot?.kcal ?? 0) > plan.kcal * 1.1 && <p className="text-sm text-muted mt-3">Powyżej celu: wracasz do zwykłego planu od następnego posiłku. Bez odrabiania.</p>}
         {tot && tot.fiber > fiberLow + 10 && <p className="text-xs text-muted mt-2">Błonnik {Math.round(tot.fiber)} g. Jeśli to dużo więcej niż zwykle, zwiększaj stopniowo (np. połowa porcji warzyw i strączków przez 1–2 tyg.), żeby nie obciążać jelit.</p>}
       </Card>
@@ -138,6 +140,7 @@ export function Diet({ data, d }: ScreenProps) {
         <Btn kind="soft" className="w-full" onClick={() => setEditTpl('new')}><Plus size={16} className="inline -mt-0.5" /> Nowy wariant</Btn>
       </Sheet>
       {editTpl && <TemplateEditor tpl={editTpl} data={data} products={products} tTrain={tTrain} tRest={tRest} onClose={() => setEditTpl(null)} />}
+      {sheet === 'suggest' && <MealSuggestSheet data={data} date={date} t={t} mealsPerDay={basePlan.mealsPerDay} onClose={() => setSheet(null)} />}
       {sheet === 'recipes' && <RecipesSheet data={data} date={date} t={t} mealsPerDay={basePlan.mealsPerDay} onClose={() => setSheet(null)} />}
       {sheet === 'shop' && <Shopping open onClose={() => setSheet(null)} products={products} t={t} templates={templates} data={data} />}
       <Sheet open={sheet === 'sos'} onClose={() => setSheet(null)} title="Posiłki awaryjne">

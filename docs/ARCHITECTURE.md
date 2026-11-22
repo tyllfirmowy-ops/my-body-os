@@ -21,3 +21,5 @@ v0.6 Przepisy i szablony: `domain/recipes.ts` (czyste funkcje, testy w tests/sta
 v0.6 Plany treningowe: `domain/workoutEdit.ts` + `screens/WorkoutEditor.tsx`. Harmonogram nadal planuje tylko sloty A/B (`domain/schedule.ts` bez zmian), treść slotu pochodzi z aktywnego wariantu. Sesja trzyma snapshot planu.
 
 v0.6.1: `domain/storageDiag.ts` (klasyfikacja błędów bazy, rejestr w localStorage, `diagnose`, `backupReminder`); globalny odbiornik błędów w `main.tsx`; `rescaleRecipeEntry`/`entryPortions` w `domain/recipes.ts`.
+
+W1 (gałąź): `domain/mealSuggest.ts` (remainingFor, suggestMeals, entriesFor, nextMealNumber) + `screens/MealSuggest.tsx`. Bez własnego liczenia wartości: `recipeTotals`/`scaleNutrients`; wpisy przez `recipeEntry`/`productEntry`.

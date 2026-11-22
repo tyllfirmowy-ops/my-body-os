@@ -1,4 +1,10 @@
 # Changelog
+## Niewydane — gałąź feat/meal-suggestions (Adaptive Coach, Wdrożenie 1)
+- „Co mam teraz zjeść?” (Dieta): pozostały bilans dnia (`remainingFor`: cel dnia treningowego / bez treningu − zjedzone, budżet następnego posiłku, makro niepewne przy pokryciu < 80%, stany „przekroczony” i „prawie osiągnięty” bez propozycji i bez odrabiania), 2–3 propozycje (`suggestMeals`) z przepisów (krok 0,25 porcji), posiłków z szablonów (gramatury 50–160%) i przy budżecie ≤ 450 kcal z ulubionych/częstych produktów. Ranking: dopasowanie kcal, białko względem pozostałego, kara za przekroczenie tłuszczu/węgli i limitu węgli na posiłek, błonnik, znane produkty, unikanie powtórek z dnia, niższa pozycja przy niepełnych danych. Pomijane produkty źle tolerowane i nabiał przy diecie bez nabiału. Uzasadnienia i ostrzeżenia przy każdej propozycji.
+- Dodanie jednym dotknięciem przez istniejące `recipeEntry`/`productEntry` (snapshot, porcje, nieznane makro); numer następnego wolnego posiłku.
+- docs/ADAPTIVE_COACH_AUDIT.md: audyt 5 wdrożeń.
+- Testy: tests/w1.test.ts (13), E2E `meal_suggestions`. Bez migracji danych.
+
 ## 0.6.1 — 2026-11-22 (bez serwera)
 Numer 0.6.1 zamiast proponowanego 0.5.1: 0.6.0 jest już wydane, 0.5.1 cofnęłoby numerację.
 - Diagnostyka pamięci (Zdrowie → Pamięć urządzenia): wynik `persisted()`, przycisk `persist()`, zajętość i limit z `estimate()`, tryb (ekran główny / przeglądarka), test zapisu w transakcji, rejestr błędów zapisu bazy (tylko nazwa błędu i czas, maks. 20, w localStorage) z oceną i zaleceniami (`domain/storageDiag.ts`). Błędy zapisu łapane globalnie (`unhandledrejection`), przy braku miejsca komunikat. Rozbudowuje istniejący wiersz pamięci z 0.6.0 (przeniesiony z karty kopii).
