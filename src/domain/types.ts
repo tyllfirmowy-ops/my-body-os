@@ -190,7 +190,9 @@ export interface SymptomLog extends Meta {
 export interface LabResult extends Meta {
   date: LocalDate; name: string; value: string; unit: string; refRange?: string; doctorNote?: string;
 }
-export interface RecommendationFeedback extends Meta { recId: string; date: LocalDate; action: 'accepted' | 'rejected' }
+export type RejectReason = 'not_now' | 'no_time' | 'not_helpful' | 'not_fit' | 'health' | 'other';
+/** action 'reset' = użytkownik przywrócił ukrytą poradę (wcześniejsze odrzucenia przestają działać). Brak reason przy 'rejected' (≤0.5) = „nie teraz”. */
+export interface RecommendationFeedback extends Meta { recId: string; date: LocalDate; action: 'accepted' | 'rejected' | 'reset'; reason?: RejectReason; note?: string }
 
 export interface Settings {
   id: 'settings';

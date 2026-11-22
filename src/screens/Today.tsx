@@ -4,7 +4,8 @@ import { parseSync, type HealthSync } from '../domain/sync';
 import type { ScreenProps } from '../App';
 import { db, now, uid } from '../db/db';
 import { effectiveTemplates } from '../domain/recipes';
-import type { DayTemplateRec } from '../domain/types';
+import type { DayTemplateRec, RejectReason } from '../domain/types';
+import { HIDE_DAYS, REASON_LABEL, pickRecommendation } from '../domain/feedback';
 import { DAY_TEMPLATES } from '../data/foods';
 import { PLAN_COPY } from '../domain/readiness';
 import { addDays, diffDays, formatPl } from '../domain/dates';
@@ -60,12 +61,19 @@ export function Today({ data, d, go }: ScreenProps) {
   async function addWater(ml: number) {
     await db.water.put({ date: d.today, ml: Math.max(0, d.water + ml), updatedAt: now() });
   }
-  async function feedback(recId: string, action: 'accepted' | 'rejected') {
-    await db.feedback.add({ id: uid(), createdAt: now(), updatedAt: now(), recId, date: d.today, action });
-    toast(action === 'accepted' ? 'Przyjęte' : 'Odrzucone, nie pokażę dziś ponownie');
+  const [rejecting, setRejecting] = useState(false);
+  const [note, setNote] = useState('');
+  const [otherOpen, setOtherOpen] = useState(false);
+  const [showHidden, setShowHidden] = useState(false);
+  async function feedback(recId: string, action: 'accepted' | 'rejected' | 'reset', reason?: RejectReason, health?: boolean) {
+    await db.feedback.add({ id: uid(), createdAt: now(), updatedAt: now(), recId, date: d.today, action, ...(reason ? { reason } : {}), ...(reason === 'other' && note.trim() ? { note: note.trim() } : {}) });
+    setRejecting(false); setNote(''); setOtherOpen(false);
+    if (action === 'accepted') return toast('Przyjęte');
+    if (action === 'reset') return toast('Porada znów będzie pokazywana');
+    const days = health ? 0 : HIDE_DAYS[reason ?? 'not_now'];
+    toast(reason === 'health' ? 'Zapisane. Objawy zapisz w check-inie; przy niepokojących skontaktuj się z lekarzem.' : days ? `Nie pokażę tej porady przez ${days} dni` : 'Nie pokażę jej dziś ponownie');
   }
-  const rejectedToday = new Set(data.feedback.filter((f) => f.date === d.today).map((f) => f.recId));
-  const rec = d.recs.find((r) => !rejectedToday.has(r.id));
+  const { rec, hidden } = pickRecommendation(d.recs, data.feedback, d.today);
 
   return (
     <>
@@ -151,9 +159,21 @@ export function Today({ data, d, go }: ScreenProps) {
           <div className="font-semibold">{rec.title}</div>
           <p className="text-sm mt-1">{rec.action}</p>
           <p className="text-xs text-muted mt-2">Podstawa: {rec.basis} ({rec.days} dni) · dane: {rec.completeness}. {rec.limits}</p>
-          <div className="flex gap-2 mt-3"><Btn kind="soft" className="flex-1" onClick={() => feedback(rec.id, 'accepted')}>OK, robię</Btn><Btn kind="ghost" onClick={() => feedback(rec.id, 'rejected')}>Nie teraz</Btn></div>
+          {!rejecting ? <div className="flex gap-2 mt-3"><Btn kind="soft" className="flex-1" onClick={() => feedback(rec.id, 'accepted')}>OK, robię</Btn><Btn kind="ghost" onClick={() => setRejecting(true)}>Nie teraz…</Btn></div>
+            : <div className="mt-3 space-y-2">
+              <div className="text-xs text-muted">Dlaczego? Na tej podstawie rzadziej pokażę podobne porady.</div>
+              <div className="grid grid-cols-2 gap-1.5">{(Object.keys(REASON_LABEL) as RejectReason[]).map((r) => <Btn key={r} kind="soft" className="text-xs min-h-10" onClick={() => (r === 'other' ? setOtherOpen(true) : feedback(rec.id, 'rejected', r, rec.health))}>{REASON_LABEL[r]}</Btn>)}</div>
+              {otherOpen && <div className="flex gap-2"><input className={inputCls + ' flex-1'} placeholder="Krótko, co nie pasuje (opcjonalnie)" value={note} onChange={(e) => setNote(e.target.value)} /><Btn onClick={() => feedback(rec.id, 'rejected', 'other', rec.health)}>OK</Btn></div>}
+              <button className="text-xs text-muted underline" onClick={() => { setRejecting(false); setNote(''); setOtherOpen(false); }}>anuluj</button>
+            </div>}
         </Card>
       )}
+      {hidden.length > 0 && <button className="text-xs text-muted underline w-full text-center" onClick={() => setShowHidden(!showHidden)}>Ukryte porady ({hidden.length})</button>}
+      {showHidden && hidden.map(({ rec: h, s }) => (
+        <Card key={h.id}><div className="text-sm font-semibold">{h.title}</div>
+          <div className="text-xs text-muted">{s.reason ? REASON_LABEL[s.reason] : ''}{s.until ? ` · ukryta do ${formatPl(s.until)}` : ''}{s.rejections >= 3 ? ' · odrzucana kilka razy' : ''}</div>
+          <Btn kind="soft" className="w-full mt-2 text-sm" onClick={() => feedback(h.id, 'reset')}>Pokazuj znowu</Btn></Card>
+      ))}
 
       <button onClick={pasteHealth} className="w-full flex items-center justify-center gap-2 min-h-12 rounded-2xl border border-line bg-card text-sm"><ClipboardPaste size={18} className="text-accent" /> Wklej dane ze Zdrowia</button>
       <Sheet open={pasteBox} onClose={() => setPasteBox(false)} title="Wklej dane ze Zdrowia">

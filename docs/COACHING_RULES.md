@@ -13,3 +13,7 @@ Insulinooporność (opcja): domyślnie wyłącznie ostrzeżenia (próg udziału 
 Kompletność dnia (src/domain/intake.ts): confirmed (użytkownik potwierdził, ≥50% celu), probable (≥ posiłki−1 i ≥70% celu), incomplete, none. Makro w analizach tylko przy pokryciu ≥80% kcal.
 TDEE z danych (energy.ts observedTdee): średnie spożycie z dni confirmed/probable − nachylenie regresji wagi × 7700; wiarygodność high (≥21 dni, ≥10 potwierdzonych, ≥16 ważeń, okno 28) / medium (≥14, ≥5, ≥10) / low (pokazujemy, nie używamy) / insufficient. Zakres ±150/250/400 kcal.
 Ręczna zmiana planu (planEdit.ts): błędy blokują (zakres 1200–5000, makro ≠ kcal > 3%, < 2100 bez potwierdzenia specjalisty, brak powodu), ostrzeżenia wymagają zatwierdzenia (białko < 1,2 lub > 2,6 g/kg celu, tłuszcz < 20% kcal / 0,5 g/kg, deficyt > 25% lub < 5%, < 14 dni od poprzedniej zmiany).
+
+
+## Feedback (0.6)
+Po odrzuceniu porady użytkownik wybiera powód. Czas ukrycia: nie teraz → do końca dnia; brak czasu → 3 dni; nie pomaga mi → 14 dni; nie pasuje do sytuacji → 30 dni; problem zdrowotny → 14 dni (z prośbą o zapisanie objawów w check-inie); inny → 7 dni. Trzy odrzucenia tej samej porady w 30 dni (bez „nie teraz”) → 30 dni. Porady zdrowotne chowają się najwyżej do końca dnia. Alerty bezpieczeństwa (safety) nigdy nie są ukrywane przez feedback. Użytkownik może przywrócić ukrytą poradę.

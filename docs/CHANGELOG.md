@@ -1,5 +1,10 @@
 # Changelog
 ## 0.6.0 — 2026-11-22 (ETAP 3, w toku)
+### 3D Feedback coacha
+- `RecommendationFeedback.reason` (nie teraz, brak czasu, nie pomaga mi, nie pasuje do mojej sytuacji, problem zdrowotny, inny powód + notatka) i akcja `reset` (przywrócenie porady). Stare odrzucenia bez powodu = „nie teraz”.
+- `domain/feedback.ts`: czas ukrycia zależny od powodu (0/3/14/30/14/7 dni), 3 odrzucenia tej samej porady w 30 dni (poza „nie teraz”) → 30 dni; porady zdrowotne (`Recommendation.health`, np. opuszczone treningi z powodu bólu) ukrywane najwyżej do końca dnia. Ostrzeżenia bezpieczeństwa nie przechodzą przez ten mechanizm.
+- Ekran „Dzisiaj”: wybór powodu po „Nie teraz…”, lista „Ukryte porady” z datą i „Pokazuj znowu”.
+
 ### 3C Edytor treningów
 - Dexie v4: tabela `workoutTemplates` (plan A/B nadpisuje domyślny, inne id = własny wariant slotu); `Settings.activeWorkouts` wybiera aktywny wariant.
 - Edytor planu (Trening → „edytuj”): zmiana ćwiczenia (filtr grup mięśni), dodawanie, usuwanie, serie, zakres powtórzeń, przerwy, kolejność, zapis jako wariant, przywrócenie domyślnego.

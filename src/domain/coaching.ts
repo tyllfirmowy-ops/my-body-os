@@ -20,6 +20,8 @@ export interface DaySnapshot {
 export interface Recommendation {
   id: string; priority: number; title: string; action: string;
   basis: string; days: number; completeness: string; limits: string;
+  /** porada dotycząca zdrowia: odrzucenie ukrywa ją najwyżej do końca dnia */
+  health?: boolean;
 }
 
 const pct = (n: number, d: number) => `${n}/${d} dni`;
@@ -73,7 +75,7 @@ export function coach(days: DaySnapshot[], today: LocalDate, kcalTarget: number)
       : top === 'pain' ? 'Zgłoś ból w check-inie. Ćwiczenia nóg zostaną ograniczone; umów ocenę kolana.'
       : top === 'motivation' ? 'Ustal stałą godzinę i spakuj torbę dzień wcześniej. Cel: tylko wejść na siłownię i zrobić 1. ćwiczenie.'
       : 'Najbliższy wolny dzień bez córki jest już w kalendarzu treningów.';
-    recs.push({ id: 'missed_workouts', priority: 60, title: 'Treningi: jedna zmiana', action,
+    recs.push({ id: 'missed_workouts', priority: 60, title: 'Treningi: jedna zmiana', action, ...(top === 'pain' ? { health: true } : {}),
       basis: `Opuszczone treningi w dni bez córki${top ? `, najczęstszy powód: ${MISS_LABEL[top]}` : ''}`, days: missed.length, completeness: `${reasons.length}/${missed.length} z podanym powodem`, limits: 'Dni opieki i zaplanowany odpoczynek nie są liczone jako opuszczone.' });
   }
 
