@@ -54,7 +54,7 @@ export function coach(days: DaySnapshot[], today: LocalDate, kcalTarget: number)
   const hungry = last7.filter((d) => (d.evening?.hunger ?? 0) >= 4 && d.meals !== undefined && d.meals <= 2);
   const withHungerData = last7.filter((d) => d.evening?.hunger !== undefined && d.meals !== undefined).length;
   if (hungry.length >= 3) {
-    recs.push({ id: 'early_meal', priority: 80, title: 'Pełny posiłek przed 13:00', action: 'Spakuj do auta posiłek 2 z meal prepu. Wczesne białko zmniejsza ryzyko wieczornego głodu.',
+    recs.push({ id: 'early_meal', priority: 80, title: 'Pełny posiłek przed 13:00', action: 'Spakuj do auta posiłek 2 z meal prepu. Posiłek z białkiem w ciągu dnia może ograniczyć wieczorne podjadanie (małe badania, efekt indywidualny).',
       basis: 'Dni z ≤2 posiłkami i głodem wieczorem ≥4/5', days: hungry.length, completeness: pct(withHungerData, 7), limits: 'Obserwacja zależności, nie dowód przyczynowy.' });
   }
 

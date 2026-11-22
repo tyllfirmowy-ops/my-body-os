@@ -1,7 +1,7 @@
 import { addNutrients, scaleNutrients, ZERO } from './calc';
 import type { DayTemplateRec, FoodEntry, FoodProduct, MacroKey, Nutrients, Recipe, RecipeItem } from './types';
 import type { DayTemplate } from '../data/foods';
-import { candidatesForSwap, type ProductMap } from './nutrition';
+import { candidatesForSwap, swapProduct, type ProductMap } from './nutrition';
 
 const MACROS: MacroKey[] = ['protein', 'fat', 'carbs', 'fiber'];
 
@@ -155,4 +155,22 @@ export function rescaleRecipeEntry(e: FoodEntry, portions: number, t: number): F
   const base = sn.name.replace(/\s*\([\d.,]+ porc\.\)\s*$/, '');
   const unknownKcal = e.unknownKcal ? Object.fromEntries(Object.entries(e.unknownKcal).map(([k, v]) => [k, (v ?? 0) * f])) : undefined;
   return { ...e, portions, grams: Math.round(e.grams * f), snapshot: { ...sn, ...scaled, name: `${base} (${portions} porc.)` }, ...(unknownKcal ? { unknownKcal } : {}), updatedAt: t };
+}
+
+/**
+ * Wersja przepisu dopasowana do profilu: składniki źle tolerowane i (przy diecie bez nabiału) mleczne
+ * zamieniane na najlepszy zamiennik tej samej roli. Bez zamiennika przepis nie pasuje (ok = false).
+ */
+export function adaptForProfile(r: Recipe, products: ProductMap, dairyFree: boolean): { ok: boolean; recipe: Recipe; changes: string[] } {
+  const swaps = intoleranceSwaps(products, r.items, dairyFree);
+  if (!swaps.length) return { ok: true, recipe: r, changes: [] };
+  const items = r.items.map((x) => ({ ...x }));
+  const changes: string[] = [];
+  for (const sw of swaps) {
+    const alt = sw.alternatives[0];
+    if (!alt) return { ok: false, recipe: r, changes: [`Brak zamiennika dla: ${sw.product.name}`] };
+    items[sw.index] = { productId: alt.id, grams: swapProduct(sw.product, items[sw.index].grams, alt).grams };
+    changes.push(`${sw.product.name} → ${alt.name}`);
+  }
+  return { ok: true, recipe: { ...r, items }, changes };
 }

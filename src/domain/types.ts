@@ -130,12 +130,19 @@ export interface FoodEntry extends Meta {
 }
 
 export interface RecipeItem { productId: string; grams: number }
+export type MealSlot = 'breakfast' | 'lunch' | 'dinner' | 'snack';
 export interface Recipe extends Meta {
   name: string;
   servings: number;
   items: RecipeItem[];
   notes?: string;
   favorite?: boolean;
+  /** kroki przygotowania (przepisy z biblioteki i ich kopie) */
+  steps?: string[];
+  /** z którego gotowego przepisu skopiowano */
+  libraryId?: string;
+  meal?: MealSlot;
+  minutes?: number;
 }
 
 export interface MealTemplateRec { name: string; items: RecipeItem[] }
@@ -211,6 +218,8 @@ export interface Settings {
   activeWorkouts?: { A?: string; B?: string };
   /** klucz cyklu przypomnienia o kopii odłożonego w porannym check-inie */
   backupReminderDismissed?: string;
+  /** propozycje „Co mam teraz zjeść?” ukryte przez użytkownika (id propozycji) */
+  suggestHidden?: string[];
   backupReminderDays: number;
   aiIncludeHealth: boolean;
 }

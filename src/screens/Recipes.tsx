@@ -4,7 +4,9 @@ import { db, now, uid } from '../db/db';
 import type { AppData } from '../db/repo';
 import { DAY_TEMPLATES, type DayTemplate } from '../data/foods';
 import { fitDayToTargets, swapProduct, type ProductMap } from '../domain/nutrition';
-import { copyRecipe, intoleranceSwaps, portionsForKcal, recipeEntry, recipeTotals, scaleRecipe, validateTemplate } from '../domain/recipes';
+import { RECIPE_LIBRARY, MEAL_SLOT_PL } from '../data/recipeLibrary';
+import type { MealSlot } from '../domain/types';
+import { adaptForProfile, copyRecipe, intoleranceSwaps, portionsForKcal, recipeEntry, recipeTotals, scaleRecipe, validateTemplate } from '../domain/recipes';
 import type { DayTargets } from '../domain/targets';
 import type { MealTemplateRec, Nutrients, Recipe, RecipeItem } from '../domain/types';
 import { Badge, Btn, Card, cx, Field, inputCls, NumInput, Sheet, toast } from '../ui/kit';
@@ -53,21 +55,46 @@ function ItemsEditor({ items, products, data, onChange, dairyFree }: { items: Re
 
 export function RecipesSheet({ data, date, t, mealsPerDay, onClose }: { data: AppData; date: string; t: DayTargets; mealsPerDay: number; onClose: () => void }) {
   const [open, setOpen] = useState<Recipe | 'new' | null>(null);
+  const [tab, setTab] = useState<'mine' | 'library'>(data.recipes.length ? 'mine' : 'library');
+  const [slot, setSlot] = useState<MealSlot | 'all'>('all');
   const list = [...data.recipes].sort((a, b) => Number(!!b.favorite) - Number(!!a.favorite) || a.name.localeCompare(b.name, 'pl'));
   const products = useMemo(() => new Map(data.foods.map((f) => [f.id, f])), [data.foods]);
   if (open) return <RecipeEditor recipe={open === 'new' ? undefined : open} data={data} products={products} date={date} t={t} mealsPerDay={mealsPerDay} onClose={() => setOpen(null)} onLogged={onClose} />;
   return (
-    <Sheet open onClose={onClose} title="Moje przepisy">
+    <Sheet open onClose={onClose} title="Przepisy">
       <Btn className="w-full" onClick={() => setOpen('new')}><Plus size={16} className="inline -mt-0.5" /> Nowy przepis</Btn>
-      {!list.length && <p className="text-sm text-muted">Brak przepisów. Dodaj składniki z gramaturami, a aplikacja policzy porcję.</p>}
+      <div className="grid grid-cols-2 gap-1 rounded-xl bg-card2 p-1 text-sm">
+        {([['mine', `Moje (${data.recipes.length})`], ['library', 'Gotowe przepisy']] as const).map(([k, l]) => <button key={k} onClick={() => setTab(k)} className={cx('rounded-lg py-2', tab === k ? 'bg-card font-semibold' : 'text-muted')}>{l}</button>)}
+      </div>
+      {tab === 'library' && <LibraryList data={data} products={products} slot={slot} setSlot={setSlot} onOpen={setOpen} />}
+      {tab === 'mine' && <>
+      {!list.length && <p className="text-sm text-muted">Brak własnych przepisów. Zajrzyj do „Gotowe przepisy” albo dodaj własny: składniki z gramaturami, aplikacja policzy porcję.</p>}
       {list.map((r) => { const tot = recipeTotals(products, r.items, r.servings); return (
         <Card key={r.id} onClick={() => setOpen(r)}>
           <div className="font-semibold">{r.favorite && <Star size={12} className="inline text-accent mr-1" />}{r.name}</div>
           <div className="text-xs text-muted num">{r.servings} porc. · porcja: {fmt(tot.perServing)}</div>
         </Card>
       ); })}
+      </>}
     </Sheet>
   );
+}
+
+function LibraryList({ data, products, slot, setSlot, onOpen }: { data: AppData; products: ProductMap; slot: MealSlot | 'all'; setSlot: (s: MealSlot | 'all') => void; onOpen: (r: Recipe) => void }) {
+  const dairyFree = !!data.health?.dairyAvoid;
+  const items = RECIPE_LIBRARY.filter((r) => slot === 'all' || r.meal === slot).map((r) => ({ r, a: adaptForProfile(r, products, dairyFree) }));
+  return <>
+    <div className="flex flex-wrap gap-1.5">{(['all', 'breakfast', 'lunch', 'dinner', 'snack'] as const).map((k) => <button key={k} onClick={() => setSlot(k)} className={cx('rounded-full px-3 py-1.5 text-xs', slot === k ? 'bg-accent text-accent-ink' : 'bg-card2')}>{k === 'all' ? 'Wszystkie' : MEAL_SLOT_PL[k]}</button>)}</div>
+    <p className="text-xs text-muted">Proste dania domowe. Wartości liczone z bazy produktów{dairyFree ? '; nabiał zamieniony automatycznie' : ''}. Stuknij, żeby zobaczyć, dodać do dziennika albo zapisać u siebie i zmienić.</p>
+    {items.map(({ r, a }) => { const tot = recipeTotals(products, a.recipe.items, a.recipe.servings); return (
+      <Card key={r.id} onClick={a.ok ? () => onOpen({ ...a.recipe, notes: a.changes.length ? `Dopasowano: ${a.changes.join(', ')}` : undefined }) : undefined} className={a.ok ? '' : 'opacity-50'}>
+        <div className="font-semibold">{r.name}</div>
+        <div className="text-xs text-muted num">{r.meal ? MEAL_SLOT_PL[r.meal] : ''} · {r.minutes} min · {r.servings} porc. · porcja {fmt(tot.perServing)}</div>
+        {a.changes.length > 0 && <div className="text-xs text-accent">Dopasowany: {a.changes.join(', ')}</div>}
+        {!a.ok && <div className="text-xs text-warn">{a.changes[0]}</div>}
+      </Card>
+    ); })}
+  </>;
 }
 
 function RecipeEditor({ recipe, data, products, date, t, mealsPerDay, onClose, onLogged }: { recipe?: Recipe; data: AppData; products: ProductMap; date: string; t: DayTargets; mealsPerDay: number; onClose: () => void; onLogged: () => void }) {
@@ -79,20 +106,27 @@ function RecipeEditor({ recipe, data, products, date, t, mealsPerDay, onClose, o
   const [confirmDel, setConfirmDel] = useState(false);
   const valid = r.name.trim() && r.items.length && r.items.every((i) => i.grams > 0);
   const dirty = !recipe || JSON.stringify(recipe) !== JSON.stringify(r);
+  const isLib = r.id.startsWith('lib_');
 
   async function save(close = true) {
     if (!valid) return toast('Podaj nazwę i składniki z gramaturą');
-    await db.recipes.put({ ...r, name: r.name.trim(), updatedAt: now() });
-    toast('Przepis zapisany'); if (close) onClose();
+    const t0 = now();
+    await db.recipes.put(isLib ? { ...r, id: uid(), libraryId: r.id, name: r.name.trim(), source: 'manual', createdAt: t0, updatedAt: t0 } : { ...r, name: r.name.trim(), updatedAt: t0 });
+    toast(isLib ? 'Zapisano w Twoich przepisach' : 'Przepis zapisany'); if (close) onClose();
   }
   async function addToLog() {
     if (!valid) return;
-    if (dirty) await db.recipes.put({ ...r, updatedAt: now() });
+    if (dirty && !isLib) await db.recipes.put({ ...r, updatedAt: now() });
     await db.entries.add(recipeEntry(r, products, portions, date, meal, uid(), now()));
     toast(`Dodano: ${r.name}, ${portions} porc.`); onLogged();
   }
   return (
-    <Sheet open onClose={onClose} title={recipe ? 'Przepis' : 'Nowy przepis'}>
+    <Sheet open onClose={onClose} title={isLib ? 'Gotowy przepis' : recipe ? 'Przepis' : 'Nowy przepis'}>
+      {r.steps?.length ? <div className="rounded-xl bg-card2 p-3 text-sm space-y-1">
+        <div className="text-xs text-muted">{r.meal ? MEAL_SLOT_PL[r.meal] : ''}{r.minutes ? ` · ok. ${r.minutes} min` : ''}</div>
+        <ol className="list-decimal pl-5 space-y-0.5">{r.steps.map((x) => <li key={x}>{x}</li>)}</ol>
+        {r.notes && <div className="text-xs text-accent">{r.notes}</div>}
+      </div> : null}
       <Field label="Nazwa"><input className={inputCls} value={r.name} onChange={(e) => setR({ ...r, name: e.target.value })} placeholder="np. Kurczak curry meal prep" /></Field>
       <div className="flex items-center gap-2">
         <span className="text-sm flex-1">Liczba porcji (gramatury proporcjonalnie)</span>
@@ -109,10 +143,10 @@ function RecipeEditor({ recipe, data, products, date, t, mealsPerDay, onClose, o
       </div>
       <Field label="Notatka (opcjonalnie)"><input className={inputCls} value={r.notes ?? ''} onChange={(e) => setR({ ...r, notes: e.target.value })} /></Field>
       <div className="flex gap-2">
-        <Btn className="flex-1" disabled={!valid} onClick={() => save()}>Zapisz</Btn>
-        {recipe && <Btn kind="soft" aria-label="Kopiuj" onClick={async () => { await db.recipes.put(copyRecipe(r, uid(), now())); toast('Skopiowano przepis'); onClose(); }}><Copy size={16} /></Btn>}
-        {recipe && <Btn kind="soft" aria-label="Ulubiony" onClick={() => setR({ ...r, favorite: !r.favorite })}><Star size={16} className={r.favorite ? 'text-accent' : ''} /></Btn>}
-        {recipe && <Btn kind="danger" aria-label="Usuń przepis" onClick={async () => { if (!confirmDel) return setConfirmDel(true); await db.recipes.delete(r.id); toast('Usunięto przepis (wpisy w dzienniku zostają)'); onClose(); }}>{confirmDel ? 'Na pewno?' : <Trash2 size={16} />}</Btn>}
+        <Btn className="flex-1" disabled={!valid} onClick={() => save()}>{isLib ? 'Zapisz u siebie' : 'Zapisz'}</Btn>
+        {recipe && !isLib && <Btn kind="soft" aria-label="Kopiuj" onClick={async () => { await db.recipes.put(copyRecipe(r, uid(), now())); toast('Skopiowano przepis'); onClose(); }}><Copy size={16} /></Btn>}
+        {recipe && !isLib && <Btn kind="soft" aria-label="Ulubiony" onClick={() => setR({ ...r, favorite: !r.favorite })}><Star size={16} className={r.favorite ? 'text-accent' : ''} /></Btn>}
+        {recipe && !isLib && <Btn kind="danger" aria-label="Usuń przepis" onClick={async () => { if (!confirmDel) return setConfirmDel(true); await db.recipes.delete(r.id); toast('Usunięto przepis (wpisy w dzienniku zostają)'); onClose(); }}>{confirmDel ? 'Na pewno?' : <Trash2 size={16} />}</Btn>}
       </div>
       {valid && <div className="rounded-xl border border-line p-3 space-y-2">
         <div className="font-semibold text-sm">Dodaj do dziennika ({date})</div>

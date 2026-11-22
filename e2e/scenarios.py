@@ -183,4 +183,49 @@ def meal_suggestions(pg, url):
     check(dialog(pg).get_by_text(re.compile('^Zostało:')).count() > 0, 'arkusz nie otwiera się po dodaniu')
     return {'suggestions': n, 'first': title, 'kcal': kcal, 'eaten_before': eaten0, 'eaten_after': eaten1}
 
-ALL = [exercise_card_and_swap, backup_roundtrip, recipe_flow, workout_plan_flow, coach_feedback, food_search, storage_diagnostics, morning_backup_reminder, recipe_portions_in_diary, meal_suggestions]
+def library_recipes(pg, url):
+    demo(pg, url); tab(pg, 'Dieta')
+    eaten0 = int(re.search(r'^(\d+)', pg.locator('.num.text-4xl').first.inner_text()).group(1))
+    pg.get_by_role('button', name='Przepisy').click(); pg.wait_for_timeout(200)
+    check(dialog(pg).get_by_text('Gotowe przepisy').count() > 0, 'brak zakładki gotowych przepisów')
+    dialog(pg).get_by_role('button', name='Obiad').click()
+    dialog(pg).get_by_text('Kurczak z ryżem i brokułem').click(); pg.wait_for_timeout(300)
+    check(dialog(pg).get_by_text('Ugotuj ryż.').count() > 0, 'brak kroków przygotowania')
+    dialog(pg).get_by_role('button', name='Dodaj 1 porc. do dziennika').click(); pg.wait_for_timeout(400)
+    eaten1 = int(re.search(r'^(\d+)', pg.locator('.num.text-4xl').first.inner_text()).group(1))
+    check(395 <= eaten1 - eaten0 <= 415, f'porcja kurczaka z ryżem +{eaten1 - eaten0} kcal (oczekiwano ~405)')
+    pg.get_by_role('button', name='Przepisy').click(); pg.wait_for_timeout(200)
+    dialog(pg).get_by_role('button', name='Gotowe przepisy').click(); dialog(pg).get_by_text('Owsianka z jabłkiem').click(); pg.wait_for_timeout(200)
+    dialog(pg).get_by_role('button', name='Zapisz u siebie').click(); pg.wait_for_timeout(300)
+    check(dialog(pg).get_by_text('Owsianka z jabłkiem i masłem orzechowym').count() > 0, 'kopia nie trafiła do „Moje”')
+    close_dialog(pg)
+    pg.get_by_role('button', name='Co mam teraz zjeść?').click(); pg.wait_for_timeout(300)
+    d = dialog(pg)
+    first = d.locator('div.rounded-xl.border').first.locator('div.font-semibold').first.inner_text()
+    d.get_by_role('button', name='Nie proponuj').first.click(); pg.wait_for_timeout(300)
+    check(dialog(pg).locator('div.rounded-xl.border').first.locator('div.font-semibold').first.inner_text() != first, '„Nie proponuj” nie usunęło propozycji')
+    check(dialog(pg).get_by_text(re.compile('Przywróć ukryte propozycje')).count() > 0, 'brak przywracania ukrytych')
+    shot(pg, 'library-suggest.png')
+    return {'portion_kcal': eaten1 - eaten0, 'hidden': first}
+
+def onboarding_health_survey(pg, url):
+    pg.goto(url); pg.get_by_role('button', name='Wpisz ręcznie').click(); pg.wait_for_timeout(200)
+    pg.get_by_role('button', name='Dalej').click(); pg.wait_for_timeout(300)
+    check(pg.get_by_text('Zdrowie (dopasuje cele, przepisy i trening)').count() > 0, 'brak kroku ankiety zdrowotnej')
+    cards = pg.locator('div.rounded-xl.bg-card2')
+    for i in range(3): cards.nth(i).get_by_role('button', name='Tak').click()
+    check(pg.get_by_text('zamienniki bez mleka').count() > 0, 'brak wyjaśnienia po wyborze')
+    pg.get_by_role('button', name='Dalej').click(); pg.wait_for_timeout(300)
+    pg.get_by_role('button', name='Nie').click(); pg.get_by_role('button', name='Zgadza się').click(); pg.get_by_role('button', name='Pomiń na teraz').click(); pg.wait_for_timeout(600)
+    tab(pg, 'Zdrowie')
+    toggles = pg.locator('[role=switch]')
+    states = {pg.locator('[role=switch]').nth(i).inner_text()[:40]: pg.locator('[role=switch]').nth(i).get_attribute('aria-checked') for i in range(toggles.count())}
+    dairy = [v for k, v in states.items() if 'nabiał' in k.lower()]
+    knee = [v for k, v in states.items() if 'kolano' in k.lower()]
+    check(dairy and dairy[0] == 'true', f'nabiał nie zapisany: {states}')
+    check(knee and knee[0] == 'false', f'kolano nie oznaczone jako nieocenione: {states}')
+    tab(pg, 'Dieta'); pg.get_by_role('button', name='Przepisy').click(); pg.wait_for_timeout(200)
+    check(dialog(pg).get_by_text(re.compile('Dopasowany: Skyr')).count() > 0, 'przepis ze skyrem nie dostał zamiennika')
+    return {'toggles': states}
+
+ALL = [exercise_card_and_swap, backup_roundtrip, recipe_flow, workout_plan_flow, coach_feedback, food_search, storage_diagnostics, morning_backup_reminder, recipe_portions_in_diary, meal_suggestions, library_recipes, onboarding_health_survey]

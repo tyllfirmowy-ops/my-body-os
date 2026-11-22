@@ -7,5 +7,5 @@ Baza: Dexie v4. Kopie starsze (v1, schemat 1–3) wczytują się; tabele nieobec
 
 Ograniczenia: animacje 2D z boku (3 wzorce referencyjne sprawdzone z opisami techniki, 10 schematycznych, alternatywy bez animacji); PWA nie robi kopii w tle i nie wie, czy plik trafił do iCloud (stąd ręczne potwierdzenie); wyniki OFF to dane społeczności (walidacja wychwytuje tylko niespójności).
 Do sprawdzenia na iPhonie: docs/IPHONE_TEST_CHECKLIST.md (wszystkie punkty NIEWYKONANE).
-Wersja 0.7.0: Adaptive Coach W1 „Co mam teraz zjeść?” (222 testy, E2E 10/10). W2–W5 do zrobienia po testach na iPhonie (audyt: docs/ADAPTIVE_COACH_AUDIT.md).
+Wersja 0.7.1: Adaptive Coach W1 „Co mam teraz zjeść?” + 25 gotowych przepisów + ankieta zdrowotna przy zakładaniu konta; EVIDENCE.md ze zweryfikowanymi źródłami. W2–W5 do zrobienia po testach na iPhonie (audyt: docs/ADAPTIVE_COACH_AUDIT.md).
 Następne: decyzja o ETAPIE 4 (patrz ROADMAP.md).

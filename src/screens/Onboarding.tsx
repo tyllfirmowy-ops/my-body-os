@@ -8,6 +8,7 @@ import { Btn, Card, cx, Field, inputCls, NumInput, toast } from '../ui/kit';
 import { ActivityForm } from './Energy';
 import { bmrMifflin } from '../domain/calc';
 import { estimateTdee, planFromTdee, type ActivityProfile } from '../domain/energy';
+import { DEFAULT_RULES } from '../domain/targets';
 
 const DEMO: PrivateProfileT = {
   format: 'my-body-os-profile',
@@ -17,7 +18,7 @@ const DEMO: PrivateProfileT = {
 };
 
 export function Onboarding({ data }: { data: AppData }) {
-  const [step, setStep] = useState<'profile' | 'manual' | 'custody' | 'measure'>(data.profile ? (data.custody ? 'measure' : 'custody') : 'profile');
+  const [step, setStep] = useState<'profile' | 'manual' | 'health' | 'custody' | 'measure'>(data.profile ? (data.custody ? 'measure' : 'custody') : 'profile');
   const [manual, setManual] = useState({ name: '', sex: 'male' as 'male' | 'female', heightCm: 180, ageYears: 30, weightKg: 100, goalKg: 90 });
   const [act, setAct] = useState<ActivityProfile>({ job: 'desk', stepsPerDay: 6000, workoutsPerWeek: 2, workoutMin: 60, workoutType: 'strength', cardioMinPerWeek: 0 });
   const est = estimateTdee(bmrMifflin({ weightKg: manual.weightKg, heightCm: manual.heightCm, age: manual.ageYears, sex: manual.sex }), manual.weightKg, manual.heightCm, act);
@@ -25,6 +26,7 @@ export function Onboarding({ data }: { data: AppData }) {
   const [refDate, setRefDate] = useState(today());
   const [withD, setWithD] = useState<boolean | null>(null);
   const [pw, setPw] = useState('');
+  const [hq, setHq] = useState({ ir: false, dairy: false, knee: false, other: '' });
   const [m, setM] = useState<{ weightKg?: number; waistCm?: number; hipsCm?: number; chestCm?: number; armCm?: number; thighCm?: number }>({});
 
   async function onFile(f: File) {
@@ -42,6 +44,14 @@ export function Onboarding({ data }: { data: AppData }) {
     await applyProfile({ ...DEMO, profile: { ...DEMO.profile, name: manual.name || 'Ja', sex: manual.sex, heightCm: manual.heightCm, ageYears: manual.ageYears, ageRefDate: today(), declaredWeightKg: manual.weightKg, goals: [{ kg: manual.goalKg, label: 'Cel 1' }] },
       health: { ...DEMO.health, kneeCleared: true }, plan: { ...DEMO.plan, kcal: calc.kcal, proteinG: calc.proteinG, fatG: calc.fatG, carbsG: calc.carbsG, workoutsPer14d: Math.max(2, act.workoutsPerWeek * 2) } }, today());
     await db.profile.update('me', { activity: act });
+    setStep('health');
+  }
+  /** Ankieta zdrowotna: zapis w miejscach, z których czytają cele, przepisy, propozycje i blokady (bez nowych pól). */
+  async function saveHealth() {
+    const t = now();
+    await db.health.update('me', { dairyAvoid: hq.dairy, kneeCleared: !hq.knee, kneeNote: hq.knee ? 'Zgłoszony problem z kolanem (ankieta startowa). Ocena specjalisty zalecana.' : '', conditions: hq.other.trim() ? [hq.other.trim()] : [], updatedAt: t });
+    const plan = (await db.plans.toArray()).sort((a, b) => b.validFrom.localeCompare(a.validFrom))[0];
+    if (plan) await db.plans.update(plan.id, { rules: { ...plan.rules, insulinResistance: { ...DEFAULT_RULES.insulinResistance, ...plan.rules?.insulinResistance, enabled: hq.ir }, dairyFree: { enabled: hq.dairy } }, updatedAt: t });
     setStep('custody');
   }
   // cykl zaczyna się w poniedziałek; odpowiedź na "czy córka jest u Ciebie" jednoznacznie wyznacza fazę
@@ -98,6 +108,24 @@ export function Onboarding({ data }: { data: AppData }) {
             <div className="text-xs text-muted">Hipoteza startowa. Po 3–4 tygodniach aplikacja przeliczy ją z Twojej wagi i jedzenia.</div>
           </div>
           <Btn className="w-full" onClick={saveManual}>Dalej</Btn>
+        </Card>
+      )}
+      {step === 'health' && (
+        <Card className="space-y-3">
+          <div className="font-semibold">Zdrowie (dopasuje cele, przepisy i trening)</div>
+          <p className="text-xs text-muted">Zostaje tylko na tym telefonie. Możesz zmienić później w zakładce Zdrowie.</p>
+          {([['ir', 'Insulinooporność lub cukrzyca (diagnoza lekarza)', 'Pilnuję błonnika i rozkładu węglowodanów; limity ustal ze specjalistą w Ustawieniach planu.'],
+            ['dairy', 'Objawy po nabiale albo unikam nabiału', 'Przepisy i propozycje dostaną zamienniki bez mleka.'],
+            ['knee', 'Ból lub uraz kolana', 'Ćwiczenia mocno obciążające kolano będą ograniczone do czasu oceny specjalisty.']] as const).map(([k, label, hint]) => (
+            <div key={k} className="rounded-xl bg-card2 p-3">
+              <div className="text-sm">{label}</div>
+              <div className="grid grid-cols-2 gap-2 mt-2">{[false, true].map((v) => <button key={String(v)} onClick={() => setHq({ ...hq, [k]: v })} className={cx('min-h-11 rounded-lg text-sm', hq[k] === v ? 'bg-accent text-accent-ink font-semibold' : 'bg-card')}>{v ? 'Tak' : 'Nie'}</button>)}</div>
+              {hq[k] && <div className="text-xs text-muted mt-1">{hint}</div>}
+            </div>
+          ))}
+          <Field label="Inne choroby lub leki, o których coach powinien wiedzieć (opcjonalnie)"><input className={inputCls} value={hq.other} onChange={(e) => setHq({ ...hq, other: e.target.value })} placeholder="np. nadciśnienie" /></Field>
+          <p className="text-xs text-muted">Aplikacja nie diagnozuje i nie zastępuje lekarza.</p>
+          <Btn className="w-full" onClick={saveHealth}>Dalej</Btn>
         </Card>
       )}
       {step === 'custody' && (

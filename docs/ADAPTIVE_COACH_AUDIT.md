@@ -9,3 +9,9 @@
 | W5 Raport 14/28 dni | `weeklyStats(len)` (report.ts, Postępy mają okno 14/28), raport miesięczny, `coach` + `feedback`, `observedTdee`, siła w Postępach | synteza „co działa / co poprawić / co zrobić” z istniejących statystyk, porównanie z poprzednim okresem | średnie: nowy widok tylko jako sekcja istniejącego raportu |
 
 Konflikty i zasady wspólne: rekomendacje nie omijają `safety`; zmiany kcal tylko przez `PlanVersion` (W3); progresja tylko przez `suggestNext` (W2, W4); raport bez nowego ekranu statystyk (W5).
+
+## Zasady dla W2–W5 (ustalone z użytkownikiem 2026-11-22)
+1. **Prosto i intuicyjnie, aplikacja prowadzi.** Jeden ekran = jedna jasna następna czynność („Zrób to teraz”), wartości wypełnione domyślnie, użytkownik tylko potwierdza albo poprawia. Krótkie „dlaczego” (1 zdanie) przy każdej rekomendacji. Bez dodatkowych formularzy, wykresów i powiadomień, jeśli nie są konieczne.
+2. **Tylko wiedza poparta badaniami.** Każda reguła zdrowotna/treningowa/żywieniowa ma wpis w docs/EVIDENCE.md (źródło albo jawne „reguła projektowa”). Teksty nie obiecują więcej niż dowody; mity z listy w EVIDENCE.md są zakazane.
+3. **Uczy się z zachowania użytkownika.** Wybory, odrzucenia („Nie proponuj”, powody w coachu) i faktyczne wpisy zmieniają kolejność propozycji. Ustawienia z ankiety (insulinooporność, bez nabiału, tolerancja, kolano) filtrują wszystko automatycznie.
+4. **Bezpieczeństwo i dane przed wygodą.** Blokady zdrowotne mają pierwszeństwo; brak danych ≠ 0; zmiany celów i ciężarów tylko po akceptacji.

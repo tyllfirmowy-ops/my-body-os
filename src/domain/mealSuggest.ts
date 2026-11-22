@@ -4,10 +4,10 @@
  */
 import { scaleNutrients, ZERO } from './calc';
 import { COVERAGE_MIN, type DayIntake } from './intake';
-import { recipeEntry, productEntry, recipeTotals } from './recipes';
+import { adaptForProfile, recipeEntry, productEntry, recipeTotals } from './recipes';
 import type { ProductMap } from './nutrition';
 import type { DayTargets } from './targets';
-import type { FoodEntry, FoodProduct, MacroKey, Nutrients, Recipe, RecipeItem } from './types';
+import type { FoodEntry, FoodProduct, MacroKey, MealSlot, Nutrients, Recipe, RecipeItem } from './types';
 import type { Usage } from './foodSearch';
 
 const MACROS: MacroKey[] = ['protein', 'fat', 'carbs', 'fiber'];
@@ -69,9 +69,15 @@ export interface SuggestInput {
   t: DayTargets;
   todayProductIds: Set<string>;
   dairyFree: boolean;
+  /** gotowe przepisy (biblioteka); własne przepisy użytkownika mają pierwszeństwo przy podobnym dopasowaniu */
+  library?: Recipe[];
+  /** pora posiłku: gotowe przepisy z pasującą porą wyżej */
+  slot?: MealSlot;
+  /** propozycje ukryte przez użytkownika („Nie proponuj”) */
+  hidden?: string[];
 }
 
-interface Raw { id: string; title: string; base: Nutrients; unknownKcal: Partial<Record<MacroKey, number>>; items: RecipeItem[]; missing: number; make: (f: number) => { source: SuggestionSource; portionLabel: string; factor: number }; usageKey: string[]; productIds: string[] }
+interface Raw { id: string; title: string; meal?: MealSlot; lib?: boolean; libChanges?: string[]; base: Nutrients; unknownKcal: Partial<Record<MacroKey, number>>; items: RecipeItem[]; missing: number; make: (f: number) => { source: SuggestionSource; portionLabel: string; factor: number }; usageKey: string[]; productIds: string[] }
 
 /** Skala porcji do budżetu kcal, zaokrąglona do kroku i ograniczona. */
 function fitFactor(baseKcal: number, kcal: number, step: number, min: number, max: number): number {
@@ -84,12 +90,14 @@ export function suggestMeals(i: SuggestInput, limit = 3): MealSuggestion[] {
   const { rem, products } = i;
   if (rem.state !== 'ok') return [];
   const raws: Raw[] = [];
-  for (const r of i.recipes) {
+  const own = new Set(i.recipes.map((r) => r.libraryId).filter(Boolean));
+  const libs = (i.library ?? []).filter((r) => !own.has(r.id)).flatMap((r) => { const a = adaptForProfile(r, products, i.dairyFree); return a.ok ? [{ r: a.recipe, lib: true, changes: a.changes }] : []; });
+  for (const { r, lib, changes } of [...i.recipes.map((r) => ({ r, lib: false, changes: [] as string[] })), ...libs]) {
     if (!r.items.length) continue;
     const tot = recipeTotals(products, r.items, r.servings);
     const per = tot.perServing;
     const s = Math.max(1, r.servings);
-    raws.push({ id: `r:${r.id}`, title: r.name, base: per, unknownKcal: Object.fromEntries(Object.entries(tot.unknownKcal).map(([k, v]) => [k, (v ?? 0) / s])), items: r.items, missing: tot.missing.length,
+    raws.push({ id: `r:${r.id}`, title: r.name, meal: r.meal, lib, libChanges: changes, base: per, unknownKcal: Object.fromEntries(Object.entries(tot.unknownKcal).map(([k, v]) => [k, (v ?? 0) / s])), items: r.items, missing: tot.missing.length,
       make: (f) => ({ source: { kind: 'recipe', recipe: r, portions: f }, portionLabel: `${f} porc.`, factor: f }), usageKey: [`recipe:${r.id}`], productIds: r.items.map((x) => x.productId) });
   }
   const seenMeals = new Set<string>();
@@ -116,6 +124,7 @@ export function suggestMeals(i: SuggestInput, limit = 3): MealSuggestion[] {
 
   const out: MealSuggestion[] = [];
   for (const raw of raws) {
+    if (i.hidden?.includes(raw.id)) continue;
     const prods = raw.productIds.map((id) => products.get(id)).filter((p): p is FoodProduct => !!p);
     if (prods.some((p) => p.tolerance === 'bad')) continue;                       // źle tolerowane: nie proponujemy
     if (i.dairyFree && prods.some((p) => p.dairy === 'contains')) continue;      // dieta bez nabiału
@@ -146,7 +155,9 @@ export function suggestMeals(i: SuggestInput, limit = 3): MealSuggestion[] {
     // znane, lubiane, ale bez powtarzania tego samego dnia
     const used = raw.usageKey.reduce((a, k) => a + (i.usage.get(k)?.count ?? 0), 0);
     if (used) { score += Math.min(10, used * 2); }
-    if (isRecipe && raw.items.length) reasons.push('Twój przepis.');
+    if (isRecipe && !raw.lib) { score += 5; reasons.push('Twój przepis.'); }
+    if (raw.lib) { reasons.push('Prosty przepis domowy.'); if (raw.libChanges?.length) reasons.push(`Dopasowany do Ciebie: ${raw.libChanges.join(', ')}.`); }
+    if (i.slot && raw.meal) { if (raw.meal === i.slot) { score += 8; } else if (!(i.slot === 'dinner' && raw.meal === 'lunch')) score -= 12; }
     if (raw.id.startsWith('p:') && prods[0]?.favorite) { score += 6; reasons.push('Ulubiony produkt.'); }
     if (raw.productIds.some((id) => i.todayProductIds.has(id)) && raw.id.startsWith('p:')) score -= 8;
     if (raw.usageKey.some((k) => i.todayProductIds.has(k))) { score -= 10; warnings.push('Było już dziś.'); }

@@ -1,4 +1,15 @@
 # Changelog
+## 0.7.1 — 2026-11-22 (gotowe przepisy, ankieta zdrowotna, weryfikacja źródeł)
+- 25 gotowych, prostych przepisów domowych (`data/recipeLibrary.ts`): 6 śniadań, 11 obiadów (meal prep 2–4 porcje), 5 kolacji, 3 przekąski. Własne opracowanie typowych dań z redukcji, składniki wyłącznie z bazy (bez szacunków), kroki przygotowania, czas. Porcja posiłku 310–660 kcal, białko 21–48 g.
+- Przepisy → zakładka „Gotowe przepisy” z filtrem pory dnia; podgląd, dodanie porcji do dziennika, „Zapisz u siebie” (kopia z `libraryId`, nie dubluje się w propozycjach).
+- Dopasowanie do profilu (`adaptForProfile`): przy diecie bez nabiału i produktach źle tolerowanych automatyczny zamiennik tej samej roli; bez zamiennika przepis pomijany.
+- „Co mam teraz zjeść?” korzysta z gotowych przepisów, preferuje porę dnia (śniadanie/obiad/kolacja/przekąska z godziny), własne przepisy mają pierwszeństwo, przycisk „Nie proponuj” (z przywracaniem), kroki „Jak zrobić”. Uczenie: częściej wybierane awansują, odrzucone znikają.
+- Ankieta zdrowotna przy zakładaniu konta (ręcznie): insulinooporność/cukrzyca, nabiał, kolano, inne choroby. Zapis do istniejących ustawień (reguły planu, `health`), bez nowych pól.
+- docs/EVIDENCE.md przepisany: reguły ze zweryfikowanymi źródłami (ISSN 2017, Schoenfeld i Aragon 2018, metaanalizy błonnika, Leidy 2013, badania pory posiłków), lista do weryfikacji, reguły projektowe i lista mitów, których aplikacja nie stosuje. Złagodzony tekst coacha o białku i wieczornym głodzie (przesadzony względem dowodów).
+- Zasady W2–W5 w docs/ADAPTIVE_COACH_AUDIT.md: prosto, aplikacja prowadzi, tylko wiedza poparta badaniami, uczenie z zachowania.
+- „Nowy przepis” zawsze widoczny nad zakładkami.
+- Testy: tests/library.test.ts (12), E2E `library_recipes`, `onboarding_health_survey`. Bez migracji danych.
+
 ## 0.7.0 — 2026-11-22 (Adaptive Coach, Wdrożenie 1)
 - „Co mam teraz zjeść?” (Dieta): pozostały bilans dnia (`remainingFor`: cel dnia treningowego / bez treningu − zjedzone, budżet następnego posiłku, makro niepewne przy pokryciu < 80%, stany „przekroczony” i „prawie osiągnięty” bez propozycji i bez odrabiania), 2–3 propozycje (`suggestMeals`) z przepisów (krok 0,25 porcji), posiłków z szablonów (gramatury 50–160%) i przy budżecie ≤ 450 kcal z ulubionych/częstych produktów. Ranking: dopasowanie kcal, białko względem pozostałego, kara za przekroczenie tłuszczu/węgli i limitu węgli na posiłek, błonnik, znane produkty, unikanie powtórek z dnia, niższa pozycja przy niepełnych danych. Pomijane produkty źle tolerowane i nabiał przy diecie bez nabiału. Uzasadnienia i ostrzeżenia przy każdej propozycji.
 - Dodanie jednym dotknięciem przez istniejące `recipeEntry`/`productEntry` (snapshot, porcje, nieznane makro); numer następnego wolnego posiłku.
