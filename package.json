@@ -9,7 +9,9 @@
     "build:single": "tsc --noEmit && vite build --mode single",
     "preview": "vite preview",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "e2e": "npm run build:single && python3 e2e/run.py",
+    "perf": "npm run build && python3 e2e/perf.py"
   },
   "dependencies": {
     "barcode-detector": "^3.2.4",

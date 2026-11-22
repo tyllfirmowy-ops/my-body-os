@@ -1,9 +1,9 @@
 # Architektura
 
-- `src/domain/` czyste funkcje: `dates` (Europe/Warsaw, DST, sen przez północ), `calc`, `nutrition`, `schedule` (2-2-3, planowanie bez kumulacji), `safety`, `readiness` (A/B/C), `progression` (podwójna), `adaptation` (silnik redukcji), `coaching` (reguły + wzorce), `report` (tydzień, kontekst AI).
-- `src/db/` Dexie (schemat v1), `backup.ts` (eksport/import z walidacją Zod, szyfrowanie AES-GCM/PBKDF2), `repo.ts` (ładowanie + `derive()` = cały stan pochodny dnia).
+- `src/domain/` czyste funkcje z testami: `dates` (Europe/Warsaw, DST, sen przez północ), `calc`, `intake` (sumy dnia z kompletnością makro), `targets` (cele dnia treningowego / bez treningu), `energy` (BMR/TDEE, TDEE z danych), `nutrition` (dopasowanie szablonu do celu, zamienniki), `recipes` (przepisy, szablony, lista zakupów), `planEdit`, `adaptation` (silnik redukcji), `schedule` (2-2-3), `safety`, `readiness` (A/B/C), `progression`, `workout` (zamiana ćwiczeń, blokada kolana), `workoutEdit` (plany A/B, warianty), `coaching` + `feedback` (porady i ich ukrywanie), `report`, `sync` (Skrót iOS), `off` + `offCache` + `foodSearch` (Open Food Facts, cache, ranking), `rig` (szkielet animacji).
+- `src/db/` Dexie (schemat v4: v1 bazowy, v2 migracja wpisów z nieznanym makro, v3 recipes + mealTemplates, v4 workoutTemplates; istniejących wersji się nie edytuje), `backup.ts` (kopia v2: liczby rekordów + SHA-256, podgląd, import w jednej transakcji, szyfrowanie AES-GCM/PBKDF2), `repo.ts` (ładowanie + `derive()` = cały stan pochodny dnia). `src/data/` dane statyczne (produkty, ćwiczenia, wzorce animacji) i klient OFF.
 - `src/screens/` UI; `liveQuery` odświeża widoki po każdym zapisie. Autosave przy każdej akcji; sesja treningu żyje w DB (status `in_progress`), szkice serii i timer w localStorage.
-- Decyzje: brak biblioteki wykresów (własne SVG, mniej zależności); brak routera (5 zakładek); Playwright użyty spoza projektu (headless Chrome) zamiast zależności dev.
+- Decyzje: brak biblioteki wykresów (własne SVG); brak routera (5 zakładek); jeden bundel bez lazy loadingu (pomiar 0.6: zakładki ~30 ms, start 0,2 s / 0,6–0,8 s przy CPU 4×; lazy loading dałby szacunkowo <60 ms przy 4×, więc nie wdrożony); E2E w Pythonie + Playwright w `e2e/` bez zależności npm.
 - Ograniczenia iOS: push w PWA tylko po instalacji na ekranie głównym i z serwerem (VAPID): poza MVP. HealthKit niedostępny z web; w przyszłości natywny wrapper lub import pliku.
 
 v0.5 (ETAP 2):

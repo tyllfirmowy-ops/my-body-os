@@ -1,8 +1,10 @@
 # Stan projektu (2026-11-22)
 
-Wersja 0.6.0 (ETAP 3 w toku: 3A–3E zrobione). Hosting: https://statuesque-sorbet-8dafde.netlify.app (Netlify, auto-deploy z GitHub main). Zainstalowana na iPhonie jako aplikacja www.
-195 testów zielonych, typecheck czysty, build OK. E2E w headless Chrome: onboarding, check-iny, dziennik, trening z odświeżeniem, zamiana ćwiczenia (zapis serii, odświeżenie, powrót), karta ćwiczenia, backup/restore, sync, kalkulator.
+Wersja 0.6.0: ETAP 3 zakończony (3A–3F). Hosting: https://statuesque-sorbet-8dafde.netlify.app (Netlify, auto-deploy z GitHub main). Zainstalowana na iPhonie jako aplikacja z ekranu głównego.
 
-Animacje: 3 wzorce referencyjne sprawdzone z opisami techniki, 10 schematycznych; widok 2D z boku (nie pokaże koślawienia kolan ani ustawienia łokci w płaszczyźnie czołowej). Alternatywy bez animacji (link do wideo).
-Otwarte: test na fizycznym iPhonie (płynność animacji, suwak, zamiana ćwiczenia, skaner, Skrót iOS) · EVIDENCE.md bez pełnych linków · galeria zdjęć sylwetki · push w PWA.
-Następne: ETAP 3 (OFF cache, edytory jadłospisu i treningów, feedback coacha, kontrola kopii, lazy loading po pomiarze).
+Weryfikacja: 195 testów Vitest, typecheck czysty, build OK, E2E `npm run e2e` 6/6 PASS (karta i zamiana ćwiczenia, kopia zapasowa, przepisy i szablony, warianty planu, feedback coacha, wyszukiwanie i offline). Pomiary `npm run perf` (Chrome, widok iPhone): start 0,2 s (CPU 1×) / 0,6–0,8 s (4×), zakładki 26–75 ms, wyszukiwarka ~30 ms na znak, animacja 60 fps.
+Baza: Dexie v4. Kopie starsze (v1, schemat 1–3) wczytują się; tabele nieobecne w kopii nie są czyszczone.
+
+Ograniczenia: animacje 2D z boku (3 wzorce referencyjne sprawdzone z opisami techniki, 10 schematycznych, alternatywy bez animacji); PWA nie robi kopii w tle i nie wie, czy plik trafił do iCloud (stąd ręczne potwierdzenie); wyniki OFF to dane społeczności (walidacja wychwytuje tylko niespójności).
+Do sprawdzenia na iPhonie: arkusz „Zapisz w Plikach”, wynik `persist()`, animacja i suwak, edytory na małym ekranie, skaner, Skrót iOS.
+Następne: decyzja o ETAPIE 4 (patrz ROADMAP.md).

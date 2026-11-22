@@ -1,5 +1,11 @@
 # Changelog
-## 0.6.0 — 2026-11-22 (ETAP 3, w toku)
+## 0.6.0 — 2026-11-22 (ETAP 3)
+### 3F Wydajność i porządki
+- Pomiary (Chrome, widok iPhone, build produkcyjny): bundel JS 711 kB (221 kB gzip): react-dom 29,5%, Dexie 14%, Zod 13%, kod aplikacji ~43%. Start 0,2 s (CPU 1×) / 0,6–0,8 s (CPU 4×); przejścia zakładek 26–75 ms; reakcja wyszukiwarki ~30 ms; animacja 60 fps bez klatek > 33 ms.
+- Decyzja: bez lazy loadingu. Rzadziej używane ekrany to ~12% kodu, szacowany zysk < 60 ms przy CPU 4×, a dochodzi dociąganie fragmentów i ryzyko w trybie offline.
+- E2E w repozytorium: `e2e/` (Python + Playwright, bez zależności npm), `npm run e2e` (6 scenariuszy z asercjami) i `npm run perf`.
+- Zaktualizowane ROADMAP.md, ARCHITECTURE.md, PROJECT_STATE.md.
+
 ### 3E Open Food Facts i wyszukiwanie
 - `domain/foodSearch.ts`: ranking lokalny (dopasowanie słów bez polskich znaków, początek nazwy, ulubione, częstość i świeżość użycia; dania szacunkowe i produkty z niepełnym makro niżej). Naprawia „kurczak” → kotlet panierowany i „ryż” → białko roślinne.
 - Deduplikacja wyników online: pomija produkty już zapisane (kod lub id) i powtórzenia (kod, potem nazwa).
