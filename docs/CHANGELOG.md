@@ -9,6 +9,16 @@
 - EVIDENCE.md: ACSM 2026 (PMID 41843416), WHO 2021, Bruggisser 2023 (pora treningu), heurystyki planowania.
 - Testy: tests/w2b.test.ts (12), E2E `training_availability`.
 
+### Audyt W2 przed scaleniem
+- Ból ≥ 4/10 wpisany w trakcie ćwiczenia: trwałe ostrzeżenie z „Pomiń ćwiczenie” / „Zamień ćwiczenie” na karcie ćwiczenia (wcześniej tylko znikający toast). Przetrwa restart.
+- Ból i zapas w niezapisanej serii trafiają do szkicu (przetrwają restart, zmianę ćwiczenia); w zapisanej serii zapisują się od razu, bez „Popraw serię”.
+- Seria 2 przejmuje ciężar z serii 1, dopóki nie była ruszana (wcześniej przy pierwszym treningu zostawało 0).
+- Arkusze (`Sheet`) renderowane przez portal: „Instrukcja” otwarta w trakcie przerwy nie jest już przycięta do karty ani zasłonięta licznikiem przerwy.
+- Jednostki: uzasadnienia progresji, „Ostatnio” i wyniki w karcie ćwiczenia w wybranej jednostce (lb nie pokazuje już kg).
+- Skok liczony do najbliższego punktu siatki powyżej obecnego ciężaru, procent z faktycznego skoku (ciężar spoza siatki, np. po zmianie jednostki, nie daje skoku > 1 kroku ani zaniżonego procentu).
+- Domyślne powtórzenia: przy progresji powtórzeniami po dużym skoku do repMax + 3; po świadomym wyborze innego ciężaru od dolnej granicy zakresu.
+- Testy: tests/w2audit.test.ts (9), E2E e2e/audit.py: scenariusze A–I z ponownym uruchomieniem aplikacji.
+
 ### Przegląd przed scaleniem
 - Ból ≥ 4/10 w ostatnim treningu: nowa akcja `pain`: bez automatycznej zmiany ciężaru (wcześniej −10%), ostrzeżenie i przyciski „Pomiń ćwiczenie” / „Zamień ćwiczenie” (istniejące funkcje). Blokady kolana bez zmian, nadal pierwsze.
 - Skok > 10% (np. 16 → 18 kg): domyślnie ten sam ciężar i powtórzenia do repMax + 3 (maks. 20); `Suggestion.alternativeKg` + przycisk „Świadomie wybieram X”; zwiększenie domyślne dopiero po 2 treningach na górnej granicy. Procent skoku liczony ze skoku, nie z zaokrąglonej wartości (naprawia fałszywe „>10%” przy lb).

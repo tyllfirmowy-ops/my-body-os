@@ -28,6 +28,8 @@ export interface ProgressInput {
   noIncrease?: string;
   /** brak wpisanego bólu nie potwierdza bezpieczeństwa: zwiększenie tylko, gdy ból zaznaczono w ostatnim treningu */
   requirePainRecord?: boolean;
+  /** jednostka do tekstów uzasadnień (obliczenia zawsze w kg) */
+  unit?: WeightUnit;
 }
 
 export const GAP = { hold: 14, minus10: 28, minus15: 56 } as const;
@@ -55,7 +57,6 @@ function workingWeight(sets: SetResult[]): number {
 }
 const done = (s: SessionResult | undefined) => (s?.sets ?? []).filter((x) => x.done);
 const atTop = (sets: SetResult[], w: number, p: ProgressInput) => sets.length >= p.plannedSets && sets.every((s) => s.weightKg === w && s.reps >= p.repMax);
-const fmt = (kg: number) => `${String(Math.round(kg * 100) / 100).replace('.', ',')} kg`;
 
 /**
  * Podwójna progresja (double progression) z zabezpieczeniami.
@@ -65,12 +66,15 @@ const fmt = (kg: number) => `${String(Math.round(kg * 100) / 100).replace('.', '
  */
 export function suggestProgression(p: ProgressInput): Suggestion {
   const range = `${p.repMin}–${p.repMax}`;
+  const u = p.unit ?? 'kg';
+  const fmt = (kg: number) => fmtWeight(kg, u);
+  const num = (kg: number) => String(toDisplay(kg, u)).replace('.', ',');
   if (p.safetyBlock) return { action: 'skip', weightKg: null, targetReps: range, reason: 'Aktywna blokada bezpieczeństwa. Pomiń to ćwiczenie dziś.' };
   if (p.kneeNoLoad) return { action: 'hold', weightKg: 0, targetReps: range, reason: 'Bez obciążenia do czasu oceny kolana przez specjalistę.' };
   const s0 = done(p.history[0]);
   if (!s0.length) return { action: 'no_data', weightKg: null, targetReps: range, reason: `Start: pierwsza seria lekko na rozgrzewkę, potem ciężar, przy którym po ${p.repMin}–${p.repMax} powtórzeniach zostają ok. 2–3 w zapasie. Zapiszę go jako punkt wyjścia.` };
   const w = workingWeight(s0);
-  const basis: string[] = [`Ostatnio (${p.history[0].date}): ${s0.map((s) => `${String(s.weightKg).replace('.', ',')}×${s.reps}`).join(', ')}`];
+  const basis: string[] = [`Ostatnio (${p.history[0].date}): ${s0.map((s) => `${num(s.weightKg)}×${s.reps}`).join(', ')}`];
   const res = (action: ProgressAction, weightKg: number | null, targetReps: string, reason: string): Suggestion => ({ action, weightKg, targetReps, reason, basis });
 
   // ból
@@ -103,8 +107,10 @@ export function suggestProgression(p: ProgressInput): Suggestion {
     const clearReserve = s0.every((s) => s.rir !== undefined && s.rir >= 2);
     if (!twice && !clearReserve) return res('hold', w, range, `Pierwszy raz górny zakres (${p.repMax}). Powtórz; przy kolejnym takim wyniku zaproponuję więcej.`);
     if (!p.step) return res('reps', null, `${p.repMax}+`, 'Górny zakres bez obciążenia: dodaj serię albo wybierz trudniejszy wariant.');
-    const next = roundToStep(w + p.step, p.step);
-    const pct = w > 0 ? p.step / w : 0; // procent ze skoku, nie z zaokrąglonej wartości
+    // najbliższy punkt siatki skoku powyżej obecnego ciężaru (ciężar spoza siatki, np. po zmianie jednostki, nie daje skoku > 1 kroku)
+    const nextRaw = (Math.floor(w / p.step + 1e-9) + 1) * p.step;
+    const next = Math.round(nextRaw * 100) / 100;
+    const pct = w > 0 ? (nextRaw - w) / w : 0; // faktyczny skok, liczony przed zaokrągleniem do wyświetlania
     basis.push(twice ? 'Górny zakres w 2 kolejnych treningach' : 'Górny zakres z zapasem RIR ≥ 2 w każdej serii');
     if (pct > MAX_JUMP + 1e-6) {
       // skok > 10%: domyślnie ten sam ciężar i więcej powtórzeń (do repMax + 3), większy ciężar tylko świadomie

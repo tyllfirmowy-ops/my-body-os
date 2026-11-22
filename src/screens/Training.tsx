@@ -11,7 +11,7 @@ import { rigFor } from '../data/rigs';
 import { RigPlayer } from '../ui/RigView';
 import { addDays, formatPl, range } from '../domain/dates';
 import { weekSummary } from '../domain/schedule';
-import { DEFAULT_STEPS, fmtWeight, fromDisplay, loadStepKg, plannedSetsFor, suggestProgression, toDisplay, type LoadEquip, type Suggestion, type WeightUnit } from '../domain/progression';
+import { DEFAULT_STEPS, fmtWeight, fromDisplay, loadStepKg, plannedSetsFor, repCap, suggestProgression, toDisplay, type LoadEquip, type Suggestion, type WeightUnit } from '../domain/progression';
 import type { ProgressDecision, WorkoutSession, WorkoutSet } from '../domain/types';
 import type { AppData, Derived } from '../db/repo';
 import { Badge, Btn, Card, cx, Field, inputCls, NumInput, Scale, Sheet, Stepper, Title, toast } from '../ui/kit';
@@ -112,7 +112,7 @@ export function Training({ data, d }: ScreenProps) {
 
 export function ExerciseSheet({ e, onClose, data, d, onOpen }: { e: ExerciseCard; onClose: () => void; data?: AppData; d?: Derived; onOpen?: (e: ExerciseCard) => void }) {
   const rig = rigFor(e.id);
-  const recent = data ? recentResults(data, e.id, 3) : [];
+  const recent = data ? recentResults(data, e.id, 3, unitOf(data)) : [];
   const kneeTxt = { none: 'Nie obciąża kolana.', low: 'Niewielkie obciążenie kolana.', moderate: 'Obciąża kolano: ostrożnie, do czasu oceny specjalisty bez dodatkowego ciężaru.' }[e.knee];
   const todayKnee = d && e.knee !== 'none' && (d.safety.level === 'stop_legs' || (d.safety.level === 'caution_legs' && e.knee === 'moderate'));
   const video = <a href={`https://www.youtube.com/results?search_query=${encodeURIComponent(e.nameEn + ' proper form')}`} target="_blank" rel="noreferrer" className="block text-center min-h-11 leading-[2.75rem] rounded-xl bg-card2 text-sm text-accent">Zobacz wideo (YouTube)</a>;
@@ -137,12 +137,12 @@ export function ExerciseSheet({ e, onClose, data, d, onOpen }: { e: ExerciseCard
     </Sheet>
   );
 }
-function recentResults(data: AppData, exerciseId: string, n: number) {
+function recentResults(data: AppData, exerciseId: string, n: number, unit: WeightUnit) {
   const done = data.sessions.filter((s) => s.status === 'completed').sort((a, b) => b.date.localeCompare(a.date));
   const out: { date: string; text: string }[] = [];
   for (const s of done) {
     const sets = data.sets.filter((x) => x.sessionId === s.id && x.exerciseId === exerciseId && x.done).sort((a, b) => a.setIndex - b.setIndex);
-    if (sets.length) out.push({ date: s.date, text: sets.map((x) => `${x.weightKg}×${x.reps}`).join(', ') });
+    if (sets.length) out.push({ date: s.date, text: `${sets.map((x) => `${String(toDisplay(x.weightKg, unit)).replace('.', ',')}×${x.reps}`).join(', ')} (${unit})` });
     if (out.length >= n) break;
   }
   return out;
@@ -160,7 +160,7 @@ function progressFor(data: AppData, d: Derived, ex: ExerciseCard, te: { sets: nu
   return suggestProgression({
     history: historyFor(data.sessions, data.sets, ex.id, excludeSession), today: d.today, plannedSets, repMin: te.repMin, repMax: te.repMax,
     step: loadStepKg(ex, unitOf(data), data.settings?.loadSteps), safetyBlock: kneeBlock,
-    kneeNoLoad: ex.knee === 'moderate' && !data.health?.kneeCleared && !kneeBlock, noIncrease, requirePainRecord: ex.knee !== 'none' && !data.health?.kneeCleared,
+    kneeNoLoad: ex.knee === 'moderate' && !data.health?.kneeCleared && !kneeBlock, noIncrease, requirePainRecord: ex.knee !== 'none' && !data.health?.kneeCleared, unit: unitOf(data),
   });
 }
 const ARROW: Record<Suggestion['action'], string> = { increase: '↑', decrease: '↓', reps: '+1 powt.', hold: '=', skip: 'pomiń', no_data: 'start', pain: '! ból' };
@@ -192,6 +192,8 @@ function SessionView({ data, d, s, onExit }: { data: AppData; d: Derived; s: Wor
   /** ciężar domyślny serii: decyzja użytkownika; bez decyzji przy zmianie ciężaru = ostatni ciężar (nic nie zmienia się samo) */
   const plannedKg = dec ? dec.chosenKg : needsDecision ? (lastW ?? null) : sug.weightKg ?? lastW ?? null;
   const [customKg, setCustomKg] = useState<number | null>(null);
+  /** ból ≥ 4 zapisany w TEJ sesji przy tym ćwiczeniu: ostrzeżenie zostaje na ekranie (nie tylko toast) */
+  const painNow = Math.max(0, ...done.filter((x) => x.exerciseId === exId && x.done).map((x) => x.pain ?? 0));
   async function decide(decision: ProgressDecision['decision'], chosenKg: number | null) {
     for (let i = 0; i < 10; i++) localStorage.removeItem(`ws-draft-${s.id}-${exId}-${i}`);
     const rec: ProgressDecision = { action: sug.action, suggestedKg: sug.weightKg, targetReps: sug.targetReps, reason: sug.reason, decision, chosenKg, at: now() };
@@ -244,10 +246,17 @@ function SessionView({ data, d, s, onExit }: { data: AppData; d: Derived; s: Wor
         {swapped && <button onClick={() => doSwap(slot)} className="mt-2 flex items-center gap-1 text-xs text-accent"><Undo2 size={14} /> Wróć do: {exerciseById(slot).namePl}</button>}
         {earlierInSlot.length > 0 && <p className="mt-2 text-xs text-muted">Wcześniej w tym miejscu: {exerciseById(earlierInSlot[0].exerciseId).namePl}, {earlierInSlot.length} seria(e) zapisane.</p>}
         {kneeBlock ? <p className="mt-3 rounded-xl bg-danger/10 p-3 text-sm text-danger">Blokada bezpieczeństwa: pomiń to ćwiczenie dziś (kolano).</p>
+          : painNow >= 4 ? <div role="alert" className="mt-3 rounded-xl bg-warn/10 p-3 text-sm space-y-2">
+            <div><b>Ból {painNow}/10 przy tym ćwiczeniu.</b> Przerwij to ćwiczenie albo wybierz zamiennik. Nie dokładaj ciężaru. Zapisane serie zostają.</div>
+            <div className="grid grid-cols-2 gap-2">
+              <Btn kind="soft" className="text-sm min-h-11" onClick={skip}>Pomiń ćwiczenie</Btn>
+              <Btn kind="soft" className="text-sm min-h-11" onClick={() => setSwapOpen(true)}>Zamień ćwiczenie</Btn>
+            </div>
+          </div>
           : <div className={cx('mt-3 rounded-xl p-3 text-sm space-y-2', sug.action === 'increase' ? 'bg-accent/10' : sug.action === 'decrease' || sug.action === 'pain' ? 'bg-warn/10' : 'bg-card2')}>
             <div><b>{sug.weightKg !== null ? fmtWeight(sug.weightKg, unit) : 'Dobierz ciężar'}</b> · {sug.targetReps} powt.{ex.perSide ? ' na stronę' : ''}</div>
             <div className="text-xs">{sug.reason}</div>
-            {prev && <div className="text-xs text-muted">Ostatnio ({formatPl(prev.session.date)}): {prev.sets.map((x) => `${toDisplay(x.weightKg, unit)}×${x.reps}`).join(', ')}</div>}
+            {prev && <div className="text-xs text-muted">Ostatnio ({formatPl(prev.session.date)}): {prev.sets.map((x) => `${String(toDisplay(x.weightKg, unit)).replace('.', ',')}×${x.reps}`).join(', ')} {unit}</div>}
             {dec ? <div className="text-xs flex items-center justify-between gap-2"><span>Decyzja: <b>{dec.decision === 'accepted' ? 'przyjęta' : dec.decision === 'rejected' ? 'zostaję przy ciężarze' : 'mój ciężar'}</b>{dec.chosenKg !== null ? ` · ${fmtWeight(dec.chosenKg, unit)}` : ''}</span>
                 <button className="text-accent underline" onClick={async () => { const p = { ...(s.progress ?? {}) }; delete p[exId]; await db.sessions.update(s.id, { progress: p, updatedAt: now() }); }}>zmień</button></div>
               : needsDecision ? <div className="space-y-2">
@@ -271,7 +280,7 @@ function SessionView({ data, d, s, onExit }: { data: AppData; d: Derived; s: Wor
       </Card>
       {Array.from({ length: Math.max(planned, doneCount(exId)) }, (_, i) => (
         <SetRow key={`${exId}-${i}-${plannedKg ?? 'x'}`} s={s} te={te} ex={ex} slot={slot} index={i} existing={done.find((x) => x.exerciseId === exId && x.setIndex === i)} unit={unit} stepKg={loadStepKg(ex, unit, data.settings?.loadSteps)}
-          defaultWeight={done.filter((x) => x.exerciseId === exId).at(-1)?.weightKg ?? plannedKg ?? 0} defaultReps={sug.action === 'reps' ? Math.min(te.repMax, (prev?.sets[i]?.reps ?? te.repMin - 1) + 1) : sug.action === 'hold' ? (prev?.sets[i]?.reps ?? te.repMin) : te.repMin} disabled={kneeBlock} />
+          defaultWeight={done.filter((x) => x.exerciseId === exId).at(-1)?.weightKg ?? plannedKg ?? 0} defaultReps={dec && dec.chosenKg !== null && lastW !== undefined && dec.chosenKg !== lastW ? te.repMin : sug.action === 'reps' ? Math.min(sug.alternativeKg ? repCap(te.repMax) : te.repMax, (prev?.sets[i]?.reps ?? te.repMin - 1) + 1) : sug.action === 'hold' ? (prev?.sets[i]?.reps ?? te.repMin) : te.repMin} disabled={kneeBlock} />
       ))}
       <Card>
         <div className="text-sm mb-2">Technika w tym ćwiczeniu</div>
@@ -324,12 +333,21 @@ function SwapSheet({ slot, current, options, onPick, onClose }: { slot: string; 
 
 function SetRow({ s, te, ex, slot, index, existing, defaultWeight, defaultReps, disabled, unit, stepKg }: { s: WorkoutSession; te: TemplateExercise; ex: ExerciseCard; slot: string; index: number; existing?: WorkoutSet; defaultWeight: number; defaultReps: number; disabled: boolean; unit: WeightUnit; stepKg: number }) {
   const key = `ws-draft-${s.id}-${ex.id}-${index}`;
-  const [w, setW] = useState<number>(() => existing?.weightKg ?? JSON.parse(localStorage.getItem(key) ?? 'null')?.w ?? defaultWeight);
-  const [r, setR] = useState<number>(() => existing?.reps ?? JSON.parse(localStorage.getItem(key) ?? 'null')?.r ?? defaultReps);
-  const [rir, setRir] = useState<number | undefined>(existing?.rir);
-  const [pain, setPain] = useState<number | undefined>(existing?.pain);
-  const [more, setMore] = useState(false);
-  useEffect(() => { if (!existing) localStorage.setItem(key, JSON.stringify({ w, r })); }, [w, r, key, existing]);
+  const draft = existing ? null : JSON.parse(localStorage.getItem(key) ?? 'null');
+  const [w, setWS] = useState<number>(() => existing?.weightKg ?? draft?.w ?? defaultWeight);
+  const [r, setRS] = useState<number>(() => existing?.reps ?? draft?.r ?? defaultReps);
+  /** dopóki seria nie była ruszana, ciężar podąża za poprzednią zapisaną serią (np. seria 2 po wpisaniu serii 1) */
+  const [touched, setTouched] = useState(!!draft);
+  useEffect(() => { if (!existing && !touched) setWS(defaultWeight); }, [defaultWeight, existing, touched]);
+  const setW = (v: number) => { setTouched(true); setWS(v); };
+  const setR = (v: number) => { setTouched(true); setRS(v); };
+  const [rir, setRirS] = useState<number | undefined>(existing ? existing.rir : draft?.rir ?? undefined);
+  const [pain, setPainS] = useState<number | undefined>(existing ? existing.pain : draft?.pain ?? undefined);
+  const [more, setMore] = useState(pain !== undefined);
+  useEffect(() => { if (!existing && touched) localStorage.setItem(key, JSON.stringify({ w, r, rir: rir ?? null, pain: pain ?? null })); }, [w, r, rir, pain, key, existing, touched]);
+  /** w zapisanej serii zapas i ból zapisują się od razu (ból to informacja o bezpieczeństwie, nie może zginąć) */
+  const setRir = (v: number | undefined) => { setTouched(true); setRirS(v); if (existing) void db.sets.update(existing.id, { rir: v, updatedAt: now() }); };
+  const setPain = (v: number | undefined) => { setTouched(true); setPainS(v); if (existing) void db.sets.update(existing.id, { pain: v, updatedAt: now() }); };
   const isDone = !!existing?.done;
   async function save() {
     const t = now();

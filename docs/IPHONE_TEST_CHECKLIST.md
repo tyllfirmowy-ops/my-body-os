@@ -97,6 +97,14 @@ Przygotowanie
 - [ ] „Dostępność”: zmiana 3 → 2 treningi zmienia plan; okno godzin tylko informacyjnie.
 - [ ] Dieta: cel kcal w dniu treningowym zgadza się z planem treningów, także w dni opieki.
 
+## 8e. Test intuicyjności W2 (bez podpowiedzi, gdzie są przyciski)
+Przy każdym zadaniu zapisz: znalazłem bez podpowiedzi (T/N), pomyliłem się (T/N), wiedziałem, co dalej (T/N).
+1. **Zrób pierwszą serię dzisiejszego treningu z ciężarem, który proponuje aplikacja.** Oczekiwane: seria oznaczona „zapisana”, rusza licznik przerwy. Sukces: ≤ 4 dotknięcia od ekranu głównego, bez cofania. Zwróć uwagę: czy wiedziałeś, jaki ciężar wybrać i dlaczego.
+2. **Nie zgódź się z proponowanym ciężarem i zrób serię z poprzednim.** Oczekiwane: decyzja widoczna („zostaję przy ciężarze”), seria zapisana ze starym ciężarem. Sukces: jedna decyzja, bez utraty serii. Zwróć uwagę: czy było jasne, że nic nie zmieniło się samo.
+3. **W trakcie ćwiczenia zgłoś ból 5/10 i przejdź do innego ćwiczenia.** Oczekiwane: ostrzeżenie zostaje na ekranie, zamiana albo pominięcie, wcześniejsza seria zostaje. Sukces: bez szukania > 10 s. Zwróć uwagę: czy ostrzeżenie było zrozumiałe i nie straszyło.
+4. **Dziś nie możesz ćwiczyć. Przesuń trening, a potem cofnij to.** Oczekiwane: dzień oznaczony jako niedostępny, następny termin widoczny; po cofnięciu trening wraca. Sukces: obie czynności bez pomyłki. Zwróć uwagę: czy pasek 14 dni było wiadomo, że można stuknąć.
+5. **Zamknij aplikację w trakcie treningu (przesuń z przełącznika aplikacji), otwórz ponownie i dokończ.** Oczekiwane: „Wznów trening”, zapisane serie i niezapisany ból na miejscu. Sukces: nic do wpisania od nowa. Zwróć uwagę: czy było widać, że wynik jest zapisany.
+
 ## 9. Krótka kontrola z wcześniejszych wersji
 - [ ] Karta ćwiczenia: animacja płynna, pauza, suwak, 0,5×, fazy. Telefon nie grzeje się wyraźnie po 2 minutach odtwarzania.
 - [ ] Zamiana ćwiczenia w trakcie treningu i powrót do ćwiczenia z planu.

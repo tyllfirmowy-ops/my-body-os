@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import { liveQuery } from 'dexie';
 import { useEffect, useState, type ReactNode } from 'react';
 import { X, Minus, Plus } from 'lucide-react';
@@ -51,7 +52,8 @@ export function Sheet({ open, onClose, title, children }: { open: boolean; onClo
     return () => { document.body.style.overflow = o; };
   }, [open]);
   if (!open) return null;
-  return (
+  // portal: arkusz otwarty z wnętrza karty (animacja transform) nie może być przycięty do karty ani schowany pod licznikiem przerwy
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60" onClick={onClose} role="dialog" aria-modal="true" aria-label={title}>
       <div className="w-full sm:max-w-lg max-h-[92dvh] overflow-y-auto rounded-t-3xl sm:rounded-3xl bg-bg border border-line safe-b" onClick={(e) => e.stopPropagation()}>
         <div className="sticky top-0 z-10 flex items-center justify-between bg-bg/95 backdrop-blur px-4 py-3 border-b border-line">
@@ -60,7 +62,8 @@ export function Sheet({ open, onClose, title, children }: { open: boolean; onClo
         </div>
         <div className="p-4 space-y-4">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

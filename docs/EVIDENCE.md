@@ -63,6 +63,12 @@ Zasada: każda reguła zdrowotna i żywieniowa ma źródło albo jest jawnie ozn
 | Ból rzepkowo-udowy / ocena urazu kolana | kliniczne | wytyczne JOSPT/APTA dot. bólu rzepkowo-udowego |
 | Wartości odżywcze produktów | referencyjne | USDA FoodData Central / etykiety (oznaczone w aplikacji) |
 
+## Użyteczność interfejsu
+| Źródło | Data | Wniosek | Ograniczenia | Użycie w aplikacji |
+|---|---|---|---|---|
+| Apple, UI Design Do's and Don'ts / Human Interface Guidelines (developer.apple.com/design/tips) | sprawdzone 2026-11-22 | Elementy dotykowe co najmniej 44 × 44 pt | Wytyczna producenta, nie badanie; minimum, nie optimum | Audyt W2 mierzy przyciski < 44 pt (`e2e/audit.py`, `small_targets`). |
+| WCAG 2.2 SC 2.5.8 | 2023 | Minimum 24 × 24 px albo odpowiedni odstęp (poziom AA) | Próg dostępności, łagodniejszy niż Apple | Dolna granica dla drobnych linków tekstowych. |
+
 ## Reguły projektowe (konserwatywne założenia, nie twierdzenia naukowe)
 - Podłoga 2100 kcal dla tego profilu, kalibracja 14 dni przed pierwszą korektą, korekta −150 kcal, min. 14 dni między zmianami.
 - Makro w analizach tylko przy pokryciu ≥80% kcal dnia (brak danych ≠ 0).
