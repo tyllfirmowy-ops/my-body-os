@@ -2,8 +2,6 @@ import { describe, expect, it } from 'vitest';
 import { dayTargets, ruleWarnings } from '../src/domain/targets';
 import { offToProduct, parseServingGrams } from '../src/domain/off';
 import { addNutrients, scaleNutrients } from '../src/domain/calc';
-import { ANIMS } from '../src/data/poses';
-import { frame } from '../src/ui/ExerciseAnim';
 import { EXTRA_FOODS } from '../src/data/foodsExtra';
 import { SEED_FOODS } from '../src/data/foods';
 import type { PlanVersion } from '../src/domain/types';
@@ -75,16 +73,3 @@ describe('baza produktów', () => {
   });
 });
 
-describe('animacje ćwiczeń', () => {
-  it('każde ćwiczenie z planu ma animację, a pętla zaczyna się od pozycji wyjściowej', () => {
-    for (const id of ['machine_press', 'lat_pulldown', 'db_rdl', 'box_step_up', 'lateral_raise', 'db_curl', 'dead_bug', 'incline_db_press', 'seated_row', 'hip_thrust', 'leg_curl', 'triceps_pushdown', 'pallof_press']) {
-      expect(ANIMS[id]).toBeDefined();
-      expect(frame(ANIMS[id], 0)).toMatchObject({ t: 0, phase: 'start' });
-    }
-  });
-  it('faza wysiłku ma etykietę z wydechem', () => {
-    const f = frame(ANIMS.db_rdl, 1.2); // RDL: najpierw zejście (wdech)
-    expect(f.label).toContain('WDECH');
-    expect(frame(ANIMS.machine_press, 1.5).label).toContain('WYDECH');
-  });
-});

@@ -128,7 +128,10 @@ export interface PlanRules {
 export interface WaterLog { date: LocalDate; ml: number; updatedAt: number }
 
 export interface WorkoutSet {
-  id: string; sessionId: string; exerciseId: string; setIndex: number;
+  id: string; sessionId: string;
+  exerciseId: string;   // faktycznie wykonane ćwiczenie (historia i progresja per ćwiczenie)
+  slot?: string;        // ćwiczenie z planu, w miejscu którego wykonano serię (brak = exerciseId; dane sprzed v0.5)
+  setIndex: number;
   weightKg: number; reps: number; rir?: number; pain?: number; done: boolean;
   createdAt: number; updatedAt: number;
 }
@@ -136,7 +139,8 @@ export interface WorkoutSession extends Meta {
   date: LocalDate;
   templateId: 'A' | 'B';
   status: 'in_progress' | 'completed' | 'abandoned';
-  order: string[];           // kolejność ćwiczeń
+  order: string[];           // kolejność ćwiczeń (sloty planu: id z szablonu A/B)
+  substitutions?: Record<string, string>; // slot → faktycznie wykonywane ćwiczenie (zamiana w trakcie treningu)
   skipped: string[];
   technique: Record<string, 'ok' | 'bad'>;
   painBefore?: number;

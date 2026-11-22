@@ -1,7 +1,8 @@
 # Stan projektu (2026-11-22)
 
-Wersja 0.4.0 (ETAP 1 audytu zakończony). Hosting: https://statuesque-sorbet-8dafde.netlify.app (Netlify, auto-deploy z GitHub main, publiczny dostęp). Zainstalowana na iPhonie jako aplikacja www.
-91 testów zielonych (logika, spójność bazy produktów, migracja Dexie v1→v2 na fake-indexeddb), typecheck czysty, E2E w headless Chrome: onboarding, check-iny, dziennik, trening z odświeżeniem, backup/restore, sync #sync, kalkulator.
+Wersja 0.5.0 (ETAP 2 zakończony). Hosting: https://statuesque-sorbet-8dafde.netlify.app (Netlify, auto-deploy z GitHub main). Zainstalowana na iPhonie jako aplikacja www.
+142 testów zielonych, typecheck czysty, build OK. E2E w headless Chrome: onboarding, check-iny, dziennik, trening z odświeżeniem, zamiana ćwiczenia (zapis serii, odświeżenie, powrót), karta ćwiczenia, backup/restore, sync, kalkulator.
 
-Otwarte: Skrót iOS i skaner kodów nieprzetestowane na fizycznym iPhonie · EVIDENCE.md bez zweryfikowanych linków · galeria zdjęć sylwetki · push w PWA (etap 4).
-Następne: ETAP 2 (instruktaż ćwiczeń: perspektywa, proporcje, fazy, kąty, błędy; zamiana ćwiczenia w trakcie treningu z historią progresji), ETAP 3 (OFF cache, edytory jadłospisu i treningów, feedback coacha, kontrola kopii, lazy loading po pomiarze).
+Animacje: 3 wzorce referencyjne sprawdzone z opisami techniki, 10 schematycznych; widok 2D z boku (nie pokaże koślawienia kolan ani ustawienia łokci w płaszczyźnie czołowej). Alternatywy bez animacji (link do wideo).
+Otwarte: test na fizycznym iPhonie (płynność animacji, suwak, zamiana ćwiczenia, skaner, Skrót iOS) · EVIDENCE.md bez pełnych linków · galeria zdjęć sylwetki · push w PWA.
+Następne: ETAP 3 (OFF cache, edytory jadłospisu i treningów, feedback coacha, kontrola kopii, lazy loading po pomiarze).

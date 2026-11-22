@@ -6,7 +6,7 @@ import { addDays, formatPl } from '../domain/dates';
 import { mean, ageOn } from '../domain/calc';
 import { weeklyStats, weeklyMarkdown, aiContext } from '../domain/report';
 import { findPattern } from '../domain/coaching';
-import { EXERCISES } from '../data/exercises';
+import { ALL_EXERCISES } from '../data/exercises';
 import type { BodyMeasurement } from '../domain/types';
 import { Btn, Card, copyText, cx, download, Field, NumInput, Sheet, Stat, Title, toast, Toggle } from '../ui/kit';
 import { Bars, TrendChart } from '../ui/Chart';
@@ -157,7 +157,7 @@ function MeasureSheet({ onClose, today }: { onClose: () => void; today: string }
 }
 
 function Strength({ data }: { data: ScreenProps['data'] }) {
-  const rows = EXERCISES.map((e) => {
+  const rows = ALL_EXERCISES.map((e) => {
     const sets = data.sets.filter((s) => s.exerciseId === e.id && s.done && data.sessions.find((x) => x.id === s.sessionId)?.status === 'completed');
     const bySession = new Map<string, number>();
     sets.forEach((s) => bySession.set(s.sessionId, Math.max(bySession.get(s.sessionId) ?? 0, s.weightKg * (1 + s.reps / 30))));

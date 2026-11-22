@@ -1,4 +1,13 @@
 # Changelog
+## 0.5.0 — 2026-11-22 (ETAP 2: instruktaż treningowy i zamiana ćwiczeń)
+- Nowy silnik animacji `domain/rig.ts`: szkielet 2D ze stałymi długościami segmentów, kinematyka prosta od biodra i odwrotna (2 kości) dla kończyn, klatki kluczowe z fazami (start / ekscentryczna / dół / koncentryczna / góra), oddech i opis w każdej fazie, płynne przejścia.
+- `data/rigs.ts`: wzorce 13 ćwiczeń FBW A/B. Trzy referencyjne (RDL z hantlami, siad na wysoką ławkę, wyciskanie hantli na skosie) sprawdzone z opisami techniki z materiałów szkoleniowych (NASM, NSCA/Human Kinetics, EliteFTS, uczelniane programy S&C). Pozostałe schematyczne.
+- `ui/RigView.tsx`: odtwarzanie/pauza, suwak, 0,5×/1×, przełączanie faz, podświetlenie mięśni, tor ruchu, błąd techniki pokazany na czerwono, kąt kolana (siad) i ławki tylko tam, gdzie to uzasadnione, z „~”.
+- Karta ćwiczenia: animacja, ustawienie sprzętu, pozycja wyjściowa, wykonanie krok po kroku, oddech, 3 najczęstsze błędy, ostrzeżenia zdrowotne z dzisiejszą blokadą kolana, alternatywy, ostatnie wyniki.
+- Zamiana ćwiczenia w trakcie treningu (`domain/workout.ts`): ta sama grupa mięśni, filtr sprzętu, blokady kolana z `safety`, serie i przerwy z planu zostają, nowe serie zapisane pod faktycznym ćwiczeniem, osobna historia progresji, powrót do ćwiczenia z planu, zamiana przetrwa odświeżenie. 12 nowych ćwiczeń alternatywnych (bez animacji, link do wideo).
+- `box_step_up` zachowuje id, nazwa wyświetlana: „Siad na wysoką ławkę i wstawanie”.
+- Usunięte stare animacje (`ExerciseAnim.tsx`, `poses.ts`).
+
 ## 0.4.0 — 2026-11-22 (ETAP 1: logika żywienia i redukcji)
 - observedTdee: tylko dni kompletne (potwierdzone „wpisałem wszystko” lub prawdopodobne), trend wagi z regresji, wiarygodność high/medium/low/insufficient z zakresem błędu; do planu tylko ≥ medium.
 - Coaching, adaptacja i raporty porównują spożycie z historycznym celem dnia (planOn + dayTargets), nie ze średnim planem.
