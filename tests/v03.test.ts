@@ -20,8 +20,14 @@ describe('dni treningowe / nietreningowe', () => {
     expect(tr.proteinG).toBe(165); expect(rest.proteinG).toBe(165);
     expect(tr.carbsG - rest.carbsG).toBe(70);
   });
-  it('insulinooporność: limit % węglowodanów, nadwyżka do tłuszczu, białko bez zmian', () => {
-    const p = { ...plan, cycling: { enabled: true, trainingExtraKcal: 200 }, rules: { insulinResistance: { enabled: true, carbMaxPct: 40, sugarMaxPct: 10, fiberMin: 32, carbsPerMealMaxG: 80 } } };
+  it('insulinooporność domyślnie: tylko ostrzeżenia, plan bez zmian', () => {
+    const p = { ...plan, rules: { insulinResistance: { enabled: true, carbMaxPct: 40, sugarMaxPct: 10, fiberMin: 32, carbsPerMealMaxG: 80 } } };
+    const t = dayTargets(p, false);
+    expect(t.carbsG).toBe(267); expect(t.fatG).toBe(80); expect(t.carbMaxG).toBe(245);
+    expect(t.notes.join(' ')).toContain('Plan bez zmian');
+  });
+  it('insulinooporność z opcją indywidualną: nadwyżka do tłuszczu, białko bez zmian', () => {
+    const p = { ...plan, cycling: { enabled: true, trainingExtraKcal: 200 }, rules: { insulinResistance: { enabled: true, carbMaxPct: 40, sugarMaxPct: 10, fiberMin: 32, carbsPerMealMaxG: 80, shiftExcessToFat: true } } };
     const t = dayTargets(p, true);
     expect(t.carbsG * 4).toBeLessThanOrEqual(t.kcal * 0.4);
     expect(t.proteinG).toBe(165); expect(t.fiberG).toBe(32); expect(t.sugarMaxG).toBe(66);

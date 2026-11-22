@@ -73,6 +73,7 @@ export interface EveningCheckIn {
   workoutMissReason?: MissReason;
   planMissReason?: string;
   dietAdherence?: 'yes' | 'partial' | 'no';
+  foodLogComplete?: boolean; // użytkownik potwierdza: wpisałem wszystko, co zjadłem
   sweetsInPlan?: boolean;
   activeKcal?: number;       // z zegarka/Zdrowia: tylko informacyjnie, nie dodawane do diety
   restingHr?: number;
@@ -109,16 +110,18 @@ export interface FoodProduct {
   updatedAt: number;
 }
 
+export type MacroKey = 'protein' | 'fat' | 'carbs' | 'fiber';
 export interface FoodEntry extends Meta {
   date: LocalDate;
   meal: number;              // 1–4 (+5 przekąska)
   productId: string;
   grams: number;
   snapshot: Nutrients & { name: string }; // wartości zapisane w momencie wpisu (historia nie zmienia się po edycji produktu)
+  unknown?: MacroKey[];      // makro nieznane (np. szybki wpis kcal): w snapshot = 0, ale NIE jest to zero
 }
 
 export interface PlanRules {
-  insulinResistance?: { enabled: boolean; carbMaxPct: number; sugarMaxPct: number; fiberMin: number; carbsPerMealMaxG: number };
+  insulinResistance?: { enabled: boolean; carbMaxPct: number; sugarMaxPct: number; fiberMin: number; carbsPerMealMaxG: number; shiftExcessToFat?: boolean };
   dairyFree?: { enabled: boolean };
 }
 

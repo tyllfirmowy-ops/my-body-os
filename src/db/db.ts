@@ -33,6 +33,8 @@ export class BodyDB extends Dexie {
       sessions: 'id, date, status', sets: 'id, sessionId, exerciseId, [sessionId+exerciseId]',
       custody: 'id', overrides: 'date', symptoms: 'id, date', labs: 'id, date', feedback: 'id, date', settings: 'id',
     });
+    // v2: szybkie wpisy kcal miały makro zapisane jako 0. Oznaczamy je jako nieznane (dane zostają, zmienia się interpretacja).
+    this.version(2).stores({}).upgrade((tx) => tx.table('entries').toCollection().modify(migrateEntryV2));
   }
 }
 
@@ -42,3 +44,11 @@ export type TableName = (typeof TABLES)[number];
 
 export const uid = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`);
 export const now = () => Date.now();
+
+/** Migracja v2 (czysta funkcja, testowana): wpis bez produktu („quick”) → makro z zerem = nieznane. */
+export function migrateEntryV2(e: { productId: string; unknown?: string[]; snapshot: { protein: number; fat: number; carbs: number; fiber: number } }) {
+  if (e.productId !== 'quick' || e.unknown) return;
+  const u = (['fat', 'carbs', 'fiber'] as const).filter((k) => e.snapshot[k] === 0) as string[];
+  if (e.snapshot.protein === 0) u.unshift('protein');
+  e.unknown = u;
+}

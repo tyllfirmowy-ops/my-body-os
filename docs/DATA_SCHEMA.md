@@ -6,3 +6,4 @@ Pola opcjonalne = brak danych (nigdy 0 zastępczo). Waga dzienna = check-in, w r
 Encje ze specyfikacji jeszcze nieobecne jako tabele: ProgressPhoto, Recipe, MealPlan, ShoppingList (liczona w locie), CardioSession (pole cardioMin w sesji), SupplementLog, WeeklyReview (liczony w locie), NotificationPreferences, BackupMetadata (pole w settings).
 
 v0.3: Nutrients ma opcjonalne sugar/satFat/salt; FoodProduct: barcode, brand, ingredients; PlanVersion: cycling, rules (insulinResistance, dairyFree). Bez zmiany schematu Dexie (pola nieindeksowane).
+v0.4: Dexie version(2) – upgrade oznacza stare szybkie wpisy (productId 'quick') polem unknown; FoodEntry.unknown?: MacroKey[]; EveningCheckIn.foodLogComplete?; PlanRules.insulinResistance.shiftExcessToFat?. Import kopii stosuje migrateEntryV2.

@@ -7,7 +7,7 @@ export interface WeeklyStats {
   from: LocalDate; to: LocalDate;
   weightAvg: number | null; weightN: number; weightPrevAvg: number | null; weightChange: number | null;
   trend14: number | null; trend28: number | null; waistChange: number | null;
-  kcalAvg: number | null; proteinAvg: number | null; intakeDays: number;
+  kcalAvg: number | null; kcalTargetAvg: number | null; proteinAvg: number | null; intakeDays: number; completeIntakeDays: number;
   stepsAvg: number | null; workoutsDone: number; workoutsPlanned: number;
   sleepAvgH: number | null; sleepQ: number | null; stressAvg: number | null; energyAvg: number | null;
   digestiveDays: number; kneeMax: number | null; completeDays: number;
@@ -31,6 +31,8 @@ export function weeklyStats(days: DaySnapshot[], weights: DatedValue[], waists: 
     waistChange: wNow && wPrev ? round(wNow.value - wPrev.value, 1) : null,
     kcalAvg: round(mean(wk.map((d) => d.kcal)).value, 0), proteinAvg: round(mean(wk.map((d) => d.protein)).value, 0),
     intakeDays: wk.filter((d) => d.kcal !== undefined).length,
+    completeIntakeDays: wk.filter((d) => d.completeness === 'confirmed' || d.completeness === 'probable').length,
+    kcalTargetAvg: round(mean(wk.filter((d) => d.kcal !== undefined).map((d) => d.target)).value, 0),
     stepsAvg: round(mean(wk.map((d) => d.evening?.steps)).value, 0),
     workoutsDone: wk.filter((d) => d.workoutDone).length, workoutsPlanned: wk.filter((d) => d.workoutPlanned || d.workoutDone).length,
     sleepAvgH: sleep !== null ? round(sleep / 60, 1) : null, sleepQ: round(mean(wk.map((d) => d.morning?.sleepQuality)).value, 1),
@@ -87,7 +89,7 @@ export function weeklyMarkdown(s: WeeklyStats, adapt: AdaptResult, recs: Recomme
     `- Średnia masa (ostatnie 7 dni): ${f(s.weightAvg, ' kg')} (${s.weightN} ważeń), zmiana tyg.: ${signed(s.weightChange, ' kg')}`,
     `- Trend 14 dni: ${signed(s.trend14, ' kg')}, 28 dni: ${signed(s.trend28, ' kg')}`,
     `- Talia: ${s.waistChange === null ? 'brak danych' : signed(s.waistChange, ' cm')}`,
-    `- Kalorie: ${f(s.kcalAvg, ' kcal')} (cel ${kcalTarget}), białko: ${f(s.proteinAvg, ' g')}, kroki: ${f(s.stepsAvg)}`,
+    `- Kalorie: ${f(s.kcalAvg, ' kcal')} (cel tych dni ${s.kcalTargetAvg ?? kcalTarget}; kompletne dni ${s.completeIntakeDays}/${s.intakeDays}), białko: ${f(s.proteinAvg, ' g')}, kroki: ${f(s.stepsAvg)}`,
     `- Treningi: ${s.workoutsDone}/${s.workoutsPlanned} zaplanowanych`,
     `- Sen: ${f(s.sleepAvgH, ' h')}, jakość ${f(s.sleepQ, '/5')}, stres ${f(s.stressAvg, '/10')}, energia ${f(s.energyAvg, '/5')}`,
     `- Objawy trawienne: ${s.digestiveDays} dni, kolano maks.: ${f(s.kneeMax, '/10')}`, '',

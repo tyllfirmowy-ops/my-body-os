@@ -2,9 +2,10 @@ import { useState } from 'react';
 import { db, now, uid } from '../db/db';
 import type { AppData, Derived } from '../db/repo';
 import { mean, ageOn, bmrMifflin } from '../domain/calc';
-import { addDays } from '../domain/dates';
+import { validatePlanEdit, fillCarbs } from '../domain/planEdit';
+import { addDays, diffDays } from '../domain/dates';
 import { estimateTdee, JOB_LABEL, observedTdee, planFromTdee, type ActivityProfile, type Pace } from '../domain/energy';
-import { Btn, copyText, cx, Field, NumInput, Sheet, toast, Toggle } from '../ui/kit';
+import { Btn, copyText, cx, Field, inputCls, NumInput, Sheet, toast, Toggle } from '../ui/kit';
 import { dayTargets, DEFAULT_CYCLING, DEFAULT_RULES } from '../domain/targets';
 
 export function defaultActivity(data: AppData, d: Derived): ActivityProfile {
@@ -39,9 +40,9 @@ export function EnergySheet({ data, d, onClose }: { data: AppData; d: Derived; o
   const bmr = bmrMifflin({ weightKg: weight, heightCm: p.heightCm, age: ageOn(p, d.today), sex: p.sex });
   const est = estimateTdee(bmr, weight, p.heightCm, a);
   const goal = p.goals[0]?.kg ?? weight - 10;
-  const intake = d.snaps.filter((s) => s.kcal !== undefined && (s.meals ?? 0) >= 3).map((s) => ({ date: s.date, kcal: s.kcal! }));
+  const intake = d.snaps.filter((s) => s.kcal !== undefined).map((s) => ({ date: s.date, kcal: s.kcal!, completeness: s.completeness ?? 'incomplete' }));
   const obs = observedTdee(d.weights, intake, addDays(d.today, -1));
-  const base = obs.tdee ?? est.tdee;
+  const base = obs.usableForPlan && obs.tdee ? obs.tdee : est.tdee;
   const plan = planFromTdee(base, goal, pace);
   const cur = d.plan!;
 
@@ -49,7 +50,7 @@ export function EnergySheet({ data, d, onClose }: { data: AppData; d: Derived; o
   async function apply() {
     await db.profile.update('me', { activity: a, updatedAt: now() });
     await db.plans.add({ ...cur, id: uid(), createdAt: now(), updatedAt: now(), validFrom: d.today, kcal: plan.kcal, proteinG: plan.proteinG, fatG: plan.fatG, carbsG: plan.carbsG,
-      reason: `Kalkulator: TDEE ${base} kcal (${obs.tdee ? 'z Twoich danych' : 'szacunek z wywiadu'}), deficyt ${Math.round(PACE_PCT[pace] * 100)}%`, approvedByUser: true, source: 'calculated' });
+      reason: `Kalkulator: TDEE ${base} kcal (${obs.usableForPlan ? `z Twoich danych, wiarygodność ${REL[obs.reliability]}` : 'szacunek z wywiadu'}), deficyt ${Math.round(PACE_PCT[pace] * 100)}%`, approvedByUser: true, source: 'calculated' });
     toast(`Nowy plan: ${plan.kcal} kcal`); onClose();
   }
   return (
@@ -62,7 +63,8 @@ export function EnergySheet({ data, d, onClose }: { data: AppData; d: Derived; o
       </div>
       <div className="rounded-xl border border-line p-3 text-sm">
         <div className="font-semibold">Z Twoich danych (ostatnie 28 dni)</div>
-        <div>{obs.tdee ? `${obs.tdee} kcal. ${obs.reason} To dokładniejsze niż wzór, więc plan liczę od tej wartości.` : obs.reason}</div>
+        <div>{obs.tdee ? `${obs.tdee} kcal (zakres ${obs.range![0]}–${obs.range![1]}), wiarygodność: ${REL[obs.reliability]}. ${obs.reason}` : obs.reason}</div>
+        <div className="text-xs text-muted mt-1">{obs.usableForPlan ? 'Propozycja planu liczona od tej wartości.' : 'Propozycja planu liczona ze wzoru. Wynik z danych będzie użyty przy wiarygodności co najmniej średniej: zaznaczaj wieczorem „wpisałem wszystko” i waż się ≥4 razy w tygodniu.'}</div>
       </div>
       <div className="flex gap-2">{(['gentle', 'standard'] as const).map((k) => <button key={k} onClick={() => setPace(k)} className={cx('flex-1 min-h-11 rounded-lg text-sm', pace === k ? 'bg-accent text-accent-ink font-semibold' : 'bg-card2')}>{k === 'gentle' ? 'Łagodnie (−15%)' : 'Standard (−20%)'}</button>)}</div>
       <div className="rounded-xl bg-accent/10 p-3 text-sm">
@@ -76,6 +78,7 @@ export function EnergySheet({ data, d, onClose }: { data: AppData; d: Derived; o
   );
 }
 const PACE_PCT: Record<Pace, number> = { gentle: 0.15, standard: 0.2 };
+const REL = { high: 'wysoka', medium: 'średnia', low: 'niska', insufficient: 'brak' } as const;
 
 export function HealthSyncHelp({ onClose }: { onClose: () => void }) {
   const tpl = 'MBOS1;steps=[Kroki];sleep=[Sen];active=[Energia];rhr=[Tętno];weight=[Waga]';
@@ -131,14 +134,15 @@ export function PlanSettingsSheet({ plan, today, onClose }: { plan: import('../d
       </div>
 
       <div className="rounded-xl border border-line p-3 space-y-2">
-        <Toggle on={ir.enabled} onChange={(v) => setIr({ ...ir, enabled: v })} label="Insulinooporność: reguły posiłków" />
+        <Toggle on={ir.enabled} onChange={(v) => setIr({ ...ir, enabled: v })} label="Insulinooporność: ostrzeżenia dla posiłków" />
         {ir.enabled && <div className="grid grid-cols-2 gap-2">
-          <Field label="Węglowodany max % kcal"><NumInput value={ir.carbMaxPct} onChange={(v) => setIr({ ...ir, carbMaxPct: Math.max(30, Math.min(60, v ?? 45)) })} /></Field>
+          <Field label="Próg węgli (% kcal)"><NumInput value={ir.carbMaxPct} onChange={(v) => setIr({ ...ir, carbMaxPct: Math.max(30, Math.min(60, v ?? 45)) })} /></Field>
           <Field label="Cukry max % kcal"><NumInput value={ir.sugarMaxPct} onChange={(v) => setIr({ ...ir, sugarMaxPct: Math.max(5, Math.min(20, v ?? 10)) })} /></Field>
           <Field label="Błonnik min (g)"><NumInput value={ir.fiberMin} onChange={(v) => setIr({ ...ir, fiberMin: Math.max(20, Math.min(50, v ?? 30)) })} /></Field>
           <Field label="Węgle na posiłek max (g)"><NumInput value={ir.carbsPerMealMaxG} onChange={(v) => setIr({ ...ir, carbsPerMealMaxG: Math.max(40, Math.min(150, v ?? 80)) })} /></Field>
         </div>}
-        <p className="text-xs text-muted">Bez eliminowania węglowodanów: limit udziału, mniej cukrów, więcej błonnika i rozłożenie węgli na posiłki. Nadwyżka ponad limit przechodzi do tłuszczu, białko bez zmian.</p>
+        {ir.enabled && <Toggle on={!!ir.shiftExcessToFat} onChange={(v) => setIr({ ...ir, shiftExcessToFat: v })} label="Przenoś nadwyżkę węgli ponad próg do tłuszczu (ustawienie indywidualne)" />}
+        <p className="text-xs text-muted">Domyślnie to tylko ostrzeżenia: plan się nie zmienia. Przy insulinooporności liczą się przede wszystkim deficyt, utrata masy, ruch, błonnik i jakość węglowodanów. Zamiana węgli na tłuszcz nie ma przewagi w spadku wagi i nie zastępuje zaleceń lekarza lub dietetyka; włączaj ją tylko, jeśli tak ustalisz ze specjalistą.</p>
       </div>
 
       <div className="rounded-xl border border-line p-3 space-y-2">
@@ -148,6 +152,45 @@ export function PlanSettingsSheet({ plan, today, onClose }: { plan: import('../d
 
       <Field label="Treningi na 14 dni"><NumInput value={per14} onChange={(v) => setPer14(Math.max(0, Math.min(10, v ?? 4)))} /></Field>
       <Btn className="w-full" onClick={save}>Zapisz jako nową wersję planu</Btn>
+    </Sheet>
+  );
+}
+
+export function PlanEditorSheet({ data, d, onClose }: { data: AppData; d: Derived; onClose: () => void }) {
+  const cur = d.plan!;
+  const p = data.profile!;
+  const [f, setF] = useState({ kcal: cur.kcal, proteinG: cur.proteinG, fatG: cur.fatG, carbsG: cur.carbsG, reason: '', specialistApproved: false });
+  const [confirm, setConfirm] = useState(false);
+  const weight = mean(d.weights.filter((w) => w.date > addDays(d.today, -7)).map((w) => w.value)).value ?? d.weights.at(-1)?.value ?? p.declaredWeightKg;
+  const bmr = bmrMifflin({ weightKg: weight, heightCm: p.heightCm, age: ageOn(p, d.today), sex: p.sex });
+  const est = estimateTdee(bmr, weight, p.heightCm, defaultActivity(data, d));
+  const obs = observedTdee(d.weights, d.snaps.filter((s) => s.kcal !== undefined).map((s) => ({ date: s.date, kcal: s.kcal!, completeness: s.completeness ?? 'incomplete' })), addDays(d.today, -1));
+  const tdee = obs.usableForPlan && obs.tdee ? obs.tdee : est.tdee;
+  const lastChange = [...data.plans].sort((a, b) => b.validFrom.localeCompare(a.validFrom))[0]?.validFrom;
+  const check = validatePlanEdit(f, { weightKg: weight, goalKg: p.goals[0]?.kg ?? weight, tdee, daysSinceLastChange: lastChange ? diffDays(lastChange, d.today) : null });
+  async function save() {
+    await db.plans.add({ ...cur, id: uid(), createdAt: now(), updatedAt: now(), validFrom: d.today, kcal: f.kcal, proteinG: f.proteinG, fatG: f.fatG, carbsG: f.carbsG,
+      reason: `Ręczna zmiana: ${f.reason.trim()}${f.specialistApproved ? ' (ustalone ze specjalistą)' : ''}`, approvedByUser: true, source: 'manual' });
+    toast(`Nowa wersja planu: ${f.kcal} kcal`); onClose();
+  }
+  const num = (k: 'kcal' | 'proteinG' | 'fatG' | 'carbsG', label: string) => <Field label={label}><NumInput value={f[k]} onChange={(v) => { setF({ ...f, [k]: v ?? 0 }); setConfirm(false); }} /></Field>;
+  return (
+    <Sheet open onClose={onClose} title="Kalorie i makro: edycja ręczna">
+      <p className="text-sm text-muted">Obecnie: {cur.kcal} kcal · B {cur.proteinG} · T {cur.fatG} · W {cur.carbsG}. Zmiana zapisze nową wersję planu od dziś; historia zostaje.</p>
+      <div className="grid grid-cols-2 gap-2">{num('kcal', 'Kalorie')}{num('proteinG', 'Białko (g)')}{num('fatG', 'Tłuszcz (g)')}{num('carbsG', 'Węglowodany (g)')}</div>
+      <Btn kind="soft" className="w-full text-sm" onClick={() => setF({ ...f, carbsG: fillCarbs(f.kcal, f.proteinG, f.fatG) })}>Dopasuj węglowodany do kalorii</Btn>
+      <div className="rounded-xl bg-card2 p-3 text-sm space-y-0.5">
+        <div>Makro daje: <b>{check.macroKcal} kcal</b></div>
+        <div>TDEE: {tdee} kcal ({obs.usableForPlan ? `z Twoich danych, wiarygodność ${REL[obs.reliability]}` : 'szacunek ze wzoru i wywiadu'}){check.deficitPct !== null && <> → deficyt ok. <b>{check.deficitPct}%</b></>}</div>
+      </div>
+      <Field label="Powód zmiany"><input className={inputCls} value={f.reason} onChange={(e) => setF({ ...f, reason: e.target.value })} placeholder="np. zalecenie dietetyka" /></Field>
+      {f.kcal < 2100 && <Toggle on={f.specialistApproved} onChange={(v) => setF({ ...f, specialistApproved: v })} label="Poniżej 2100 kcal: ustaliłem to ze specjalistą" />}
+      {check.errors.map((e) => <p key={e} className="text-sm text-danger">✕ {e}</p>)}
+      {check.warnings.map((w) => <p key={w} className="text-sm text-warn">⚠ {w}</p>)}
+      {!confirm ? <Btn className="w-full" disabled={!check.canSave} onClick={() => setConfirm(true)}>Dalej</Btn> : (
+        <div className="rounded-xl border border-warn p-3 text-sm">Zatwierdzasz nowy plan: {f.kcal} kcal, B {f.proteinG}, T {f.fatG}, W {f.carbsG}{check.warnings.length ? ` (ostrzeżenia: ${check.warnings.length})` : ''}.
+          <div className="flex gap-2 mt-2"><Btn className="flex-1" onClick={save}>Zatwierdzam</Btn><Btn kind="ghost" onClick={() => setConfirm(false)}>Wróć</Btn></div></div>
+      )}
     </Sheet>
   );
 }

@@ -2,15 +2,15 @@ import { useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, Copy, ListChecks, Plus, Star, Trash2, Siren, Repeat } from 'lucide-react';
 import type { ScreenProps } from '../App';
 import { db, now, uid } from '../db/db';
-import { dayIntake } from '../db/repo';
+import { dayIntake, targetFor } from '../db/repo';
 import { DAY_TEMPLATES, EMERGENCY_MEALS, type DayTemplate } from '../data/foods';
 import { addDays, formatPl } from '../domain/dates';
 import { scaleNutrients } from '../domain/calc';
-import { candidatesForSwap, fitDayToKcal, shoppingList, swapProduct } from '../domain/nutrition';
+import { candidatesForSwap, fitDayToTargets, shoppingList, swapProduct, type ProductMap } from '../domain/nutrition';
 import type { FoodEntry, FoodProduct } from '../domain/types';
 import { Badge, Bar, Btn, Card, cx, Field, inputCls, NumInput, Sheet, Title, toast } from '../ui/kit';
 import { FoodPicker, addQuickEntry, basisLabel } from './FoodPicker';
-import { dayTargets, ruleWarnings } from '../domain/targets';
+import { dayTargets, ruleWarnings, type DayTargets } from '../domain/targets';
 import { PlanSettingsSheet } from './Energy';
 import { Settings2 } from 'lucide-react';
 
@@ -24,9 +24,9 @@ export function Diet({ data, d }: ScreenProps) {
   const products = useMemo(() => new Map(data.foods.map((f) => [f.id, f])), [data.foods]);
   const entries = data.entries.filter((e) => e.date === date);
   const tot = dayIntake(data, date);
-  const basePlan = d.plan!;
-  const isTraining = data.sessions.some((x) => x.date === date && x.status === 'completed') || d.upcoming.some((u) => u.date === date && date >= d.today);
-  const t = dayTargets(basePlan, isTraining);
+  const hist = targetFor(data, date, d.plannedDays);
+  const basePlan = hist?.plan ?? d.plan!;
+  const t = hist?.t ?? dayTargets(basePlan, false);
   const plan = { ...basePlan, kcal: t.kcal, proteinG: t.proteinG, fatG: t.fatG, carbsG: t.carbsG, fiberG: [t.fiberG, Math.max(t.fiberG, basePlan.fiberG[1])] as [number, number] };
   const mealCarbs = [1, 2, 3, 4, 5].map((m) => entries.filter((e) => e.meal === m).reduce((a, e) => a + e.snapshot.carbs, 0));
   const warnings = tot ? ruleWarnings(t, tot, mealCarbs) : [];
@@ -41,13 +41,15 @@ export function Diet({ data, d }: ScreenProps) {
     await db.entries.bulkAdd(e.map((x) => ({ ...x, id: uid(), date, createdAt: now(), updatedAt: now(), source: 'template' as const })));
     toast(`Skopiowano ${e.length} pozycji`);
   }
-  async function applyTemplate(t: DayTemplate) {
-    const fitted = fitDayToKcal(products, t, plan.kcal);
+  async function applyTemplate(tpl: DayTemplate) {
+    const fit = fitDayToTargets(products, tpl, { kcal: t.kcal, proteinG: t.proteinG, fatG: t.fatG, carbsG: t.carbsG });
+    const fitted = fit.day;
     const rows: FoodEntry[] = fitted.meals.flatMap((m, i) => m.items.map((it) => {
       const p = products.get(it.productId)!;
       return { id: uid(), createdAt: now(), updatedAt: now(), date, meal: i + 1, productId: p.id, grams: it.grams, snapshot: { ...scaleNutrients(p.per100, it.grams), name: p.name }, source: 'template' as const };
     }));
-    await db.entries.bulkAdd(rows); setSheet(null); toast(`Dzień ${t.id} wstawiony (dopasowany do ${plan.kcal} kcal)`);
+    await db.entries.bulkAdd(rows); setSheet(null);
+    toast(`Dzień ${tpl.id}: ${Math.round(fit.totals.kcal)} kcal, B ${Math.round(fit.totals.protein)} g${fit.swapped.length ? `, zamieniono ${fit.swapped.length} źle tolerowane` : ''}${fit.ok ? '' : ' (poza tolerancją)'}`);
   }
   const fiberLow = plan.fiberG[0];
 
@@ -72,6 +74,7 @@ export function Diet({ data, d }: ScreenProps) {
           ))}
         </div>
         {tot && (tot.sugar !== undefined || tot.satFat !== undefined || tot.salt !== undefined) && <p className="text-xs text-muted mt-3 num">Z etykiet (gdy dostępne): cukry {tot.sugar?.toFixed(0) ?? '—'} g{t.sugarMaxG ? ` / ${t.sugarMaxG}` : ''} · nasycone {tot.satFat?.toFixed(0) ?? '—'} g · sól {tot.salt?.toFixed(1) ?? '—'} g</p>}
+        {tot && (['protein', 'fat', 'carbs'] as const).some((k) => tot.coverage[k] < 1) && <p className="text-xs text-warn mt-2">Część wpisów to szacunki bez makro: znane białko dla {Math.round(tot.coverage.protein * 100)}% kcal, tłuszcz i węgle dla {Math.round(tot.coverage.carbs * 100)}% kcal. Liczby makro są zaniżone; analizy pomijają makro, gdy pokrycie &lt; 80%.</p>}
         {t.notes.map((n) => <p key={n} className="text-xs text-muted mt-1">{n}</p>)}
         {warnings.map((w) => <p key={w} className="text-xs text-warn mt-1">{w}</p>)}
         {(tot?.kcal ?? 0) > plan.kcal * 1.1 && <p className="text-sm text-muted mt-3">Powyżej celu: wracasz do zwykłego planu od następnego posiłku. Bez odrabiania.</p>}
@@ -114,12 +117,13 @@ export function Diet({ data, d }: ScreenProps) {
       {sheet === 'plan' && <PlanSettingsSheet plan={basePlan} today={d.today} onClose={() => setSheet(null)} />}
       {edit && <EditEntry entry={edit} product={products.get(edit.productId)} foods={data.foods} onClose={() => setEdit(null)} />}
       <Sheet open={sheet === 'template'} onClose={() => setSheet(null)} title="Wstaw dzień z szablonu">
-        <p className="text-sm text-muted">Gramatury węglowodanów i tłuszczów zostaną dopasowane do celu {plan.kcal} kcal; białko bez zmian. Wartości są referencyjne: sprawdź etykiety.</p>
-        {DAY_TEMPLATES.map((t) => (
-          <Card key={t.id} onClick={() => applyTemplate(t)}><div className="font-semibold">Dzień {t.id}</div><div className="text-sm text-muted">{t.meals.map((m) => m.name).join(' · ')}</div></Card>
-        ))}
+        <p className="text-sm text-muted">Gramatury źródeł białka, tłuszczu i węglowodanów zostaną dopasowane do celu tego dnia ({t.kcal} kcal, B {t.proteinG}, T {t.fatG}, W {t.carbsG}); produkty źle tolerowane zostaną zamienione. Wartości referencyjne: sprawdź etykiety.</p>
+        {DAY_TEMPLATES.map((tpl) => { const fit = fitDayToTargets(products, tpl, { kcal: t.kcal, proteinG: t.proteinG, fatG: t.fatG, carbsG: t.carbsG }); return (
+          <Card key={tpl.id} onClick={() => applyTemplate(tpl)}><div className="font-semibold">Dzień {tpl.id} {!fit.ok && <Badge tone="warn">poza tolerancją</Badge>}</div><div className="text-sm text-muted">{tpl.meals.map((m) => m.name).join(' · ')}</div>
+            <div className="text-xs text-muted num mt-1">Po dopasowaniu: {Math.round(fit.totals.kcal)} kcal · B {Math.round(fit.totals.protein)} · T {Math.round(fit.totals.fat)} · W {Math.round(fit.totals.carbs)}{fit.swapped.length ? ` · zamiany: ${fit.swapped.map((x) => `${x.from} → ${x.to}`).join(', ')}` : ''}</div></Card>
+        ); })}
       </Sheet>
-      {sheet === 'shop' && <Shopping open onClose={() => setSheet(null)} products={products} kcal={plan.kcal} />}
+      {sheet === 'shop' && <Shopping open onClose={() => setSheet(null)} products={products} t={t} />}
       <Sheet open={sheet === 'sos'} onClose={() => setSheet(null)} title="Posiłki awaryjne">
         {EMERGENCY_MEALS.map((m) => <div key={m.where}><div className="font-semibold">{m.where}</div><p className="text-sm text-muted">{m.text}</p></div>)}
         <p className="text-xs text-muted">Wpisz potem produkt jako własny (kcal z etykiety lub szacunek oznaczony jako szacunek).</p>
@@ -170,9 +174,9 @@ function EditEntry({ entry, product, foods, onClose }: { entry: FoodEntry; produ
   );
 }
 
-function Shopping({ open, onClose, products, kcal }: { open: boolean; onClose: () => void; products: Map<string, FoodProduct>; kcal: number }) {
+function Shopping({ open, onClose, products, t }: { open: boolean; onClose: () => void; products: ProductMap; t: DayTargets }) {
   const [counts, setCounts] = useState<Record<string, number>>({ A: 1, B: 1, C: 1 });
-  const days = DAY_TEMPLATES.flatMap((t) => Array(counts[t.id] ?? 0).fill(fitDayToKcal(products, t, kcal)));
+  const days = DAY_TEMPLATES.flatMap((tpl) => Array(counts[tpl.id] ?? 0).fill(fitDayToTargets(products, tpl, { kcal: t.kcal, proteinG: t.proteinG, fatG: t.fatG, carbsG: t.carbsG }).day));
   const list = shoppingList(products, days);
   return (
     <Sheet open={open} onClose={onClose} title="Lista zakupów / meal prep">

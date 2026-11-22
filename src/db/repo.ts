@@ -3,10 +3,11 @@ import { db, now, uid } from './db';
 import { SEED_FOODS } from '../data/foods';
 import { EXTRA_FOODS } from '../data/foodsExtra';
 import { addDays, diffDays, range, today as todayFn, type LocalDate } from '../domain/dates';
-import { sumNutrients, bmrMifflin, ageOn, type DatedValue } from '../domain/calc';
+import { bmrMifflin, ageOn, type DatedValue } from '../domain/calc';
 import { planWorkouts, withDaughter, type CustodyInput, type PlannedWorkout } from '../domain/schedule';
 import { evaluateSafety } from '../domain/safety';
-import { dayTargets } from '../domain/targets';
+import { dayTargets, planOn } from '../domain/targets';
+import { completeness, reliableMacro, sumDay } from '../domain/intake';
 import { evaluateReadiness } from '../domain/readiness';
 import { evaluateAdaptation, stepTarget } from '../domain/adaptation';
 import { coach, type DaySnapshot } from '../domain/coaching';
@@ -81,17 +82,27 @@ export function waistSeries(d: AppData): DatedValue[] {
   return d.measurements.filter((x) => !x.historical && x.waistCm).map((x) => ({ date: x.date, value: x.waistCm! }));
 }
 export function dayIntake(d: AppData, date: LocalDate) {
-  const e = d.entries.filter((x) => x.date === date);
-  if (!e.length) return undefined;
-  return { ...sumNutrients(e.map((x) => x.snapshot)), meals: new Set(e.map((x) => x.meal)).size };
+  return sumDay(d.entries.filter((x) => x.date === date));
+}
+/** Czy dzień był (lub jest) treningowy dla celu kalorii: wykonany trening albo zaplanowany (odwołanie nie karze). */
+export function isTrainingDayFor(d: AppData, date: LocalDate, planned: Set<LocalDate>): boolean {
+  return planned.has(date) || d.sessions.some((s) => s.date === date && s.status === 'completed');
+}
+export function targetFor(d: AppData, date: LocalDate, planned: Set<LocalDate>) {
+  const plan = planOn(d.plans, date);
+  return plan ? { plan, t: dayTargets(plan, isTrainingDayFor(d, date, planned)) } : undefined;
 }
 export function snapshots(d: AppData, from: LocalDate, to: LocalDate, planned: Set<LocalDate>): DaySnapshot[] {
   const c = custodyInput(d);
   return range(from, diffDays(from, to) + 1).map((date) => {
     const intake = dayIntake(d, date);
+    const tg = targetFor(d, date, planned);
+    const evening = d.evening.find((e) => e.date === date);
     return {
-      date, morning: d.morning.find((m) => m.date === date), evening: d.evening.find((e) => e.date === date),
-      kcal: intake?.kcal, protein: intake?.protein, fiber: intake?.fiber, meals: intake?.meals,
+      date, morning: d.morning.find((m) => m.date === date), evening,
+      kcal: intake?.kcal, protein: reliableMacro(intake, 'protein'), fiber: reliableMacro(intake, 'fiber'), meals: intake?.meals,
+      target: tg?.t.kcal, proteinTarget: tg?.t.proteinG,
+      completeness: tg ? completeness(intake, evening, tg.t.kcal, tg.plan.mealsPerDay) : intake ? 'incomplete' as const : 'none' as const,
       waterMl: d.water.find((w) => w.date === date)?.ml,
       workoutPlanned: planned.has(date), workoutDone: d.sessions.some((s) => s.date === date && s.status === 'completed'),
       withDaughter: c ? withDaughter(c, date) : false,
@@ -126,6 +137,7 @@ export function derive(d: AppData, today: LocalDate = todayFn()) {
   const start = d.profile?.startDate ?? today;
   const histFrom = addDays(today, -28) > start ? addDays(today, -28) : start;
   const past = historicalPlanned(d, histFrom, addDays(today, -1));
+  for (const u of upcoming) if (u.date === today) past.add(today);
   const snaps = snapshots(d, addDays(today, -35), today, past);
   const recs = plan ? coach(snaps.filter((s) => s.date >= start), today, plan.kcal) : [];
   const weekIdx = Math.floor(diffDays(start, today) / 7);
@@ -134,16 +146,17 @@ export function derive(d: AppData, today: LocalDate = todayFn()) {
   const intake = dayIntake(d, today);
   const weights = weightSeries(d);
   const lastChange = [...d.plans].sort((a, b) => b.validFrom.localeCompare(a.validFrom))[0]?.validFrom ?? start;
-  const intakeDays = snaps.filter((s) => s.kcal !== undefined && (s.meals ?? 0) >= 3).map((s) => ({ date: s.date, kcal: s.kcal! }));
+  const intakeDays = snaps.filter((s) => s.kcal !== undefined && s.target !== undefined && (s.completeness === 'confirmed' || s.completeness === 'probable')).map((s) => ({ date: s.date, kcal: s.kcal!, target: s.target! }));
   const adapt = plan ? evaluateAdaptation({
     today, planStart: start, lastPlanChange: lastChange, kcalTarget: plan.kcal, weights, waists: waistSeries(d), intakeDays,
     healthFlag: safety.level === 'urgent' || !!morningToday?.symptoms.includes('illness'),
   }) : undefined;
   const lastActivity = [...d.morning.map((m) => m.date), ...d.evening.map((e) => e.date), ...d.entries.map((e) => e.date)].sort().at(-1);
   const bmr = d.profile ? bmrMifflin({ weightKg: weights.at(-1)?.value ?? d.profile.declaredWeightKg, heightCm: d.profile.heightCm, age: ageOn(d.profile, today), sex: d.profile.sex }) : null;
-  const targets = plan ? dayTargets(plan, !!(todayWorkout || doneToday)) : undefined;
+  const targets = plan ? dayTargets(plan, !!(todayWorkout || doneToday) || past.has(today)) : undefined;
+  const plannedDays = new Set<LocalDate>([...past, ...upcoming.map((u) => u.date)]);
   return {
-    targets, today, plan, custody, morningToday, eveningToday: d.evening.find((e) => e.date === today), safety, readiness, upcoming, todayWorkout, doneToday, inProgress,
+    plannedDays, targets, today, plan, custody, morningToday, eveningToday: d.evening.find((e) => e.date === today), safety, readiness, upcoming, todayWorkout, doneToday, inProgress,
     snaps, recs, steps, weekIdx, intake, weights, adapt, bmr,
     withDaughterToday: custody ? withDaughter(custody, today) : undefined,
     returnMode: lastActivity ? diffDays(lastActivity, today) >= 3 : false,

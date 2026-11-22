@@ -19,17 +19,27 @@ describe('zapotrzebowanie', () => {
     expect(p.kcal).toBe(2300); expect(p.proteinG).toBe(165);
     expect(planFromTdee(2300, 97, 'standard').kcal).toBe(2100);
   });
-  it('TDEE z danych: stała waga przy 2500 kcal → ~2500', () => {
-    const w = Array.from({ length: 28 }, (_, i) => ({ date: addDays('2026-10-01', i), value: 110 }));
-    const intake = w.map((x) => ({ date: x.date, kcal: 2500 }));
-    expect(observedTdee(w, intake, '2026-10-28').tdee).toBe(2500);
+  const w28 = (f: (i: number) => number) => Array.from({ length: 28 }, (_, i) => ({ date: addDays('2026-10-01', i), value: f(i) }));
+  const days = (n: number, kcal: number, c = 'confirmed') => Array.from({ length: n }, (_, i) => ({ date: addDays('2026-10-01', i), kcal, completeness: c }));
+  it('TDEE z danych: stała waga przy 2500 kcal → 2500, wysoka wiarygodność', () => {
+    const r = observedTdee(w28(() => 110), days(28, 2500), '2026-10-28');
+    expect(r).toMatchObject({ tdee: 2500, reliability: 'high', usableForPlan: true });
+    expect(r.range).toEqual([2350, 2650]);
   });
   it('TDEE z danych: spadek 0,5 kg/tydz. przy 2400 kcal → ~2950', () => {
-    const w = Array.from({ length: 28 }, (_, i) => ({ date: addDays('2026-10-01', i), value: 110 - (i * 0.5) / 7 }));
-    const t = observedTdee(w, w.map((x) => ({ date: x.date, kcal: 2400 })), '2026-10-28').tdee!;
+    const t = observedTdee(w28((i) => 110 - (i * 0.5) / 7), days(28, 2400), '2026-10-28').tdee!;
     expect(t).toBeGreaterThan(2900); expect(t).toBeLessThan(3000);
   });
-  it('TDEE z danych: za mało danych → brak wyniku', () => expect(observedTdee([], [], '2026-10-28').tdee).toBeNull());
+  it('dni niekompletne są pomijane i nie zaniżają średniej', () => {
+    const d = [...days(20, 2500), ...Array.from({ length: 8 }, (_, i) => ({ date: addDays('2026-10-21', i), kcal: 900, completeness: 'incomplete' }))];
+    const r = observedTdee(w28(() => 110), d, '2026-10-28');
+    expect(r.tdee).toBe(2500); expect(r.completeDays).toBe(20);
+  });
+  it('same dni „prawdopodobne” bez potwierdzeń → niska wiarygodność, nieużywane do planu', () => {
+    const r = observedTdee(w28(() => 110).filter((_, i) => i % 3 === 0), days(12, 2500, 'probable'), '2026-10-28');
+    expect(r.reliability).toBe('low'); expect(r.usableForPlan).toBe(false);
+  });
+  it('za mało danych → brak wyniku', () => expect(observedTdee([], [], '2026-10-28')).toMatchObject({ tdee: null, reliability: 'insufficient' }));
 });
 
 describe('synchronizacja ze Zdrowiem', () => {

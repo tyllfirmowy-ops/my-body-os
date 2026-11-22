@@ -7,7 +7,10 @@ export interface DaySnapshot {
   date: LocalDate;
   morning?: MorningCheckIn;
   evening?: EveningCheckIn;
-  kcal?: number; protein?: number; fiber?: number; meals?: number; // undefined = brak wpisów (nie zero!)
+  kcal?: number; protein?: number; fiber?: number; meals?: number; // undefined = brak wpisów lub makro nieznane (nie zero!)
+  target?: number;          // historyczny cel kcal TEGO dnia (wersja planu + typ dnia)
+  proteinTarget?: number;
+  completeness?: 'confirmed' | 'probable' | 'incomplete' | 'none';
   waterMl?: number;
   workoutPlanned: boolean;
   workoutDone: boolean;
@@ -39,9 +42,10 @@ export function coach(days: DaySnapshot[], today: LocalDate, kcalTarget: number)
 
   // 2. Wczoraj powyżej kalorii → powrót od następnego posiłku
   const y = past.find((d) => d.date === addDays(today, -1));
-  if (y?.kcal !== undefined && y.kcal > kcalTarget * 1.1) {
+  const tgt = (d: DaySnapshot) => d.target ?? kcalTarget;
+  if (y?.kcal !== undefined && y.kcal > tgt(y) * 1.1) {
     recs.push({ id: 'over_yesterday', priority: 70, title: 'Zwykły plan od pierwszego posiłku', action: 'Zjedz normalne śniadanie i trzymaj dzisiejszy cel. Bez odrabiania kalorii i bez karnego cardio.',
-      basis: `Wczoraj ${Math.round(y.kcal)} kcal (cel ${kcalTarget})`, days: 1, completeness: 'dziennik z wczoraj', limits: 'Jeden dzień nie zmienia trendu.' });
+      basis: `Wczoraj ${Math.round(y.kcal)} kcal (cel tego dnia ${tgt(y)})`, days: 1, completeness: 'dziennik z wczoraj', limits: 'Jeden dzień nie zmienia trendu.' });
   }
 
   // 3. Pomijanie posiłków + głód wieczorem
@@ -53,7 +57,7 @@ export function coach(days: DaySnapshot[], today: LocalDate, kcalTarget: number)
   }
 
   // 4. Stres i przekroczenia
-  const stressOver = last14.filter((d) => (d.evening?.stress ?? d.morning?.stress ?? 0) >= 8 && d.kcal !== undefined && d.kcal > kcalTarget * 1.1);
+  const stressOver = last14.filter((d) => (d.evening?.stress ?? d.morning?.stress ?? 0) >= 8 && d.kcal !== undefined && d.kcal > tgt(d) * 1.1);
   if (stressOver.length >= 3) {
     recs.push({ id: 'stress_sweets', priority: 65, title: 'Zaplanuj słodycze w limicie', action: 'Na dni wysokiego stresu przygotuj z góry 150–200 kcal słodyczy wliczonych w plan (np. 30 g gorzkiej czekolady).',
       basis: 'Przekroczenia >10% w dni ze stresem ≥8', days: stressOver.length, completeness: pct(last14.filter((d) => d.kcal !== undefined).length, 14), limits: 'To korelacja, nie dowód, że stres jest przyczyną.' });
@@ -76,9 +80,10 @@ export function coach(days: DaySnapshot[], today: LocalDate, kcalTarget: number)
   // 6. Białko
   const prot = last7.filter((d) => d.protein !== undefined);
   const avgP = mean(prot.map((d) => d.protein)).value;
-  if (prot.length >= 4 && avgP !== null && avgP < 140) {
+  const avgPT = mean(prot.map((d) => d.proteinTarget)).value ?? 165;
+  if (prot.length >= 4 && avgP !== null && avgP < avgPT * 0.85) {
     recs.push({ id: 'protein', priority: 50, title: 'Więcej białka w 1. posiłku', action: 'Dodaj 2 jajka albo 150 g tofu do śniadania. Białko pomaga zachować mięśnie na redukcji.',
-      basis: `Średnio ${Math.round(avgP)} g białka`, days: prot.length, completeness: pct(prot.length, 7), limits: 'Tylko dni z kompletnym dziennikiem.' });
+      basis: `Średnio ${Math.round(avgP)} g białka (cel ${Math.round(avgPT)} g)`, days: prot.length, completeness: pct(prot.length, 7), limits: 'Tylko dni, w których białko jest znane dla ≥80% kalorii.' });
   }
 
   // 7. Regularność snu

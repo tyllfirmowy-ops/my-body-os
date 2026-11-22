@@ -6,14 +6,14 @@ import { exportAll, importAll, encryptBackup, isEncrypted, decryptBackup, wipeAl
 import { range, formatPl, diffDays } from '../domain/dates';
 import { withDaughter } from '../domain/schedule';
 import { bmrMifflin, ageOn, tdeeRange, macroKcal } from '../domain/calc';
-import { EnergySheet, HealthSyncHelp, PlanSettingsSheet } from './Energy';
+import { EnergySheet, HealthSyncHelp, PlanEditorSheet, PlanSettingsSheet } from './Energy';
 import { Badge, Btn, Card, copyText, cx, download, Field, inputCls, NumInput, Sheet, Title, toast, Toggle } from '../ui/kit';
 
 const DOCTOR_TOPICS = ['Morfologia', 'Glukoza na czczo', 'HbA1c', 'Lipidogram', 'TSH', 'ALT i AST', 'Kreatynina z eGFR', 'Ferrytyna', 'Witamina B12', 'Elektrolity', 'Ciśnienie tętnicze',
   'Przewlekłe zmęczenie i jakość snu', 'Czy potrzebna diagnostyka zaburzeń oddychania w czasie snu', 'Nawracające objawy po nabiale', 'Ocena kolana: fizjoterapeuta lub ortopeda'];
 
 export function Profile({ data, d }: ScreenProps) {
-  const [sheet, setSheet] = useState<'custody' | 'lab' | 'symptom' | 'wipe' | 'profile' | 'supp' | 'energy' | 'sync' | 'plan' | null>(null);
+  const [sheet, setSheet] = useState<'custody' | 'lab' | 'symptom' | 'wipe' | 'profile' | 'supp' | 'energy' | 'sync' | 'plan' | 'edit' | null>(null);
   const [pass, setPass] = useState('');
   const [pending, setPending] = useState<unknown>(null);
   const [paste, setPaste] = useState('');
@@ -76,7 +76,7 @@ export function Profile({ data, d }: ScreenProps) {
       </Card>
 
       <Card>
-        <Title>Plan (wersje)</Title>
+        <Title right={<button className="text-xs text-accent" onClick={() => setSheet('edit')}>edytuj kcal i makro</button>}>Plan (wersje)</Title>
         {[...data.plans].reverse().map((pl, i) => (
           <div key={pl.id} className={cx('py-2 border-b border-line last:border-0 text-sm', i > 0 && 'text-muted')}>
             <div className="flex justify-between"><span>od {formatPl(pl.validFrom)} {i === 0 && <Badge tone="accent">aktualny</Badge>}</span><span className="num">{pl.kcal} kcal</span></div>
@@ -154,10 +154,11 @@ export function Profile({ data, d }: ScreenProps) {
           <div className="flex gap-2 mt-2"><Btn kind="danger" className="flex-1" onClick={confirmImport}>Zastąp dane</Btn><Btn kind="ghost" onClick={() => setPending(null)}>Anuluj</Btn></div></div>}
         <Btn kind="ghost" className="w-full mt-2 text-danger" onClick={() => setSheet('wipe')}><Trash2 size={16} className="inline -mt-0.5" /> Usuń wszystkie dane</Btn>
       </Card>
-      <p className="text-center text-xs text-muted pb-2">My Body OS 0.3 · dane lokalne · bez reklam i śledzenia · nie jest wyrobem medycznym</p>
+      <p className="text-center text-xs text-muted pb-2">My Body OS 0.4 · dane lokalne · bez reklam i śledzenia · nie jest wyrobem medycznym</p>
 
       {sheet === 'energy' && <EnergySheet data={data} d={d} onClose={() => setSheet(null)} />}
       {sheet === 'sync' && <HealthSyncHelp onClose={() => setSheet(null)} />}
+      {sheet === 'edit' && <PlanEditorSheet data={data} d={d} onClose={() => setSheet(null)} />}
       {sheet === 'plan' && <PlanSettingsSheet plan={d.plan!} today={d.today} onClose={() => setSheet(null)} />}
       {sheet === 'custody' && <CustodySheet d={d} onClose={() => setSheet(null)} />}
       {sheet === 'lab' && <LabSheet today={d.today} onClose={() => setSheet(null)} />}

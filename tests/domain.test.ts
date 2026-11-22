@@ -42,10 +42,10 @@ describe('żywienie', () => {
     }
   });
   it('przeliczanie porcji x3', () => expect(scaleItems([{ productId: 'rice', grams: 75 }], 3)[0].grams).toBe(225));
-  it('dopasowanie do 2300 kcal nie rusza białka', () => {
+  it('dopasowanie do 2300 kcal zachowuje białko dnia', () => {
     const fitted = fitDayToKcal(products, DAY_TEMPLATES[0], 2300);
     expect(Math.abs(templateTotals(products, fitted).kcal - 2300)).toBeLessThan(40);
-    expect(fitted.meals[1].items[0].grams).toBe(220);
+    expect(Math.abs(templateTotals(products, fitted).protein - templateTotals(products, DAY_TEMPLATES[0]).protein)).toBeLessThan(4);
   });
   it('lista zakupów sumuje gramatury', () => {
     const l = shoppingList(products, [DAY_TEMPLATES[0], DAY_TEMPLATES[0]]);
@@ -115,7 +115,7 @@ describe('progresja', () => {
 
 const weights = (start: string, days: number, f: (i: number) => number) => Array.from({ length: days }, (_, i) => ({ date: addDays(start, i), value: f(i) }));
 describe('adaptacja redukcji', () => {
-  const baseInput = { planStart: '2026-09-01', lastPlanChange: '2026-09-01', kcalTarget: 2450, waists: [], intakeDays: [] as { date: string; kcal: number }[] };
+  const baseInput = { planStart: '2026-09-01', lastPlanChange: '2026-09-01', kcalTarget: 2450, waists: [], intakeDays: [] as { date: string; kcal: number; target: number }[] };
   it('kalibracja: brak zmian w pierwszych 14 dniach', () => {
     const r = evaluateAdaptation({ ...baseInput, today: '2026-09-10', planStart: '2026-09-01', weights: weights('2026-09-01', 9, () => 110) });
     expect(r.status).toBe('calibration'); expect(r.proposal).toBeUndefined();
@@ -133,13 +133,13 @@ describe('adaptacja redukcji', () => {
     expect(r.status).toBe('slow_waist_down'); expect(r.proposal).toBeUndefined();
   });
   it('potwierdzona stagnacja + kompletne dane → jedna korekta', () => {
-    const intake = Array.from({ length: 14 }, (_, i) => ({ date: addDays('2026-10-15', i), kcal: 2440 }));
+    const intake = Array.from({ length: 14 }, (_, i) => ({ date: addDays('2026-10-15', i), kcal: 2440, target: 2450 }));
     const r = evaluateAdaptation({ ...baseInput, today: '2026-10-29', weights: weights('2026-10-01', 28, () => 110), intakeDays: intake });
     expect(r.status).toBe('stagnation');
     expect(r.proposal).toMatchObject({ kind: 'kcal', newKcal: 2300 });
   });
   it('nie schodzi poniżej 2100 kcal', () => {
-    const intake = Array.from({ length: 14 }, (_, i) => ({ date: addDays('2026-10-15', i), kcal: 2100 }));
+    const intake = Array.from({ length: 14 }, (_, i) => ({ date: addDays('2026-10-15', i), kcal: 2100, target: 2100 }));
     const r = evaluateAdaptation({ ...baseInput, kcalTarget: KCAL_FLOOR, today: '2026-10-29', weights: weights('2026-10-01', 28, () => 110), intakeDays: intake });
     expect(r.proposal?.kind).toBe('activity');
   });

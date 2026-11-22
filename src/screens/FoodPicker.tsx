@@ -22,6 +22,7 @@ export function FoodPicker({ foods, entries, onClose, onAdd, onQuick, onNew }: {
   const [online, setOnline] = useState<FoodProduct[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [quick, setQuick] = useState<{ name: string; kcal?: number; protein?: number }>({ name: '' });
+  // białko puste = nieznane (nie 0)
 
   const recent = useMemo(() => {
     const m = new Map<string, number>();
@@ -167,5 +168,7 @@ function Scanner({ busy, onCode }: { busy: boolean; onCode: (code: string) => vo
 }
 
 export async function addQuickEntry(date: string, meal: number, name: string, kcal: number, protein: number, id: string) {
-  await db.entries.add({ id, createdAt: now(), updatedAt: now(), date, meal, productId: 'quick', grams: 0, snapshot: { name: `${name} (szacunek)`, kcal, protein, fat: 0, carbs: 0, fiber: 0 }, source: 'estimate' });
+  // Nieznane makro oznaczone jawnie: w snapshot 0 tylko technicznie, analizy traktują je jako brak danych.
+  const unknown: ('protein' | 'fat' | 'carbs' | 'fiber')[] = protein > 0 ? ['fat', 'carbs', 'fiber'] : ['protein', 'fat', 'carbs', 'fiber'];
+  await db.entries.add({ id, createdAt: now(), updatedAt: now(), date, meal, productId: 'quick', grams: 0, snapshot: { name: `${name} (szacunek)`, kcal, protein, fat: 0, carbs: 0, fiber: 0 }, unknown, source: 'estimate' });
 }

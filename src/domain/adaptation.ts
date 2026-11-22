@@ -20,7 +20,7 @@ export interface AdaptInput {
   kcalTarget: number;
   weights: DatedValue[];
   waists: DatedValue[];
-  intakeDays: { date: LocalDate; kcal: number }[]; // tylko dni z kompletnym dziennikiem
+  intakeDays: { date: LocalDate; kcal: number; target: number }[]; // tylko dni kompletne; target = historyczny cel TEGO dnia
   stepsAvg?: number | null;
   strongHungerOrWeakness?: boolean;
   healthFlag?: boolean;          // aktywne istotne objawy zdrowotne
@@ -63,10 +63,11 @@ export function evaluateAdaptation(i: AdaptInput): AdaptResult {
   const from14 = addDays(end, -13);
   const logged = i.intakeDays.filter((d) => d.date >= from14 && d.date <= end);
   const avgIntake = mean(logged.map((d) => d.kcal)).value;
+  const avgTarget = mean(logged.map((d) => d.target)).value;
   const loggingOk = logged.length >= 10;
-  const adherenceOk = avgIntake !== null && Math.abs(avgIntake - i.kcalTarget) <= i.kcalTarget * 0.08;
-  checks.push(`Kompletność dziennika: ${logged.length}/14 dni ${loggingOk ? '✓' : '✗ (potrzeba ≥10)'}`);
-  checks.push(`Realizacja celu: ${avgIntake ? Math.round(avgIntake) : '—'} kcal vs ${i.kcalTarget} ${adherenceOk ? '✓' : '✗'}`);
+  const adherenceOk = avgIntake !== null && avgTarget !== null && Math.abs(avgIntake - avgTarget) <= avgTarget * 0.08;
+  checks.push(`Kompletne dni dziennika: ${logged.length}/14 ${loggingOk ? '✓' : '✗ (potrzeba ≥10)'}`);
+  checks.push(`Realizacja celu: ${avgIntake ? Math.round(avgIntake) : '—'} kcal vs cel tych dni ${avgTarget ? Math.round(avgTarget) : '—'} ${adherenceOk ? '✓' : '✗'}`);
   checks.push(`Talia (14 dni): ${waistChange === null ? 'brak danych' : waistChange.toFixed(1) + ' cm'}`);
   checks.push('Sprawdź też: kroki, sen, stres, start treningów (woda w mięśniach), zaparcia, nawodnienie.');
   if (!loggingOk || !adherenceOk) {

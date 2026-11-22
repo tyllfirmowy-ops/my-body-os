@@ -103,6 +103,8 @@ export function EveningSheet({ open, onClose, d, prefill }: { open: boolean; onC
         </div>
       </div>
       <Toggle on={!!f.sweetsInPlan} onChange={(v) => set({ sweetsInPlan: v })} label="Słodycze były w limicie (albo ich nie było)" />
+      <Toggle on={!!f.foodLogComplete} onChange={(v) => set({ foodLogComplete: v })} label="Wpisałem wszystko, co dziś zjadłem" />
+      <p className="text-xs text-muted -mt-2">Tylko dni z potwierdzonym, kompletnym dziennikiem są używane do liczenia Twojego zapotrzebowania.</p>
       <Field label="Kroki (z telefonu)"><NumInput value={f.steps} onChange={(v) => set({ steps: v })} placeholder={`cel ${d.steps}`} /></Field>
       {missed && (
         <div>
@@ -127,7 +129,7 @@ export function EveningSheet({ open, onClose, d, prefill }: { open: boolean; onC
 }
 
 function buildSummary(d: Derived, f: Partial<EveningCheckIn>): string[] {
-  const kcal = d.plan?.kcal ?? 0;
+  const kcal = d.targets?.kcal ?? d.plan?.kcal ?? 0;
   const good: string[] = []; const hard: string[] = [];
   if (d.intake && Math.abs(d.intake.kcal - kcal) <= kcal * 0.1) good.push('kalorie w celu'); else if (d.intake && d.intake.kcal > kcal * 1.1) hard.push('kalorie powyżej celu');
   if (d.intake && d.intake.protein >= (d.plan?.proteinG ?? 165) * 0.9) good.push('białko'); else if (d.intake) hard.push('za mało białka');

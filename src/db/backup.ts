@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { db, TABLES, type BodyDB, type TableName } from './db';
+import { db, migrateEntryV2, TABLES, type BodyDB, type TableName } from './db';
 
 export const BACKUP_FORMAT = 'my-body-os-backup';
 export const BACKUP_VERSION = 1;
@@ -41,6 +41,7 @@ export async function importAll(raw: unknown, d: BodyDB = db, mode: 'replace' | 
   await d.transaction('rw', TABLES.map((t) => d.table(t)), async () => {
     for (const t of TABLES) {
       const rows = parsed.data.tables[t] ?? [];
+      if (t === 'entries') rows.forEach((r) => migrateEntryV2(r as never)); // starsze kopie: ta sama migracja co Dexie v2
       if (mode === 'replace') await d.table(t).clear();
       await d.table(t).bulkPut(rows);
       counts[t] = rows.length;

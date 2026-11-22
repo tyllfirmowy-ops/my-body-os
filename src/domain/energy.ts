@@ -61,21 +61,50 @@ export function planFromTdee(tdee: number, goalKg: number, pace: Pace, floor = 2
   return { kcal, proteinG, fatG, carbsG, deficit, expectedLossKgWeek: Math.round(((deficit * 7) / 7700) * 100) / 100 };
 }
 
+export type Reliability = 'high' | 'medium' | 'low' | 'insufficient';
+export interface ObservedTdee {
+  tdee: number | null; range: [number, number] | null; reliability: Reliability; usableForPlan: boolean;
+  completeDays: number; confirmedDays: number; weighIns: number; slopeKgPerWeek: number | null; reason: string;
+}
+
+/** Nachylenie trendu wagi (kg/dzień) metodą najmniejszych kwadratów: odporniejsze niż porównanie dwóch tygodni. */
+export function weightSlope(weights: DatedValue[], from: LocalDate): number | null {
+  if (weights.length < 2) return null;
+  const xs = weights.map((w) => (Date.parse(w.date) - Date.parse(from)) / 864e5), ys = weights.map((w) => w.value);
+  const mx = xs.reduce((a, b) => a + b, 0) / xs.length, my = ys.reduce((a, b) => a + b, 0) / ys.length;
+  let num = 0, den = 0;
+  xs.forEach((x, i) => { num += (x - mx) * (ys[i] - my); den += (x - mx) ** 2; });
+  return den > 0 ? num / den : null;
+}
+
 /**
- * Zapotrzebowanie wyliczone z Twoich danych (wstecz): średnie spożycie + bilans ze zmiany trendu wagi.
- * Wymaga ≥21 dni, ≥14 dni z kompletnym dziennikiem i ≥4 ważeń w pierwszym i ostatnim tygodniu.
- * 7700 kcal/kg to przybliżenie dla tkanki tłuszczowej; służy do oceny przeszłości, nie do prognoz.
+ * Zapotrzebowanie z Twoich danych (wstecz): średnie spożycie z KOMPLETNYCH dni − bilans z trendu wagi.
+ * Liczymy tylko dni potwierdzone lub prawdopodobnie kompletne; dni niekompletne są pomijane (nie zaniżają średniej).
+ * Wiarygodność:
+ *  high   – ≥21 dni kompletnych (≥10 potwierdzonych), ≥16 ważeń, okno ≥28 dni,
+ *  medium – ≥14 dni kompletnych (≥5 potwierdzonych), ≥10 ważeń,
+ *  low    – ≥10 dni kompletnych i ≥8 ważeń (pokazujemy, ale nie używamy do planu),
+ *  insufficient – mniej.
+ * 7700 kcal/kg to przybliżenie dla tkanki tłuszczowej: służy do oceny przeszłości, nie do prognoz.
  */
-export function observedTdee(weights: DatedValue[], intake: { date: LocalDate; kcal: number }[], end: LocalDate, days = 28) {
-  const from = addDays(end, -(days - 1));
-  const first = weights.filter((w) => w.date >= from && w.date <= addDays(from, 6));
-  const last = weights.filter((w) => w.date > addDays(end, -7) && w.date <= end);
-  const eaten = intake.filter((d) => d.date >= from && d.date <= end);
-  if (days < 21 || first.length < 4 || last.length < 4 || eaten.length < 14) {
-    return { tdee: null as number | null, reason: `Za mało danych (ważenia: ${first.length}+${last.length}, dni z dziennikiem: ${eaten.length}/${days}).` };
+export function observedTdee(weights: DatedValue[], days: { date: LocalDate; kcal: number; completeness: string }[], end: LocalDate, windowDays = 28): ObservedTdee {
+  const from = addDays(end, -(windowDays - 1));
+  const w = weights.filter((x) => x.date >= from && x.date <= end);
+  const usable = days.filter((d) => d.date >= from && d.date <= end && (d.completeness === 'confirmed' || d.completeness === 'probable'));
+  const confirmed = usable.filter((d) => d.completeness === 'confirmed').length;
+  const slope = weightSlope(w, from);
+  const base = { completeDays: usable.length, confirmedDays: confirmed, weighIns: w.length, slopeKgPerWeek: slope === null ? null : Math.round(slope * 7 * 100) / 100 };
+  const reliability: Reliability =
+    windowDays >= 28 && usable.length >= 21 && confirmed >= 10 && w.length >= 16 ? 'high'
+    : usable.length >= 14 && confirmed >= 5 && w.length >= 10 ? 'medium'
+    : usable.length >= 10 && w.length >= 8 ? 'low' : 'insufficient';
+  if (reliability === 'insufficient' || slope === null) {
+    return { ...base, tdee: null, range: null, reliability: 'insufficient', usableForPlan: false,
+      reason: `Za mało danych: ${usable.length} kompletnych dni (potwierdzonych ${confirmed}), ${w.length} ważeń w ${windowDays} dniach.` };
   }
-  const change = mean(last.map((w) => w.value)).value! - mean(first.map((w) => w.value)).value!;
-  const avgIntake = mean(eaten.map((d) => d.kcal)).value!;
-  const tdee = Math.round(avgIntake - (change * 7700) / (days - 7));
-  return { tdee, reason: `Śr. spożycie ${Math.round(avgIntake)} kcal, zmiana trendu ${change.toFixed(2)} kg w ${days - 7} dni.` };
+  const avgIntake = mean(usable.map((d) => d.kcal)).value!;
+  const tdee = Math.round((avgIntake - slope * 7700) / 10) * 10;
+  const err = reliability === 'high' ? 150 : reliability === 'medium' ? 250 : 400;
+  return { ...base, tdee, range: [tdee - err, tdee + err], reliability, usableForPlan: reliability !== 'low',
+    reason: `Śr. spożycie ${Math.round(avgIntake)} kcal z ${usable.length} kompletnych dni, trend ${(slope * 7).toFixed(2)} kg/tydz. (${w.length} ważeń). Niedoszacowanie jedzenia zawyża spadek, więc wynik może być zaniżony.` };
 }
