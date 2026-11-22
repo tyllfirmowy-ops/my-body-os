@@ -228,20 +228,56 @@ def onboarding_health_survey(pg, url):
     check(dialog(pg).get_by_text(re.compile('Dopasowany: Skyr')).count() > 0, 'przepis ze skyrem nie dostał zamiennika')
     return {'toggles': states}
 
-SEED_PROGRESS = """async () => {
+def seed_progress(pg, machine_w=40, incline_w=20, pain=None):
+    js = """async ([mw, iw, pain]) => {
   const r = indexedDB.open('my-body-os'); await new Promise(ok => r.onsuccess = ok); const db = r.result;
   const tx = db.transaction(['sessions', 'sets'], 'readwrite');
   const d = (n) => { const x = new Date(Date.now() - n * 864e5); return x.toLocaleDateString('sv-SE', { timeZone: 'Europe/Warsaw' }); };
   [[7, 'p1'], [3, 'p2']].forEach(([n, id], k) => {
     tx.objectStore('sessions').put({ id, createdAt: k, updatedAt: k, date: d(n), templateId: 'A', status: 'completed', order: ['machine_press'], skipped: [], technique: {}, startedAt: k, finishedAt: k + 1 });
-    [['machine_press', 40], ['incline_db_press', 16]].forEach(([ex, w]) => [0, 1, 2].forEach(i => tx.objectStore('sets').put({ id: id + ex + i, sessionId: id, exerciseId: ex, slot: ex, setIndex: i, weightKg: w, reps: 12, done: true, createdAt: k, updatedAt: k })));
+    [['machine_press', mw], ['incline_db_press', iw]].forEach(([ex, w]) => [0, 1, 2].forEach(i => tx.objectStore('sets').put(Object.assign({ id: id + ex + i, sessionId: id, exerciseId: ex, slot: ex, setIndex: i, weightKg: w, reps: 12, done: true, createdAt: k, updatedAt: k }, (pain !== null && id === 'p2') ? { pain } : {}))));
   });
   await new Promise(ok => tx.oncomplete = ok); db.close();
 }"""
+    pg.evaluate(js, [machine_w, incline_w, pain]); pg.reload(); pg.wait_for_timeout(900)
+
+def start_today(pg):
+    start = pg.get_by_role('button', name='Start')
+    if start.count() == 0: start = pg.get_by_role('button', name=re.compile('Mimo to zacznij'))
+    start.first.click(); pg.wait_for_timeout(500)
+    return pg.locator('h2').first.inner_text()
+
+def progression_big_jump(pg, url):
+    # 20 kg maszyna (+2,5 = 12,5%) i 16 kg hantle (+2 = 12,5%): domyślnie bez zwiększenia
+    demo(pg, url); seed_progress(pg, 20, 16); tab(pg, 'Trening')
+    first = start_today(pg)
+    old = '20' if first == 'Wyciskanie na maszynie' else '16'
+    check(pg.get_by_role('button', name=re.compile('^Przyjmij')).count() == 0, 'skok > 10% zaproponowany jako domyślny')
+    check(pg.get_by_text(re.compile('więcej niż zwykłe 2–10%')).count() > 0, 'brak wyjaśnienia dużego skoku')
+    check(pg.get_by_label('kg').first.input_value() == old, 'ciężar zmienił się bez wyboru')
+    alt = pg.get_by_role('button', name=re.compile('^Świadomie wybieram'))
+    check(alt.count() == 1, 'brak świadomego wyboru większego ciężaru')
+    alt.click(); pg.wait_for_timeout(400)
+    check(pg.get_by_text(re.compile('Decyzja: mój ciężar')).count() > 0, 'świadomy wybór nie zapisany')
+    check(pg.get_by_label('kg').first.input_value() != old, 'po świadomym wyborze ciężar w serii bez zmian')
+    return {'exercise': first, 'from': old, 'chosen': pg.get_by_label('kg').first.input_value()}
+
+def progression_pain(pg, url):
+    demo(pg, url); seed_progress(pg, 40, 20, pain=5); tab(pg, 'Trening')
+    first = start_today(pg)
+    old = '40' if first == 'Wyciskanie na maszynie' else '20'
+    check(pg.get_by_text(re.compile('Bez automatycznej zmiany ciężaru')).count() > 0, 'brak ostrzeżenia o bólu')
+    check(pg.get_by_role('button', name=re.compile('^Przyjmij')).count() == 0, 'przy bólu proponowana zmiana ciężaru')
+    check(pg.get_by_label('kg').first.input_value() == old, 'ciężar zmienił się automatycznie przy bólu')
+    pg.get_by_role('button', name='Zamień ćwiczenie').nth(1).click(); pg.wait_for_timeout(300)
+    check(dialog(pg).get_by_text('Zamień ćwiczenie').count() > 0, 'zamiana z ostrzeżenia nie otwiera listy')
+    close_dialog(pg)
+    pg.get_by_role('button', name='Pomiń ćwiczenie').click(); pg.wait_for_timeout(400)
+    check(pg.locator('h2').first.inner_text() != first, 'pominięcie nie przeszło dalej')
+    return {'exercise': first}
 
 def progression_flow(pg, url):
-    demo(pg, url)
-    pg.evaluate(SEED_PROGRESS); pg.reload(); pg.wait_for_timeout(900)
+    demo(pg, url); seed_progress(pg)
     tab(pg, 'Trening')
     row = pg.locator('button.w-full').filter(has_text='Wyciskanie na maszynie').first
     check('↑ 42,5 kg' in row.inner_text(), f'brak podglądu zwiększenia przed treningiem: {row.inner_text()}')
@@ -249,7 +285,7 @@ def progression_flow(pg, url):
     if start.count() == 0: start = pg.get_by_role('button', name=re.compile('Mimo to zacznij'))
     start.first.click(); pg.wait_for_timeout(500)
     first = pg.locator('h2').first.inner_text()
-    exp = {'Wyciskanie na maszynie': ('40', '42,5', '42.5'), 'Wyciskanie hantli na ławce skośnej': ('16', '18', '18')}
+    exp = {'Wyciskanie na maszynie': ('40', '42,5', '42.5'), 'Wyciskanie hantli na ławce skośnej': ('20', '22', '22')}
     check(first in exp, f'nieoczekiwane pierwsze ćwiczenie: {first}')
     w_old, w_new_pl, w_new = exp[first]
     check(pg.get_by_text(re.compile('Dwa treningi na górze zakresu')).count() > 0, 'brak uzasadnienia')
@@ -266,17 +302,16 @@ def progression_flow(pg, url):
     check(pg.get_by_text(re.compile('Decyzja: przyjęta')).count() > 0, 'decyzja nie przetrwała odświeżenia')
     check(pg.get_by_text(re.compile('RIR|zapisana')).count() > 0, 'seria nie zapisana')
     old = pg.evaluate("""async () => { const r = indexedDB.open('my-body-os'); await new Promise(ok => r.onsuccess = ok); const db = r.result; const g = db.transaction('sets').objectStore('sets').getAll(); await new Promise(ok => g.onsuccess = ok); db.close(); return g.result.filter(s => s.sessionId === 'p1' || s.sessionId === 'p2').map(s => s.weightKg + 'x' + s.reps).join(','); }""")
-    check(sorted(old.split(',')) == sorted(['40x12'] * 6 + ['16x12'] * 6), f'historyczne serie zmienione: {old}')
+    check(sorted(old.split(',')) == sorted(['40x12'] * 6 + ['20x12'] * 6), f'historyczne serie zmienione: {old}')
     return {'exercise': first, 'before': w0, 'accepted': w_new}
 
 def progression_reject(pg, url):
-    demo(pg, url)
-    pg.evaluate(SEED_PROGRESS); pg.reload(); pg.wait_for_timeout(900)
+    demo(pg, url); seed_progress(pg)
     tab(pg, 'Trening')
     start = pg.get_by_role('button', name='Start')
     if start.count() == 0: start = pg.get_by_role('button', name=re.compile('Mimo to zacznij'))
     start.first.click(); pg.wait_for_timeout(500)
-    pg.get_by_role('button', name=re.compile('^Zostań przy (40|16) kg')).click(); pg.wait_for_timeout(300)
+    pg.get_by_role('button', name=re.compile('^Zostań przy (40|20) kg')).click(); pg.wait_for_timeout(300)
     check(pg.get_by_text(re.compile('Decyzja: zostaję przy ciężarze')).count() > 0, 'odrzucenie nie zapisane')
     pg.get_by_role('button', name='zmień').click(); pg.wait_for_timeout(200)
     pg.get_by_role('button', name='Inny ciężar').click()
@@ -305,4 +340,4 @@ def training_availability(pg, url):
     check(pg.get_by_text(re.compile('cel 2/tydz')).count() > 0, 'cel nie przetrwał odświeżenia')
     return {'toggled': lbl}
 
-ALL = [exercise_card_and_swap, backup_roundtrip, recipe_flow, workout_plan_flow, coach_feedback, food_search, storage_diagnostics, morning_backup_reminder, recipe_portions_in_diary, meal_suggestions, library_recipes, onboarding_health_survey, progression_flow, progression_reject, training_availability]
+ALL = [exercise_card_and_swap, backup_roundtrip, recipe_flow, workout_plan_flow, coach_feedback, food_search, storage_diagnostics, morning_backup_reminder, recipe_portions_in_diary, meal_suggestions, library_recipes, onboarding_health_survey, progression_flow, progression_reject, training_availability, progression_big_jump, progression_pain]

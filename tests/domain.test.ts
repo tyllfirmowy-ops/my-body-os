@@ -106,11 +106,11 @@ describe('A/B/C i bezpieczeństwo', () => {
 describe('progresja', () => {
   const base = { plannedSets: 3, repMin: 10, repMax: 12, increment: 2.5, safetyBlock: false };
   const sets = (r: number[], rir = 2) => r.map((reps) => ({ weightKg: 20, reps, rir, done: true }));
-  it('górny zakres + warunki → zwiększenie', () => expect(suggestNext({ ...base, last: sets([12, 12, 12]), technique: 'ok' })).toMatchObject({ action: 'increase', weightKg: 22.5 }));
+  it('górny zakres + warunki → zwiększenie (skok ≤ 10%)', () => expect(suggestNext({ ...base, increment: 2, last: sets([12, 12, 12]), technique: 'ok' })).toMatchObject({ action: 'increase', weightKg: 22 }));
   // W2: ocena techniki jest opcjonalna; blokuje tylko zgłoszona słabsza technika
   it('górny zakres ze słabszą techniką → bez zwiększenia', () => expect(suggestNext({ ...base, last: sets([12, 12, 12]), technique: 'bad' }).action).toBe('hold'));
   it('niepełne serie → bez zwiększenia, najpierw powtórzenia', () => expect(suggestNext({ ...base, last: sets([12, 12, 11]), technique: 'ok' })).toMatchObject({ action: 'reps', weightKg: 20 }));
-  it('ból → zmniejszenie', () => expect(suggestNext({ ...base, last: [{ weightKg: 20, reps: 12, rir: 2, pain: 5, done: true }], technique: 'ok' }).action).toBe('decrease'));
+  it('ból ≥ 4 → bez automatycznej zmiany ciężaru', () => expect(suggestNext({ ...base, last: [{ weightKg: 20, reps: 12, rir: 2, pain: 5, done: true }], technique: 'ok' })).toMatchObject({ action: 'pain', weightKg: null }));
   it('blokada → pominięcie', () => expect(suggestNext({ ...base, last: sets([12, 12, 12]), technique: 'ok', safetyBlock: true }).action).toBe('skip'));
 });
 

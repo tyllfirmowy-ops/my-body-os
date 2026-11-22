@@ -1,7 +1,7 @@
 import { diffDays } from './dates';
 
 export interface SetResult { weightKg: number; reps: number; rir?: number; pain?: number; done: boolean }
-export type ProgressAction = 'increase' | 'reps' | 'hold' | 'decrease' | 'skip' | 'no_data';
+export type ProgressAction = 'increase' | 'reps' | 'hold' | 'decrease' | 'skip' | 'no_data' | 'pain';
 export interface Suggestion {
   action: ProgressAction;
   weightKg: number | null;
@@ -9,6 +9,8 @@ export interface Suggestion {
   reason: string;
   /** krótkie fakty, na których oparto sugestię */
   basis?: string[];
+  /** większy ciężar do świadomego wyboru (np. skok > 10%), nie domyślny */
+  alternativeKg?: number;
 }
 export interface SessionResult { date: string; sets: SetResult[]; technique?: 'ok' | 'bad' }
 
@@ -29,6 +31,10 @@ export interface ProgressInput {
 }
 
 export const GAP = { hold: 14, minus10: 28, minus15: 56 } as const;
+/** skok powyżej 10% nie jest proponowany domyślnie (ACSM 2009: zwykle 2–10%) */
+export const MAX_JUMP = 0.1;
+/** górna granica powtórzeń przy progresji powtórzeniami zamiast dużego skoku (reguła projektowa) */
+export const repCap = (repMax: number) => Math.min(20, repMax + 3);
 
 /** Zaokrąglenie do siatki skoku (kg); dla kroku 0 bez zmian. */
 export function roundToStep(kg: number, step: number): number {
@@ -69,7 +75,8 @@ export function suggestProgression(p: ProgressInput): Suggestion {
 
   // ból
   const maxPain = Math.max(...s0.map((s) => s.pain ?? 0));
-  if (maxPain >= 4) return res('decrease', down(w, 0.1, p.step), range, `Ból ${maxPain}/10 ostatnio. Lżej o ok. 10%, a jeśli ból wraca, pomiń ćwiczenie.`);
+  // ból ≥ 4: bez automatycznej zmiany ciężaru (ani w górę, ani „bezpiecznego” −10%); decyzja: pominąć albo zamiennik
+  if (maxPain >= 4) return res('pain', null, range, `Ból ${maxPain}/10 ostatnio. Bez automatycznej zmiany ciężaru. Jeśli ból wraca, przerwij ćwiczenie albo wybierz zamiennik; nawracający ból skonsultuj ze specjalistą.`);
   // przerwa
   const gap = diffDays(p.history[0].date, p.today);
   if (gap >= GAP.minus15) return res('decrease', down(w, 0.15, p.step), range, `${gap} dni przerwy: ostrożny powrót, ok. 15% lżej.`);
@@ -97,10 +104,19 @@ export function suggestProgression(p: ProgressInput): Suggestion {
     if (!twice && !clearReserve) return res('hold', w, range, `Pierwszy raz górny zakres (${p.repMax}). Powtórz; przy kolejnym takim wyniku zaproponuję więcej.`);
     if (!p.step) return res('reps', null, `${p.repMax}+`, 'Górny zakres bez obciążenia: dodaj serię albo wybierz trudniejszy wariant.');
     const next = roundToStep(w + p.step, p.step);
-    const pct = w > 0 ? (next - w) / w : 0;
+    const pct = w > 0 ? p.step / w : 0; // procent ze skoku, nie z zaokrąglonej wartości
     basis.push(twice ? 'Górny zakres w 2 kolejnych treningach' : 'Górny zakres z zapasem RIR ≥ 2 w każdej serii');
-    const note = pct > 0.1 ? ` To +${Math.round(pct * 100)}% (najmniejszy dostępny skok): zacznij od ${p.repMin} powtórzeń.` : '';
-    return res('increase', next, `${p.repMin}–${p.repMax}`, `${twice ? 'Dwa treningi' : 'Trening'} na górze zakresu: +${fmt(next - w)}.${note}`);
+    if (pct > MAX_JUMP + 1e-6) {
+      // skok > 10%: domyślnie ten sam ciężar i więcej powtórzeń (do repMax + 3), większy ciężar tylko świadomie
+      const cap = repCap(p.repMax);
+      const capTwice = sameW1 && [s0, s1].every((ss) => ss.length >= p.plannedSets && ss.every((x) => x.weightKg === w && x.reps >= cap));
+      if (!capTwice) {
+        const r = res('reps', w, `${p.repMax}–${cap}`, `Najmniejszy skok to +${Math.round(pct * 100)}% (${fmt(next)}), więcej niż zwykłe 2–10%. Zostań przy ${fmt(w)} i dokładaj powtórzenia do ${cap}.`);
+        return { ...r, alternativeKg: next };
+      }
+      return res('increase', next, `${p.repMin}–${p.repMax}`, `Dwa treningi po ${cap} powtórzeń: +${fmt(next - w)} (+${Math.round(pct * 100)}%), zacznij od ${p.repMin} powtórzeń.`);
+    }
+    return res('increase', next, `${p.repMin}–${p.repMax}`, `${twice ? 'Dwa treningi' : 'Trening'} na górze zakresu: +${fmt(next - w)}.`);
   }
   // za mało serii albo powtórzeń: najpierw powtórzenia
   if (s0.length < p.plannedSets) return res('reps', w, range, `Ten sam ciężar; zrób wszystkie ${p.plannedSets} serie.`);

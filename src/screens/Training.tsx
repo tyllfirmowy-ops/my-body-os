@@ -92,7 +92,7 @@ export function Training({ data, d }: ScreenProps) {
               <button key={te.exerciseId} onClick={() => setCard(e)} className="w-full flex justify-between items-center py-2.5 border-b border-line last:border-0 text-left">
                 <span className="text-sm">{e.namePl} {e.knee !== 'none' && <Badge tone={e.knee === 'moderate' ? 'warn' : 'muted'}>kolano</Badge>}</span>
                 <span className="text-xs text-muted num text-right">{plannedSetsFor(te.sets, d.weekIdx)}×{te.repMin === te.repMax ? te.repMin : `${te.repMin}–${te.repMax}`}{e.perSide ? '/str.' : ''} · {te.restSec}s
-                  {(() => { const sg = progressFor(data, d, e, te, plannedSetsFor(te.sets, d.weekIdx)); return sg.action === 'no_data' ? null : <span className={cx('block', sg.action === 'increase' ? 'text-accent' : sg.action === 'decrease' || sg.action === 'skip' ? 'text-warn' : '')}>{ARROW[sg.action]} {sg.weightKg !== null ? fmtWeight(sg.weightKg, unitOf(data)) : ''}</span>; })()}
+                  {(() => { const sg = progressFor(data, d, e, te, plannedSetsFor(te.sets, d.weekIdx)); return sg.action === 'no_data' ? null : <span className={cx('block', sg.action === 'increase' ? 'text-accent' : sg.action === 'decrease' || sg.action === 'skip' || sg.action === 'pain' ? 'text-warn' : '')}>{ARROW[sg.action]} {sg.weightKg !== null ? fmtWeight(sg.weightKg, unitOf(data)) : ''}</span>; })()}
                 </span>
               </button>
             );
@@ -163,7 +163,7 @@ function progressFor(data: AppData, d: Derived, ex: ExerciseCard, te: { sets: nu
     kneeNoLoad: ex.knee === 'moderate' && !data.health?.kneeCleared && !kneeBlock, noIncrease, requirePainRecord: ex.knee !== 'none' && !data.health?.kneeCleared,
   });
 }
-const ARROW: Record<Suggestion['action'], string> = { increase: '↑', decrease: '↓', reps: '+1 powt.', hold: '=', skip: 'pomiń', no_data: 'start' };
+const ARROW: Record<Suggestion['action'], string> = { increase: '↑', decrease: '↓', reps: '+1 powt.', hold: '=', skip: 'pomiń', no_data: 'start', pain: '! ból' };
 
 function SessionView({ data, d, s, onExit }: { data: AppData; d: Derived; s: WorkoutSession; onExit: () => void }) {
   const tpl = sessionPlan(s, WORKOUTS);
@@ -244,7 +244,7 @@ function SessionView({ data, d, s, onExit }: { data: AppData; d: Derived; s: Wor
         {swapped && <button onClick={() => doSwap(slot)} className="mt-2 flex items-center gap-1 text-xs text-accent"><Undo2 size={14} /> Wróć do: {exerciseById(slot).namePl}</button>}
         {earlierInSlot.length > 0 && <p className="mt-2 text-xs text-muted">Wcześniej w tym miejscu: {exerciseById(earlierInSlot[0].exerciseId).namePl}, {earlierInSlot.length} seria(e) zapisane.</p>}
         {kneeBlock ? <p className="mt-3 rounded-xl bg-danger/10 p-3 text-sm text-danger">Blokada bezpieczeństwa: pomiń to ćwiczenie dziś (kolano).</p>
-          : <div className={cx('mt-3 rounded-xl p-3 text-sm space-y-2', sug.action === 'increase' ? 'bg-accent/10' : sug.action === 'decrease' ? 'bg-warn/10' : 'bg-card2')}>
+          : <div className={cx('mt-3 rounded-xl p-3 text-sm space-y-2', sug.action === 'increase' ? 'bg-accent/10' : sug.action === 'decrease' || sug.action === 'pain' ? 'bg-warn/10' : 'bg-card2')}>
             <div><b>{sug.weightKg !== null ? fmtWeight(sug.weightKg, unit) : 'Dobierz ciężar'}</b> · {sug.targetReps} powt.{ex.perSide ? ' na stronę' : ''}</div>
             <div className="text-xs">{sug.reason}</div>
             {prev && <div className="text-xs text-muted">Ostatnio ({formatPl(prev.session.date)}): {prev.sets.map((x) => `${toDisplay(x.weightKg, unit)}×${x.reps}`).join(', ')}</div>}
@@ -257,7 +257,11 @@ function SessionView({ data, d, s, onExit }: { data: AppData; d: Derived; s: Wor
                 </div>
                 {customKg === null ? <button className="text-xs text-accent underline" onClick={() => setCustomKg(toDisplay(sug.weightKg ?? lastW ?? 0, unit))}>Inny ciężar</button>
                   : <div className="flex items-center gap-2"><Stepper value={customKg} onChange={setCustomKg} step={toDisplay(loadStepKg(ex, unit, data.settings?.loadSteps), unit) || 1} unit={unit} /><Btn kind="soft" className="text-sm" onClick={() => decide('modified', fromDisplay(customKg, unit))}>Zapisz</Btn></div>}
-              </div> : sug.action === 'no_data' ? <div className="flex gap-2">
+              </div> : sug.action === 'pain' ? <div className="grid grid-cols-2 gap-2">
+                <Btn kind="soft" className="text-sm min-h-11" onClick={skip}>Pomiń ćwiczenie</Btn>
+                <Btn kind="soft" className="text-sm min-h-11" onClick={() => setSwapOpen(true)}>Zamień ćwiczenie</Btn>
+              </div> : sug.alternativeKg ? <button className="text-xs text-accent underline" onClick={() => decide('modified', sug.alternativeKg!)}>Świadomie wybieram {fmtWeight(sug.alternativeKg, unit)}</button>
+              : sug.action === 'no_data' ? <div className="flex gap-2">
                 <Btn className="flex-1 text-sm min-h-11" onClick={() => decide('accepted', null)}>Zatwierdź start</Btn>
                 {customKg === null ? <Btn kind="soft" className="text-sm min-h-11" onClick={() => setCustomKg(0)}>Podaj ciężar</Btn>
                   : <><Stepper value={customKg} onChange={setCustomKg} step={toDisplay(loadStepKg(ex, unit, data.settings?.loadSteps), unit) || 1} unit={unit} /><Btn kind="soft" className="text-sm" onClick={() => decide('modified', fromDisplay(customKg, unit))}>OK</Btn></>}

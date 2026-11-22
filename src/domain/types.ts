@@ -187,7 +187,7 @@ export interface WorkoutSession extends Meta {
 }
 
 export interface ProgressDecision {
-  action: 'increase' | 'reps' | 'hold' | 'decrease' | 'skip' | 'no_data';
+  action: 'increase' | 'reps' | 'hold' | 'decrease' | 'skip' | 'no_data' | 'pain';
   suggestedKg: number | null;
   targetReps: string;
   reason: string;

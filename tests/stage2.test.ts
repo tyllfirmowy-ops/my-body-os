@@ -129,14 +129,14 @@ describe('zamiana ćwiczenia', () => {
     const sessions = [{ id: 's1', date: '2026-11-10', status: 'completed', startedAt: 1 }, { id: 's2', date: '2026-11-14', status: 'completed', startedAt: 2 }];
     const sets = [
       ...[0, 1, 2].map((i) => ({ sessionId: 's1', exerciseId: 'machine_press', setIndex: i, weightKg: 40, reps: 12, rir: 2, done: true })),
-      ...[0, 1, 2].map((i) => ({ sessionId: 's2', exerciseId: 'flat_db_press', slot: 'machine_press', setIndex: i, weightKg: 14, reps: 12, rir: 2, done: true })),
+      ...[0, 1, 2].map((i) => ({ sessionId: 's2', exerciseId: 'flat_db_press', slot: 'machine_press', setIndex: i, weightKg: 20, reps: 12, rir: 2, done: true })),
     ];
     const lastFlat = lastSetsFor(sessions, sets, 'flat_db_press')!;
     const lastMachine = lastSetsFor(sessions, sets, 'machine_press')!;
     expect(lastFlat.session.id).toBe('s2'); expect(lastMachine.session.id).toBe('s1');
     const tpl = WORKOUTS.A.find((t) => t.exerciseId === 'machine_press')!;
     const sug = suggestNext({ last: lastFlat.sets, plannedSets: tpl.sets, repMin: tpl.repMin, repMax: tpl.repMax, increment: exerciseById('flat_db_press').increment, technique: 'ok', safetyBlock: false });
-    expect(sug).toMatchObject({ action: 'increase', weightKg: 16 });
+    expect(sug).toMatchObject({ action: 'increase', weightKg: 22 }); // skok 2 kg hantli = 10% (w granicy)
     expect(suggestNext({ last: lastMachine.sets, plannedSets: 3, repMin: 10, repMax: 12, increment: exerciseById('machine_press').increment, technique: 'ok', safetyBlock: false }).weightKg).toBe(42.5);
   });
   it('wszystkie zamienniki istnieją w bibliotece i mają grupę mięśni', () => {

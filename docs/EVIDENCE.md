@@ -14,7 +14,7 @@ Zasada: każda reguła zdrowotna i żywieniowa ma źródło albo jest jawnie ozn
 | Brak reguły „nie jedz wieczorem / po 18” i brak kary za kalorie wieczorem | Przy tych samych kaloriach rozkład rano vs wieczorem dawał prawie identyczny spadek masy; niektóre badania pokazują wpływ późnego jedzenia na głód i metabolizm, ale bez przewagi w redukcji przy kontrolowanych kaloriach | Ruddick-Collins i in., Cell Metab 2022 (relacja CNN 2022); Johns Hopkins, AHA 2020 (relacja AJC) — warto podlinkować oryginały |
 | Porada o posiłku z białkiem w ciągu dnia i wieczornym podjadaniu: sformułowana ostrożnie („może”, „małe badania”) | Białkowe śniadanie zmniejszało wieczorne podjadanie u 20 młodych kobiet, bez różnicy w dziennym spożyciu energii | Leidy i in., Am J Clin Nutr 2013 https://pubmed.ncbi.nlm.nih.gov/23446906/ |
 | Progres siłowy (W2): regularność i indywidualizacja ważniejsze niż skomplikowane schematy; 2–3 serie na ćwiczenie, ok. 10 serii/tydz. na grupę mięśniową dla hipertrofii | Stanowisko ACSM 2026 (overview of reviews, 137 przeglądów, >30 000 uczestników) | ACSM Position Stand 2026 (Phillips i in., Med Sci Sports Exerc, IV 2026) PMID 41843416, https://pmc.ncbi.nlm.nih.gov/articles/PMC12965823/ ; omówienie: https://acsm.org/resistance-training-guidelines-update-2026/ |
-| Zwiększenie ciężaru o najmniejszy dostępny skok, gdy górny zakres powtórzeń jest wykonany; ostrzeżenie, gdy skok > 10% | Zwiększenie obciążenia o 2–10%, gdy obecny ciężar da się wykonać 1–2 powtórzenia ponad zakładaną liczbę (stanowisko ACSM 2009; nowe stanowisko 2026 nie podaje sztywnego progu i zaleca indywidualizację) | ACSM Position Stand 2009, Med Sci Sports Exerc 41(3):687–708 https://pubmed.ncbi.nlm.nih.gov/19204579/ |
+| Zwiększenie ciężaru o najmniejszy dostępny skok, gdy górny zakres powtórzeń jest wykonany; skok > 10% nie jest propozycją domyślną (zostaje ciężar, rosną powtórzenia, większy ciężar tylko świadomie) | Zwiększenie obciążenia o 2–10%, gdy obecny ciężar da się wykonać 1–2 powtórzenia ponad zakładaną liczbę (stanowisko ACSM 2009; nowe stanowisko 2026 nie podaje sztywnego progu i zaleca indywidualizację) | ACSM Position Stand 2009, Med Sci Sports Exerc 41(3):687–708 https://pubmed.ncbi.nlm.nih.gov/19204579/ |
 | RIR opcjonalny i traktowany jako szacunek: nie jest wymagany do progresji; RIR 0 blokuje zwiększenie, RIR ≥ 2 we wszystkich seriach pozwala zwiększyć po jednym treningu | Ćwiczący zaniżają liczbę powtórzeń do upadku średnio o ok. 1 powtórzenie, z dużą zmiennością; dokładność rośnie z doświadczeniem i bliżej upadku; RIR stosować ostrożnie | Halperin i in., Sports Med 2022 https://pubmed.ncbi.nlm.nih.gov/34542869/ ; Steele i in., PeerJ 2017 https://doi.org/10.7717/peerj.4105 |
 | Po przerwie ostrożny powrót (14 dni: bez zwiększania, 28 dni: −10%, 56 dni: −15%) | Siła po treningu oporowym utrzymuje się długo (zysk siły zachowany po 16–24 tyg. przerwy w metaanalizie), więc obniżki to REGUŁA PROJEKTOWA ostrożnego powrotu (tkanki, bezpieczeństwo kolana), nie „utrata siły” | Encarnação i in., Muscles 2022 https://doi.org/10.3390/muscles1010001 |
 | Technika wzorców animacji (RDL, siad na ławkę, wyciskanie na skosie) | Zweryfikowane w ETAPIE 2 z opisami NASM, Human Kinetics, EliteFTS, CSCCa, uczelnianych programów S&C (linki do uzupełnienia) | docs/CHANGELOG.md 0.5.0 |
@@ -36,6 +36,17 @@ Zasada: każda reguła zdrowotna i żywieniowa ma źródło albo jest jawnie ozn
 - Ograniczenia: mało badań, małe próby, ryzyko błędu.
 - W aplikacji: brak obowiązkowej godziny; okno 9:00–15:00 tylko jako preferencja; regularność ważniejsza niż pora.
 
+**Duży skok obciążenia (> 10%), np. hantle 16 → 18 kg** (dodane 2026-11-22)
+- Wytyczna: ACSM 2009: zwiększenie o 2–10%, gdy ciężar da się wykonać 1–2 powtórzenia ponad cel (PMID 19204579). ACSM 2026 nie podaje sztywnego progu.
+- Badania: Schoenfeld i in., J Strength Cond Res 2017 (PMID 28834797): największa siła przy dużych obciążeniach, hipertrofia podobna w szerokim zakresie obciążeń.
+- Ograniczenia: większość badań prowadzi serie blisko upadku; brak badań porównujących „więcej powtórzeń vs skok +13%” wprost.
+- W aplikacji (REGUŁA PROJEKTOWA): gdy najmniejszy dostępny skok przekracza 10%, domyślnie ten sam ciężar i powtórzenia do repMax + 3 (maks. 20); zwiększenie staje się propozycją po 2 treningach na tej granicy; większy ciężar zawsze możliwy jako świadomy wybór.
+
+**Ból podczas ćwiczenia (≥ 4/10)** (dodane 2026-11-22)
+- Badania: Smith i in., Br J Sports Med 2017 (doi 10.1136/bjsports-2016-097383, https://bjsm.bmj.com/content/51/23/1679): w terapii przewlekłego bólu mięśniowo-szkieletowego ćwiczenia z bólem dawały niewielką korzyść krótkoterminową, bez przewagi w średnim i długim okresie; dotyczy programów prowadzonych przez specjalistę.
+- Ograniczenia: nie dotyczy ostrego urazu ani samodzielnego treningu bez oceny; nie wskazuje „bezpiecznej” redukcji ciężaru.
+- W aplikacji (REGUŁA PROJEKTOWA): przy bólu ≥ 4/10 w ostatnim treningu brak automatycznej zmiany ciężaru (ani w górę, ani −10%), krótkie ostrzeżenie, do wyboru „Pomiń ćwiczenie” lub „Zamień ćwiczenie”; nawracający ból: konsultacja. Aplikacja nie tworzy programu rehabilitacji. Blokady kolana (safety) działają bez zmian i mają pierwszeństwo.
+
 **Praktyczne heurystyki (nie twierdzenia naukowe)**
 - Min. 2 dni odstępu między treningami FBW (ok. 48 h regeneracji całego ciała): heurystyka planowania.
 - Cel 3 treningi/tydz.: wybór użytkownika mieszczący się w zaleceniach (≥2); nie wynika z badań jako optimum.
@@ -56,7 +67,7 @@ Zasada: każda reguła zdrowotna i żywieniowa ma źródło albo jest jawnie ozn
 - Podłoga 2100 kcal dla tego profilu, kalibracja 14 dni przed pierwszą korektą, korekta −150 kcal, min. 14 dni między zmianami.
 - Makro w analizach tylko przy pokryciu ≥80% kcal dnia (brak danych ≠ 0).
 - Propozycje posiłków: budżet posiłku = pozostałe kcal / pozostałe posiłki; porcje przepisu co 0,25.
-- Progres (W2): zwiększenie dopiero po 2 kolejnych treningach na górze zakresu (albo 1 z RIR ≥ 2 w każdej serii); obniżka ok. 10% przy bólu ≥ 4/10, przy 2 treningach z rzędu poniżej zakresu i przy RIR 0 poniżej zakresu; spadek łącznych powtórzeń > 20% = bez zwiększania; obniżki zaokrąglane w dół do siatki skoku.
+- Progres (W2): zwiększenie dopiero po 2 kolejnych treningach na górze zakresu (albo 1 z RIR ≥ 2 w każdej serii); przy bólu ≥ 4/10 brak automatycznej zmiany ciężaru (pominięcie lub zamiennik); obniżka ok. 10% przy 2 treningach z rzędu poniżej zakresu i przy RIR 0 poniżej zakresu; skok > 10% tylko jako świadomy wybór; spadek łącznych powtórzeń > 20% = bez zwiększania; obniżki zaokrąglane w dół do siatki skoku.
 
 ## Mity, których aplikacja świadomie nie stosuje
 - „Nie jedz węglowodanów wieczorem / po 18.” Przy tych samych kaloriach pora nie przesądza o spadku masy.

@@ -39,10 +39,10 @@ describe('W2 podwójna progresja', () => {
 });
 
 describe('W2 skoki obciążenia i jednostki', () => {
-  it('najmniejszy skok sprzętu; duży skok procentowy z ostrzeżeniem (ACSM: zwykle 2–10%)', () => {
-    const r = P([{ date: '2026-11-19', sets: S(4, [15, 15, 15]) }, { date: '2026-11-15', sets: S(4, [15, 15, 15]) }], { repMin: 12, repMax: 15, step: 1 });
-    expect(r.weightKg).toBe(5);
-    expect(r.reason).toMatch(/\+25%.*zacznij od 12/);
+  it('skok ≤ 10% → zwiększenie jako domyślna propozycja', () => {
+    const r = P([{ date: '2026-11-19', sets: S(20, [12, 12, 12]) }, { date: '2026-11-15', sets: S(20, [12, 12, 12]) }], { step: 2 });
+    expect(r).toMatchObject({ action: 'increase', weightKg: 22 });
+    expect(r.alternativeKg).toBeUndefined();
   });
   it('bez obciążenia (skok 0) → więcej serii albo trudniejszy wariant, bez ciężaru', () => {
     expect(P([{ date: '2026-11-19', sets: S(0, [12, 12, 12]) }, { date: '2026-11-15', sets: S(0, [12, 12, 12]) }], { step: 0 })).toMatchObject({ action: 'reps', weightKg: null });
@@ -53,8 +53,8 @@ describe('W2 skoki obciążenia i jednostki', () => {
     expect(roundToStep(41.3, 2.5)).toBe(42.5);
     expect(roundToStep(41.2, 0)).toBe(41.2);
     const step = loadStepKg({ increment: 2, equip: ['dumbbell'] }, 'lb');
-    const r = P([{ date: '2026-11-19', sets: S(20 * LB * 2, [12, 12, 12]) }, { date: '2026-11-15', sets: S(20 * LB * 2, [12, 12, 12]) }], { step });
-    expect(toDisplay(r.weightKg!, 'lb')).toBe(45);
+    const r = P([{ date: '2026-11-19', sets: S(50 * LB, [12, 12, 12]) }, { date: '2026-11-15', sets: S(50 * LB, [12, 12, 12]) }], { step });
+    expect(toDisplay(r.weightKg!, 'lb')).toBe(55); // +5 lb = 10%
   });
   it('skok z ustawień użytkownika ma pierwszeństwo; ćwiczenie bez obciążenia zostaje bez skoku', () => {
     expect(loadStepKg({ increment: 2.5, equip: ['machine'] }, 'kg', { machine: 5 })).toBe(5);
@@ -69,8 +69,7 @@ describe('W2 ochrona przed nieuzasadnioną progresją', () => {
     expect(P(top2, { safetyBlock: true }).action).toBe('skip');
     expect(P(top2, { kneeNoLoad: true })).toMatchObject({ action: 'hold', weightKg: 0 });
   });
-  it('ból ≥ 4 → lżej o ~10% (w dół do siatki); ból 3 → bez zwiększenia', () => {
-    expect(P([{ date: '2026-11-19', sets: S(40, [12, 12, 12], undefined, 5) }])).toMatchObject({ action: 'decrease', weightKg: 35 });
+  it('ból 3 → bez zwiększenia', () => {
     expect(P([{ date: '2026-11-19', sets: S(40, [12, 12, 12], undefined, 3) }, top2[1]]).action).toBe('hold');
   });
   it('dłuższa przerwa: 14 dni bez zwiększania, 28 dni −10%, 56 dni −15%', () => {
@@ -88,6 +87,36 @@ describe('W2 ochrona przed nieuzasadnioną progresją', () => {
   it('brak historii → bez sugestii ciężaru; słabsza technika → bez zwiększenia', () => {
     expect(P([])).toMatchObject({ action: 'no_data', weightKg: null });
     expect(P([{ ...top2[0], technique: 'bad' }, top2[1]]).action).toBe('hold');
+  });
+});
+
+describe('Przegląd przed scaleniem: ból i duże skoki', () => {
+  const top = (w: number, reps = 12, pain?: number) => S(w, [reps, reps, reps], undefined, pain);
+  it('ból 5/10: bez automatycznej zmiany ciężaru (także bez −10%), ostrzeżenie z pominięciem lub zamiennikiem', () => {
+    const r = P([{ date: '2026-11-19', sets: top(40, 12, 5) }, { date: '2026-11-15', sets: top(40) }]);
+    expect(r).toMatchObject({ action: 'pain', weightKg: null });
+    expect(r.reason).toMatch(/Bez automatycznej zmiany ciężaru/);
+    expect(r.reason).toMatch(/przerwij ćwiczenie albo wybierz zamiennik/);
+    expect(r.alternativeKg).toBeUndefined();
+  });
+  it('ból ≥ 4 ma pierwszeństwo przed przerwą i górnym zakresem; blokada kolana nadal pierwsza', () => {
+    expect(P([{ date: '2026-10-01', sets: top(40, 12, 4) }]).action).toBe('pain');
+    expect(P([{ date: '2026-11-19', sets: top(40, 12, 6) }], { safetyBlock: true }).action).toBe('skip');
+    expect(P([{ date: '2026-11-19', sets: top(40, 12, 6) }], { kneeNoLoad: true })).toMatchObject({ action: 'hold', weightKg: 0 });
+  });
+  it('skok 16 → 18 kg (+13%): domyślnie ten sam ciężar i więcej powtórzeń, 18 kg tylko jako świadomy wybór', () => {
+    const r = P([{ date: '2026-11-19', sets: top(16) }, { date: '2026-11-15', sets: top(16) }], { repMin: 10, repMax: 12, step: 2 });
+    expect(r).toMatchObject({ action: 'reps', weightKg: 16, targetReps: '12–15', alternativeKg: 18 });
+    expect(r.reason).toMatch(/\+13%.*Zostań przy 16 kg/);
+  });
+  it('gdy powtórzenia dojdą do górnej granicy (repMax + 3) w 2 treningach, zwiększenie staje się propozycją', () => {
+    const r = P([{ date: '2026-11-19', sets: top(16, 15) }, { date: '2026-11-15', sets: top(16, 15) }], { repMin: 10, repMax: 12, step: 2 });
+    expect(r).toMatchObject({ action: 'increase', weightKg: 18, targetReps: '10–12' });
+    expect(P([{ date: '2026-11-19', sets: top(16, 15) }, { date: '2026-11-15', sets: top(16, 13) }], { repMin: 10, repMax: 12, step: 2 }).action).toBe('reps');
+  });
+  it('małe hantle 4 → 5 kg (+25%): ten sam ciężar, powtórzenia do 18', () => {
+    const r = P([{ date: '2026-11-19', sets: top(4, 15) }, { date: '2026-11-15', sets: top(4, 15) }], { repMin: 12, repMax: 15, step: 1 });
+    expect(r).toMatchObject({ action: 'reps', weightKg: 4, targetReps: '15–18', alternativeKg: 5 });
   });
 });
 

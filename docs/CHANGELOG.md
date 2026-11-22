@@ -9,6 +9,11 @@
 - EVIDENCE.md: ACSM 2026 (PMID 41843416), WHO 2021, Bruggisser 2023 (pora treningu), heurystyki planowania.
 - Testy: tests/w2b.test.ts (12), E2E `training_availability`.
 
+### Przegląd przed scaleniem
+- Ból ≥ 4/10 w ostatnim treningu: nowa akcja `pain`: bez automatycznej zmiany ciężaru (wcześniej −10%), ostrzeżenie i przyciski „Pomiń ćwiczenie” / „Zamień ćwiczenie” (istniejące funkcje). Blokady kolana bez zmian, nadal pierwsze.
+- Skok > 10% (np. 16 → 18 kg): domyślnie ten sam ciężar i powtórzenia do repMax + 3 (maks. 20); `Suggestion.alternativeKg` + przycisk „Świadomie wybieram X”; zwiększenie domyślne dopiero po 2 treningach na górnej granicy. Procent skoku liczony ze skoku, nie z zaokrąglonej wartości (naprawia fałszywe „>10%” przy lb).
+- Testy: 5 nowych jednostkowych, E2E `progression_big_jump`, `progression_pain`; 4 starsze testy dostosowane (skoki ≤ 10%, ból bez −10%).
+
 ### Progres siłowy
 - `suggestProgression` (domain/progression.ts) zastępuje logikę `suggestNext` (zostaje jako nakładka zgodności): podwójna progresja z historią 3 ostatnich treningów danego ćwiczenia. Kolejność: blokada bezpieczeństwa → kolano bez oceny (bez obciążenia) → brak historii → ból ≥ 4 (−10%) → przerwa (14/28/56 dni) → ból 3 / słabsza technika (bez zwiększania) → spadek wydolności (2× poniżej zakresu: −10%; −20% powtórzeń: bez zwiększania) → górny zakres (zwiększenie tylko po 2 treningach albo z RIR ≥ 2 w każdej serii; RIR 0 blokuje; plan B lub ból kolana ≥ 3 w check-inie blokują) → inaczej „dołóż powtórzenie” / „zrób wszystkie serie”.
 - Zmiana zachowania: ocena techniki nie jest już wymagana do zwiększenia (blokuje tylko „słabsza”), RIR opcjonalny; zamiast tego wymagane 2 kolejne treningi na górze zakresu. Testy w tests/domain.test.ts zaktualizowane świadomie.
