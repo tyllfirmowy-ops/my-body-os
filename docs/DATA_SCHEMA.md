@@ -4,3 +4,5 @@ Tabele: profile, health, plans (PlanVersion, historia zmian), morning, evening (
 Jednostki: kg, cm, g, ml, min, kcal. Daty: 'YYYY-MM-DD' w Europe/Warsaw. Rekordy: id, createdAt, updatedAt, source.
 Pola opcjonalne = brak danych (nigdy 0 zastępczo). Waga dzienna = check-in, w razie braku pomiar.
 Encje ze specyfikacji jeszcze nieobecne jako tabele: ProgressPhoto, Recipe, MealPlan, ShoppingList (liczona w locie), CardioSession (pole cardioMin w sesji), SupplementLog, WeeklyReview (liczony w locie), NotificationPreferences, BackupMetadata (pole w settings).
+
+v0.3: Nutrients ma opcjonalne sugar/satFat/salt; FoodProduct: barcode, brand, ingredients; PlanVersion: cycling, rules (insulinResistance, dairyFree). Bez zmiany schematu Dexie (pola nieindeksowane).

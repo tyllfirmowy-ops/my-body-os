@@ -1,4 +1,11 @@
 # Changelog
+## 0.3.0 — 2026-11-22
+- Baza produktów: 31 → ponad 250 (mięso, ryby, nabiał z oznaczeniem mleka, roślinne białko, kasze suche/ugotowane, pieczywo, warzywa, owoce, orzechy, sosy, słodycze, napoje, dania i fast food jako szacunki). Brakujące produkty dokładane przy starcie bez nadpisywania edycji.
+- Open Food Facts: wyszukiwarka online (PL, potem świat) i skaner kodów kreskowych aparatem (BarcodeDetector lub ponyfill zxing-wasm), wykrywanie mleka ze składu/alergenów, zapis do własnej bazy (offline).
+- Szybki wpis kcal (szacunek), ostatnio używane na górze, cukry / tłuszcze nasycone / sól z etykiet.
+- Cele dnia (domain/targets.ts): cykl kalorii trening/odpoczynek przy stałej średniej tygodniowej i stałym białku; reguły insulinooporności (max % węgli, cukry, błonnik, węgle na posiłek); bez nabiału. Wszystko jako ustawienia w nowej wersji planu.
+- Animacje SVG 13 ćwiczeń: pozycja wyjściowa, wydech przy wysiłku, wdech przy powrocie, pauza na pozycji startowej, link do wideo.
+
 ## 0.2.0 — 2026-11-22
 - Kalkulator zapotrzebowania (wywiad o ruchu → TDEE → plan, TDEE z danych po 3–4 tyg.).
 - Synchronizacja z Apple Zdrowie przez Skrót iOS (schowek lub #sync), tętno spoczynkowe i aktywne kcal tylko informacyjnie.

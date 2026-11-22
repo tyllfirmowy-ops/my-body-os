@@ -35,7 +35,7 @@ export function Today({ data, d, go }: ScreenProps) {
   async function pasteHealth() {
     try { applySync(await navigator.clipboard.readText()); } catch { setPasteBox(true); }
   }
-  const plan = d.plan!;
+  const plan = { ...d.plan!, kcal: d.targets!.kcal, proteinG: d.targets!.proteinG };
   const lvl = d.readiness.level;
   const tpl = templateFor(d.today);
   const w7 = mean(d.weights.filter((w) => w.date > addDays(d.today, -7)).map((w) => w.value));
@@ -114,6 +114,7 @@ export function Today({ data, d, go }: ScreenProps) {
           </button>
         </div>
         <div className="mt-4 space-y-2 text-sm">
+          {d.targets!.dayType !== 'flat' && <Row k="Typ dnia" v={d.targets!.dayType === 'training' ? `treningowy: ${d.targets!.kcal} kcal, W ${d.targets!.carbsG} g` : `bez treningu: ${d.targets!.kcal} kcal, W ${d.targets!.carbsG} g`} />}
           <Row k="Jedzenie" v={`Dzień ${tpl.id}: ${tpl.meals.map((m) => m.name).join(' · ')}`} />
           <Row k="Ruch" v={`${d.steps.toLocaleString('pl-PL')} kroków${lvl === 'C' ? ' (opcjonalnie)' : ''}${d.withDaughterToday ? ' · spacer z córką się liczy' : ''}`} />
           <Row k="Trening" v={d.doneToday ? `Trening ${d.doneToday.templateId} zrobiony ✓` : trainingToday ? `Trening ${d.todayWorkout!.templateId} · ok. 60 min + 10–15 min marszu` : d.withDaughterToday ? 'Dzień z córką: bez siłowni' : 'Odpoczynek'} onClick={() => go('training')} />

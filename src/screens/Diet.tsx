@@ -9,6 +9,10 @@ import { scaleNutrients } from '../domain/calc';
 import { candidatesForSwap, fitDayToKcal, shoppingList, swapProduct } from '../domain/nutrition';
 import type { FoodEntry, FoodProduct } from '../domain/types';
 import { Badge, Bar, Btn, Card, cx, Field, inputCls, NumInput, Sheet, Title, toast } from '../ui/kit';
+import { FoodPicker, addQuickEntry, basisLabel } from './FoodPicker';
+import { dayTargets, ruleWarnings } from '../domain/targets';
+import { PlanSettingsSheet } from './Energy';
+import { Settings2 } from 'lucide-react';
 
 const MEALS = ['Posiłek 1', 'Posiłek 2', 'Posiłek 3', 'Posiłek 4', 'Przekąska / słodycze'];
 
@@ -16,11 +20,16 @@ export function Diet({ data, d }: ScreenProps) {
   const [date, setDate] = useState(d.today);
   const [addMeal, setAddMeal] = useState<number | null>(null);
   const [edit, setEdit] = useState<FoodEntry | null>(null);
-  const [sheet, setSheet] = useState<'template' | 'shop' | 'sos' | 'product' | null>(null);
+  const [sheet, setSheet] = useState<'template' | 'shop' | 'sos' | 'product' | 'plan' | null>(null);
   const products = useMemo(() => new Map(data.foods.map((f) => [f.id, f])), [data.foods]);
   const entries = data.entries.filter((e) => e.date === date);
   const tot = dayIntake(data, date);
-  const plan = d.plan!;
+  const basePlan = d.plan!;
+  const isTraining = data.sessions.some((x) => x.date === date && x.status === 'completed') || d.upcoming.some((u) => u.date === date && date >= d.today);
+  const t = dayTargets(basePlan, isTraining);
+  const plan = { ...basePlan, kcal: t.kcal, proteinG: t.proteinG, fatG: t.fatG, carbsG: t.carbsG, fiberG: [t.fiberG, Math.max(t.fiberG, basePlan.fiberG[1])] as [number, number] };
+  const mealCarbs = [1, 2, 3, 4, 5].map((m) => entries.filter((e) => e.meal === m).reduce((a, e) => a + e.snapshot.carbs, 0));
+  const warnings = tot ? ruleWarnings(t, tot, mealCarbs) : [];
 
   async function addEntry(meal: number, p: FoodProduct, grams: number) {
     const n = scaleNutrients(p.per100, grams);
@@ -47,12 +56,13 @@ export function Diet({ data, d }: ScreenProps) {
       <header className="flex items-center justify-between pt-2">
         <button aria-label="Poprzedni dzień" className="p-2" onClick={() => setDate(addDays(date, -1))}><ChevronLeft /></button>
         <div className="text-center"><h1 className="text-xl font-bold">Dieta</h1><div className="text-sm text-muted">{date === d.today ? 'Dziś' : formatPl(date)}</div></div>
-        <button aria-label="Następny dzień" className="p-2 disabled:opacity-30" disabled={date >= d.today} onClick={() => setDate(addDays(date, 1))}><ChevronRight /></button>
+        <div className="flex"><button aria-label="Ustawienia planu" className="p-2" onClick={() => setSheet('plan')}><Settings2 size={20} /></button>
+        <button aria-label="Następny dzień" className="p-2 disabled:opacity-30" disabled={date >= d.today} onClick={() => setDate(addDays(date, 1))}><ChevronRight /></button></div>
       </header>
 
       <Card>
         <div className="flex items-end justify-between">
-          <div><div className="text-xs text-muted">Zjedzone</div><div className="num text-4xl font-bold">{Math.round(tot?.kcal ?? 0)}<span className="text-base font-normal text-muted"> / {plan.kcal} kcal</span></div></div>
+          <div><div className="text-xs text-muted flex items-center gap-1.5">Zjedzone {t.dayType !== 'flat' && <Badge tone={t.dayType === 'training' ? 'accent' : 'muted'}>{t.dayType === 'training' ? 'dzień treningowy' : 'dzień bez treningu'}</Badge>}</div><div className="num text-4xl font-bold">{Math.round(tot?.kcal ?? 0)}<span className="text-base font-normal text-muted"> / {plan.kcal} kcal</span></div></div>
           <div className="text-right text-sm"><div className="num font-semibold">{Math.round(plan.kcal - (tot?.kcal ?? 0))}</div><div className="text-xs text-muted">zostało</div></div>
         </div>
         <div className="mt-2"><Bar value={tot?.kcal ?? 0} max={plan.kcal} tone={(tot?.kcal ?? 0) > plan.kcal * 1.1 ? 'warn' : 'accent'} /></div>
@@ -61,6 +71,9 @@ export function Diet({ data, d }: ScreenProps) {
             <div key={l}><div className="text-xs text-muted">{l}</div><div className="num font-semibold">{Math.round(v ?? 0)}<span className="text-muted font-normal">/{t}</span></div><div className="mt-1"><Bar value={v ?? 0} max={t} /></div></div>
           ))}
         </div>
+        {tot && (tot.sugar !== undefined || tot.satFat !== undefined || tot.salt !== undefined) && <p className="text-xs text-muted mt-3 num">Z etykiet (gdy dostępne): cukry {tot.sugar?.toFixed(0) ?? '—'} g{t.sugarMaxG ? ` / ${t.sugarMaxG}` : ''} · nasycone {tot.satFat?.toFixed(0) ?? '—'} g · sól {tot.salt?.toFixed(1) ?? '—'} g</p>}
+        {t.notes.map((n) => <p key={n} className="text-xs text-muted mt-1">{n}</p>)}
+        {warnings.map((w) => <p key={w} className="text-xs text-warn mt-1">{w}</p>)}
         {(tot?.kcal ?? 0) > plan.kcal * 1.1 && <p className="text-sm text-muted mt-3">Powyżej celu: wracasz do zwykłego planu od następnego posiłku. Bez odrabiania.</p>}
         {tot && tot.fiber > fiberLow + 10 && <p className="text-xs text-muted mt-2">Błonnik {Math.round(tot.fiber)} g. Jeśli to dużo więcej niż zwykle, zwiększaj stopniowo (np. połowa porcji warzyw i strączków przez 1–2 tyg.), żeby nie obciążać jelit.</p>}
       </Card>
@@ -96,7 +109,9 @@ export function Diet({ data, d }: ScreenProps) {
         );
       })}
 
-      {addMeal !== null && <AddFood open onClose={() => setAddMeal(null)} foods={data.foods} onAdd={async (p, g) => { await addEntry(addMeal, p, g); toast(`Dodano: ${p.name}`); }} onNew={() => setSheet('product')} />}
+      {addMeal !== null && <FoodPicker foods={data.foods} entries={data.entries} onClose={() => setAddMeal(null)} onAdd={async (p, g) => { await addEntry(addMeal, p, g); toast(`Dodano: ${p.name}`); }}
+        onQuick={async (name, kcal, protein) => { await addQuickEntry(date, addMeal, name, kcal, protein, uid()); toast('Dodano szacunek'); }} onNew={() => setSheet('product')} />}
+      {sheet === 'plan' && <PlanSettingsSheet plan={basePlan} today={d.today} onClose={() => setSheet(null)} />}
       {edit && <EditEntry entry={edit} product={products.get(edit.productId)} foods={data.foods} onClose={() => setEdit(null)} />}
       <Sheet open={sheet === 'template'} onClose={() => setSheet(null)} title="Wstaw dzień z szablonu">
         <p className="text-sm text-muted">Gramatury węglowodanów i tłuszczów zostaną dopasowane do celu {plan.kcal} kcal; białko bez zmian. Wartości są referencyjne: sprawdź etykiety.</p>
@@ -118,37 +133,6 @@ function QuickBtn({ icon, label, onClick }: { icon: React.ReactNode; label: stri
   return <button onClick={onClick} className="flex flex-col items-center gap-1 rounded-xl bg-card border border-line py-3 active:opacity-70">{icon}<span>{label}</span></button>;
 }
 
-function AddFood({ open, onClose, foods, onAdd, onNew }: { open: boolean; onClose: () => void; foods: FoodProduct[]; onAdd: (p: FoodProduct, g: number) => Promise<void>; onNew: () => void }) {
-  const [q, setQ] = useState('');
-  const [sel, setSel] = useState<FoodProduct | null>(null);
-  const [g, setG] = useState<number | undefined>(100);
-  const list = foods.filter((f) => f.name.toLowerCase().includes(q.toLowerCase())).sort((a, b) => Number(!!b.favorite) - Number(!!a.favorite) || a.name.localeCompare(b.name, 'pl'));
-  return (
-    <Sheet open={open} onClose={onClose} title={sel ? sel.name : 'Dodaj produkt'}>
-      {!sel ? (<>
-        <input autoFocus className={inputCls} placeholder="Szukaj…" value={q} onChange={(e) => setQ(e.target.value)} />
-        <div className="divide-y divide-line">
-          {list.map((f) => (
-            <button key={f.id} onClick={() => { setSel(f); setG(f.unit?.grams ?? 100); }} className="w-full flex justify-between py-3 text-left">
-              <span className="text-sm">{f.favorite && <Star size={12} className="inline text-accent mr-1" />}{f.name}{f.tolerance === 'bad' && <Badge tone="danger">źle tolerowany</Badge>}</span>
-              <span className="text-xs text-muted num">{f.per100.kcal} kcal/100 g</span>
-            </button>
-          ))}
-        </div>
-        <Btn kind="soft" className="w-full" onClick={() => { onClose(); onNew(); }}>+ Nowy produkt</Btn>
-      </>) : (<>
-        <div className="text-xs text-muted">{basisLabel(sel.basis)} · {sel.reliability === 'label' ? 'z etykiety' : sel.reliability === 'reference' ? 'wartość referencyjna' : 'szacunek'}</div>
-        <Field label="Gramatura (g)"><NumInput value={g} onChange={setG} /></Field>
-        {sel.unit && <div className="flex gap-2">{[1, 2, 3].map((k) => <Btn key={k} kind="soft" className="flex-1 text-sm" onClick={() => setG(sel.unit!.grams * k)}>{k} × {sel.unit!.name}</Btn>)}</div>}
-        {g !== undefined && (() => { const n = scaleNutrients(sel.per100, g); return <div className="text-sm num">{Math.round(n.kcal)} kcal · B {n.protein.toFixed(1)} · T {n.fat.toFixed(1)} · W {n.carbs.toFixed(1)} · Bł {n.fiber.toFixed(1)}</div>; })()}
-        {sel.dairy !== 'none' && <p className="text-sm text-warn">Może zawierać mleko/serwatkę/kazeinę: sprawdź skład.</p>}
-        <div className="flex gap-2"><Btn kind="soft" onClick={() => setSel(null)}>Wstecz</Btn><Btn className="flex-1" disabled={!g} onClick={async () => { await onAdd(sel, g!); onClose(); }}>Dodaj</Btn></div>
-      </>)}
-    </Sheet>
-  );
-}
-const basisLabel = (b: FoodProduct['basis']) => ({ raw: 'waga surowa', dry: 'waga sucha (przed gotowaniem)', cooked: 'waga po ugotowaniu', drained: 'waga po odsączeniu', as_sold: 'waga produktu' }[b]);
-
 function EditEntry({ entry, product, foods, onClose }: { entry: FoodEntry; product?: FoodProduct; foods: FoodProduct[]; onClose: () => void }) {
   const [g, setG] = useState<number | undefined>(entry.grams);
   const [swap, setSwap] = useState(false);
@@ -169,17 +153,19 @@ function EditEntry({ entry, product, foods, onClose }: { entry: FoodEntry; produ
   }
   return (
     <Sheet open onClose={onClose} title={entry.snapshot.name}>
+      {!product ? <p className="text-sm text-muted">Szybki wpis: {Math.round(entry.snapshot.kcal)} kcal, {Math.round(entry.snapshot.protein)} g białka (szacunek).</p> : <>
       <Field label="Gramatura (g)"><NumInput value={g} onChange={setG} /></Field>
       <div className="flex gap-2">
         <Btn kind="soft" className="flex-1 text-sm" onClick={() => toggle('favorite')}><Star size={14} className="inline" /> {product?.favorite ? 'Usuń z ulubionych' : 'Ulubiony'}</Btn>
         <Btn kind="soft" className="flex-1 text-sm" onClick={() => toggle('tolerance')}>Tolerancja: {product?.tolerance === 'bad' ? 'źle' : product?.tolerance === 'good' ? 'dobrze' : '?'}</Btn>
       </div>
       <Btn kind="soft" className="w-full text-sm" onClick={() => setSwap(!swap)}><Repeat size={14} className="inline" /> Zamień na podobny</Btn>
-      {swap && product && candidatesForSwap(foods, product).map((c) => {
+      {swap && product && candidatesForSwap(foods, product).slice(0, 25).map((c) => {
         const s = swapProduct(product, entry.grams, c);
         return <button key={c.id} onClick={() => doSwap(c)} className="w-full text-left py-2 border-b border-line text-sm">{c.name} {s.grams} g <span className="text-muted num">({s.diff.kcal >= 0 ? '+' : ''}{Math.round(s.diff.kcal)} kcal, B {s.diff.protein >= 0 ? '+' : ''}{s.diff.protein.toFixed(0)} g, Bł {s.diff.fiber >= 0 ? '+' : ''}{s.diff.fiber.toFixed(0)} g)</span>{s.dairyWarning && <Badge tone="warn">nabiał?</Badge>}</button>;
       })}
-      <div className="flex gap-2"><Btn kind="danger" onClick={async () => { await db.entries.delete(entry.id); onClose(); }}><Trash2 size={16} /></Btn><Btn className="flex-1" onClick={save}>Zapisz</Btn></div>
+      </>}
+      <div className="flex gap-2"><Btn kind="danger" onClick={async () => { await db.entries.delete(entry.id); onClose(); }}><Trash2 size={16} /></Btn>{product && <Btn className="flex-1" onClick={save}>Zapisz</Btn>}</div>
     </Sheet>
   );
 }
@@ -203,19 +189,20 @@ function Shopping({ open, onClose, products, kcal }: { open: boolean; onClose: (
 }
 
 function ProductForm({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const [f, setF] = useState({ name: '', kcal: undefined as number | undefined, protein: undefined as number | undefined, fat: undefined as number | undefined, carbs: undefined as number | undefined, fiber: 0 as number | undefined, basis: 'as_sold' as FoodProduct['basis'], dairy: 'none' as FoodProduct['dairy'], fromLabel: true });
+  const [f, setF] = useState({ name: '', kcal: undefined as number | undefined, protein: undefined as number | undefined, fat: undefined as number | undefined, carbs: undefined as number | undefined, fiber: 0 as number | undefined, sugar: undefined as number | undefined, satFat: undefined as number | undefined, salt: undefined as number | undefined, barcode: '', basis: 'as_sold' as FoodProduct['basis'], dairy: 'none' as FoodProduct['dairy'], fromLabel: true });
   const valid = f.name && f.kcal !== undefined && f.protein !== undefined && f.fat !== undefined && f.carbs !== undefined;
   async function save() {
     if (!valid) return;
-    await db.foods.add({ id: uid(), name: f.name, per100: { kcal: f.kcal!, protein: f.protein!, fat: f.fat!, carbs: f.carbs!, fiber: f.fiber ?? 0 }, basis: f.basis, dairy: f.dairy, tolerance: 'unknown', role: f.protein! * 4 > f.kcal! * 0.3 ? 'protein' : f.fat! * 9 > f.kcal! * 0.5 ? 'fat' : 'carb', source: f.fromLabel ? 'Etykieta produktu (wpis użytkownika)' : 'Szacunek użytkownika', reliability: f.fromLabel ? 'label' : 'estimate', custom: true, updatedAt: now() });
+    await db.foods.add({ id: uid(), name: f.name, per100: { kcal: f.kcal!, protein: f.protein!, fat: f.fat!, carbs: f.carbs!, fiber: f.fiber ?? 0, ...(f.sugar !== undefined ? { sugar: f.sugar } : {}), ...(f.satFat !== undefined ? { satFat: f.satFat } : {}), ...(f.salt !== undefined ? { salt: f.salt } : {}) }, ...(f.barcode ? { barcode: f.barcode } : {}), basis: f.basis, dairy: f.dairy, tolerance: 'unknown', role: f.protein! * 4 > f.kcal! * 0.3 ? 'protein' : f.fat! * 9 > f.kcal! * 0.5 ? 'fat' : 'carb', source: f.fromLabel ? 'Etykieta produktu (wpis użytkownika)' : 'Szacunek użytkownika', reliability: f.fromLabel ? 'label' : 'estimate', custom: true, updatedAt: now() });
     toast('Produkt zapisany'); onClose();
   }
   return (
     <Sheet open={open} onClose={onClose} title="Nowy produkt (na 100 g)">
       <Field label="Nazwa"><input className={inputCls} value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></Field>
       <div className="grid grid-cols-3 gap-2">
-        {(['kcal', 'protein', 'fat', 'carbs', 'fiber'] as const).map((k) => <Field key={k} label={{ kcal: 'kcal', protein: 'Białko', fat: 'Tłuszcz', carbs: 'Węgle', fiber: 'Błonnik' }[k]}><NumInput value={f[k]} onChange={(v) => setF({ ...f, [k]: v })} /></Field>)}
+        {(['kcal', 'protein', 'fat', 'carbs', 'fiber', 'sugar', 'satFat', 'salt'] as const).map((k) => <Field key={k} label={{ kcal: 'kcal', protein: 'Białko', fat: 'Tłuszcz', carbs: 'Węgle', fiber: 'Błonnik', sugar: 'Cukry (opc.)', satFat: 'Nasycone (opc.)', salt: 'Sól (opc.)' }[k]}><NumInput value={f[k]} onChange={(v) => setF({ ...f, [k]: v })} /></Field>)}
       </div>
+      <Field label="Kod kreskowy (opcjonalnie)"><input className={inputCls} inputMode="numeric" value={f.barcode} onChange={(e) => setF({ ...f, barcode: e.target.value.replace(/\D/g, '') })} /></Field>
       <Field label="Waga dotyczy"><select className={inputCls} value={f.basis} onChange={(e) => setF({ ...f, basis: e.target.value as FoodProduct['basis'] })}>{(['as_sold', 'raw', 'dry', 'cooked', 'drained'] as const).map((b) => <option key={b} value={b}>{basisLabel(b)}</option>)}</select></Field>
       <Field label="Składniki mleczne"><select className={inputCls} value={f.dairy} onChange={(e) => setF({ ...f, dairy: e.target.value as FoodProduct['dairy'] })}><option value="none">brak</option><option value="contains">zawiera</option><option value="unknown">nie wiem</option></select></Field>
       <div className="flex gap-2">{[true, false].map((v) => <button key={String(v)} onClick={() => setF({ ...f, fromLabel: v })} className={cx('flex-1 min-h-11 rounded-lg text-sm', f.fromLabel === v ? 'bg-accent text-accent-ink' : 'bg-card2')}>{v ? 'Z etykiety' : 'Szacunek'}</button>)}</div>

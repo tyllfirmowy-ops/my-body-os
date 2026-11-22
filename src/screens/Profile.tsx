@@ -6,14 +6,14 @@ import { exportAll, importAll, encryptBackup, isEncrypted, decryptBackup, wipeAl
 import { range, formatPl, diffDays } from '../domain/dates';
 import { withDaughter } from '../domain/schedule';
 import { bmrMifflin, ageOn, tdeeRange, macroKcal } from '../domain/calc';
-import { EnergySheet, HealthSyncHelp } from './Energy';
+import { EnergySheet, HealthSyncHelp, PlanSettingsSheet } from './Energy';
 import { Badge, Btn, Card, copyText, cx, download, Field, inputCls, NumInput, Sheet, Title, toast, Toggle } from '../ui/kit';
 
 const DOCTOR_TOPICS = ['Morfologia', 'Glukoza na czczo', 'HbA1c', 'Lipidogram', 'TSH', 'ALT i AST', 'Kreatynina z eGFR', 'Ferrytyna', 'Witamina B12', 'Elektrolity', 'Ciśnienie tętnicze',
   'Przewlekłe zmęczenie i jakość snu', 'Czy potrzebna diagnostyka zaburzeń oddychania w czasie snu', 'Nawracające objawy po nabiale', 'Ocena kolana: fizjoterapeuta lub ortopeda'];
 
 export function Profile({ data, d }: ScreenProps) {
-  const [sheet, setSheet] = useState<'custody' | 'lab' | 'symptom' | 'wipe' | 'profile' | 'supp' | 'energy' | 'sync' | null>(null);
+  const [sheet, setSheet] = useState<'custody' | 'lab' | 'symptom' | 'wipe' | 'profile' | 'supp' | 'energy' | 'sync' | 'plan' | null>(null);
   const [pass, setPass] = useState('');
   const [pending, setPending] = useState<unknown>(null);
   const [paste, setPaste] = useState('');
@@ -68,6 +68,11 @@ export function Profile({ data, d }: ScreenProps) {
       <Card onClick={() => setSheet('sync')}>
         <Title>Apple Zdrowie i zegarek</Title>
         <p className="text-sm">Kroki, sen, waga, tętno spoczynkowe przez Skrót iOS + codzienne przypomnienie o 21:00.</p>
+      </Card>
+
+      <Card onClick={() => setSheet('plan')}>
+        <Title>Ustawienia planu</Title>
+        <p className="text-sm">Dni treningowe vs bez treningu, insulinooporność, bez nabiału, liczba treningów.</p>
       </Card>
 
       <Card>
@@ -149,10 +154,11 @@ export function Profile({ data, d }: ScreenProps) {
           <div className="flex gap-2 mt-2"><Btn kind="danger" className="flex-1" onClick={confirmImport}>Zastąp dane</Btn><Btn kind="ghost" onClick={() => setPending(null)}>Anuluj</Btn></div></div>}
         <Btn kind="ghost" className="w-full mt-2 text-danger" onClick={() => setSheet('wipe')}><Trash2 size={16} className="inline -mt-0.5" /> Usuń wszystkie dane</Btn>
       </Card>
-      <p className="text-center text-xs text-muted pb-2">My Body OS 0.2 · dane lokalne · bez reklam i śledzenia · nie jest wyrobem medycznym</p>
+      <p className="text-center text-xs text-muted pb-2">My Body OS 0.3 · dane lokalne · bez reklam i śledzenia · nie jest wyrobem medycznym</p>
 
       {sheet === 'energy' && <EnergySheet data={data} d={d} onClose={() => setSheet(null)} />}
       {sheet === 'sync' && <HealthSyncHelp onClose={() => setSheet(null)} />}
+      {sheet === 'plan' && <PlanSettingsSheet plan={d.plan!} today={d.today} onClose={() => setSheet(null)} />}
       {sheet === 'custody' && <CustodySheet d={d} onClose={() => setSheet(null)} />}
       {sheet === 'lab' && <LabSheet today={d.today} onClose={() => setSheet(null)} />}
       {sheet === 'symptom' && <SymptomSheet today={d.today} onClose={() => setSheet(null)} />}

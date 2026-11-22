@@ -8,6 +8,7 @@ import { withDaughter, cycleSummary } from '../domain/schedule';
 import { plannedSetsFor, suggestNext, type Suggestion } from '../domain/progression';
 import type { WorkoutSession, WorkoutSet } from '../domain/types';
 import type { AppData, Derived } from '../db/repo';
+import { ExerciseAnim } from '../ui/ExerciseAnim';
 import { Badge, Btn, Card, cx, Field, NumInput, Scale, Sheet, Stepper, Title, toast } from '../ui/kit';
 
 export function Training({ data, d }: ScreenProps) {
@@ -84,6 +85,8 @@ export function ExerciseSheet({ e, onClose }: { e: ExerciseCard; onClose: () => 
   return (
     <Sheet open onClose={onClose} title={e.namePl}>
       <div className="text-sm text-muted">{e.nameEn} · {e.muscles}</div>
+      <ExerciseAnim id={e.id} />
+      <a href={`https://www.youtube.com/results?search_query=${encodeURIComponent(e.nameEn + ' proper form')}`} target="_blank" rel="noreferrer" className="block text-center min-h-11 leading-[2.75rem] rounded-xl bg-card2 text-sm text-accent">Zobacz wideo (YouTube)</a>
       <Sec t="Sprzęt">{e.equipment}{e.setup && `. ${e.setup}`}</Sec>
       <Sec t="Pozycja początkowa">{e.start}</Sec>
       <div><div className="text-xs uppercase text-muted mb-1">Wykonanie</div><ol className="list-decimal pl-5 text-sm space-y-1">{e.steps.map((s) => <li key={s}>{s}</li>)}</ol></div>
@@ -93,7 +96,7 @@ export function ExerciseSheet({ e, onClose }: { e: ExerciseCard; onClose: () => 
       <Sec t="Kolano">{{ none: 'Nie obciąża kolana.', low: 'Niewielkie obciążenie kolana.', moderate: 'Obciąża kolano: wymaga ostrożności do czasu oceny specjalisty.' }[e.knee]}</Sec>
       {e.warnings && <Sec t="Uwagi">{e.warnings}</Sec>}
       <Sec t="Alternatywy">{e.alternatives.join(', ')}</Sec>
-      <p className="text-xs text-muted">Ilustracje: w tej wersji brak zweryfikowanego materiału wideo. Poproś trenera dyżurnego na siłowni o pokazanie ustawienia maszyny przy pierwszym treningu.</p>
+      <p className="text-xs text-muted">Przy pierwszym treningu poproś trenera dyżurnego o pokazanie ustawienia maszyny. Wideo otwiera wyniki wyszukiwania: wybieraj kanały trenerów lub fizjoterapeutów.</p>
     </Sheet>
   );
 }

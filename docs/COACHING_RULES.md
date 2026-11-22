@@ -7,3 +7,5 @@ Coaching (pokazywana 1 rekomendacja, najwyższy priorytet): powrót po ≥3 dnia
 Adaptacja: kalibracja 14 dni · ≥4 ważenia/tydz. · 0,4+ kg/tydz. = utrzymaj · talia −1 cm/14 dni = bez zmian · stagnacja (<0,3 kg/14 dni) → checklista (dziennik ≥10/14, realizacja ±8%) → jedna propozycja: −150 kcal ALBO +1000 kroków · 14 dni odstępu · podłoga 2100 kcal · >1 kg/tydz. przez 2 tyg. = nie zwiększaj deficytu.
 
 Progresja: +najmniejszy krok tylko gdy wszystkie serie na górze zakresu, ten sam ciężar, technika „ok”, RIR ≥1 znany, ból ≤2, brak blokady. Ból ≥4 → −15%. Wstawanie z ławki bez obciążenia do oceny kolana.
+
+Cele dnia (src/domain/targets.ts): cykl kcal opcjonalny; dzień treningowy +X kcal z węglowodanów, dni bez treningu −X·(treningi/tydz.)/(dni wolne/tydz.), średnia = plan.kcal, białko stałe. Insulinooporność (opcja): węgle ≤ carbMaxPct% kcal (nadwyżka → tłuszcz), cukry ≤ sugarMaxPct% (informacyjnie), błonnik ≥ fiberMin, ostrzeżenie > carbsPerMealMaxG na posiłek. Zmiana ustawień = nowa PlanVersion.

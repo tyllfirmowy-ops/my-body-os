@@ -34,6 +34,10 @@ export interface PlanVersion extends Meta {
   fiberG: [number, number];
   mealsPerDay: number;
   workoutsPer14d: number;
+  /** Cykl kalorii: dzień treningowy +trainingExtraKcal (z węglowodanów), odpoczynek mniej, tak by średnia tygodniowa = kcal. */
+  cycling?: { enabled: boolean; trainingExtraKcal: number };
+  /** Reguły dla schorzeń (każda włączana osobno). */
+  rules?: PlanRules;
   reason: string;
   approvedByUser: boolean;
 }
@@ -84,7 +88,7 @@ export interface BodyMeasurement extends Meta {
   note?: string;
 }
 
-export interface Nutrients { kcal: number; protein: number; fat: number; carbs: number; fiber: number }
+export interface Nutrients { kcal: number; protein: number; fat: number; carbs: number; fiber: number; sugar?: number; satFat?: number; salt?: number }
 export type WeightBasis = 'raw' | 'dry' | 'cooked' | 'drained' | 'as_sold';
 export interface FoodProduct {
   id: string;
@@ -97,6 +101,9 @@ export interface FoodProduct {
   role?: 'protein' | 'carb' | 'fat' | 'veg' | 'fruit' | 'mixed';
   source: string;
   reliability: 'label' | 'reference' | 'estimate';
+  barcode?: string;
+  brand?: string;
+  ingredients?: string;
   favorite?: boolean;
   custom?: boolean;
   updatedAt: number;
@@ -108,6 +115,11 @@ export interface FoodEntry extends Meta {
   productId: string;
   grams: number;
   snapshot: Nutrients & { name: string }; // wartości zapisane w momencie wpisu (historia nie zmienia się po edycji produktu)
+}
+
+export interface PlanRules {
+  insulinResistance?: { enabled: boolean; carbMaxPct: number; sugarMaxPct: number; fiberMin: number; carbsPerMealMaxG: number };
+  dairyFree?: { enabled: boolean };
 }
 
 export interface WaterLog { date: LocalDate; ml: number; updatedAt: number }

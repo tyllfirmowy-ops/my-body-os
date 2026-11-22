@@ -1,10 +1,12 @@
 import { z } from 'zod';
 import { db, now, uid } from './db';
 import { SEED_FOODS } from '../data/foods';
+import { EXTRA_FOODS } from '../data/foodsExtra';
 import { addDays, diffDays, range, today as todayFn, type LocalDate } from '../domain/dates';
 import { sumNutrients, bmrMifflin, ageOn, type DatedValue } from '../domain/calc';
 import { planWorkouts, withDaughter, type CustodyInput, type PlannedWorkout } from '../domain/schedule';
 import { evaluateSafety } from '../domain/safety';
+import { dayTargets } from '../domain/targets';
 import { evaluateReadiness } from '../domain/readiness';
 import { evaluateAdaptation, stepTarget } from '../domain/adaptation';
 import { coach, type DaySnapshot } from '../domain/coaching';
@@ -29,7 +31,10 @@ export async function loadAll(): Promise<AppData> {
 }
 
 export async function seedIfEmpty() {
-  if ((await db.foods.count()) === 0) await db.foods.bulkPut(SEED_FOODS.map((f) => ({ ...f, updatedAt: now() })));
+  // dokładamy brakujące produkty z bazy (nowe wersje aplikacji), nie nadpisując edycji użytkownika
+  const have = new Set(await db.foods.toCollection().primaryKeys());
+  const missing = [...SEED_FOODS, ...EXTRA_FOODS].filter((f) => !have.has(f.id));
+  if (missing.length) await db.foods.bulkAdd(missing.map((f) => ({ ...f, updatedAt: now() })));
   if (!(await db.settings.get('settings'))) await db.settings.put({ id: 'settings', theme: 'dark', onboarded: false, backupReminderDays: 7, aiIncludeHealth: false });
   if (navigator.storage?.persist) navigator.storage.persist().catch(() => undefined);
 }
@@ -136,8 +141,9 @@ export function derive(d: AppData, today: LocalDate = todayFn()) {
   }) : undefined;
   const lastActivity = [...d.morning.map((m) => m.date), ...d.evening.map((e) => e.date), ...d.entries.map((e) => e.date)].sort().at(-1);
   const bmr = d.profile ? bmrMifflin({ weightKg: weights.at(-1)?.value ?? d.profile.declaredWeightKg, heightCm: d.profile.heightCm, age: ageOn(d.profile, today), sex: d.profile.sex }) : null;
+  const targets = plan ? dayTargets(plan, !!(todayWorkout || doneToday)) : undefined;
   return {
-    today, plan, custody, morningToday, eveningToday: d.evening.find((e) => e.date === today), safety, readiness, upcoming, todayWorkout, doneToday, inProgress,
+    targets, today, plan, custody, morningToday, eveningToday: d.evening.find((e) => e.date === today), safety, readiness, upcoming, todayWorkout, doneToday, inProgress,
     snaps, recs, steps, weekIdx, intake, weights, adapt, bmr,
     withDaughterToday: custody ? withDaughter(custody, today) : undefined,
     returnMode: lastActivity ? diffDays(lastActivity, today) >= 3 : false,

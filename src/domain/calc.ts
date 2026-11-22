@@ -40,13 +40,22 @@ export function blockAverages(series: DatedValue[], endDate: LocalDate, blocks: 
   return out;
 }
 
+const opt = (x?: number, y?: number) => (x === undefined && y === undefined ? undefined : (x ?? 0) + (y ?? 0));
+/** Cukry, tłuszcze nasycone i sól są opcjonalne (nie każda etykieta/baza je podaje): suma tylko ze znanych wartości. */
 export function addNutrients(a: Nutrients, b: Nutrients): Nutrients {
-  return { kcal: a.kcal + b.kcal, protein: a.protein + b.protein, fat: a.fat + b.fat, carbs: a.carbs + b.carbs, fiber: a.fiber + b.fiber };
+  const r: Nutrients = { kcal: a.kcal + b.kcal, protein: a.protein + b.protein, fat: a.fat + b.fat, carbs: a.carbs + b.carbs, fiber: a.fiber + b.fiber };
+  const sugar = opt(a.sugar, b.sugar), satFat = opt(a.satFat, b.satFat), salt = opt(a.salt, b.salt);
+  if (sugar !== undefined) r.sugar = sugar; if (satFat !== undefined) r.satFat = satFat; if (salt !== undefined) r.salt = salt;
+  return r;
 }
 export const ZERO: Nutrients = { kcal: 0, protein: 0, fat: 0, carbs: 0, fiber: 0 };
 export function scaleNutrients(per100: Nutrients, grams: number): Nutrients {
   const f = grams / 100;
-  return { kcal: per100.kcal * f, protein: per100.protein * f, fat: per100.fat * f, carbs: per100.carbs * f, fiber: per100.fiber * f };
+  const r: Nutrients = { kcal: per100.kcal * f, protein: per100.protein * f, fat: per100.fat * f, carbs: per100.carbs * f, fiber: per100.fiber * f };
+  if (per100.sugar !== undefined) r.sugar = per100.sugar * f;
+  if (per100.satFat !== undefined) r.satFat = per100.satFat * f;
+  if (per100.salt !== undefined) r.salt = per100.salt * f;
+  return r;
 }
 export function sumNutrients(list: Nutrients[]): Nutrients {
   return list.reduce(addNutrients, ZERO);

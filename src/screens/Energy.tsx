@@ -4,7 +4,8 @@ import type { AppData, Derived } from '../db/repo';
 import { mean, ageOn, bmrMifflin } from '../domain/calc';
 import { addDays } from '../domain/dates';
 import { estimateTdee, JOB_LABEL, observedTdee, planFromTdee, type ActivityProfile, type Pace } from '../domain/energy';
-import { Btn, copyText, cx, Field, NumInput, Sheet, toast } from '../ui/kit';
+import { Btn, copyText, cx, Field, NumInput, Sheet, toast, Toggle } from '../ui/kit';
+import { dayTargets, DEFAULT_CYCLING, DEFAULT_RULES } from '../domain/targets';
 
 export function defaultActivity(data: AppData, d: Derived): ActivityProfile {
   if (data.profile?.activity) return data.profile.activity;
@@ -98,6 +99,55 @@ export function HealthSyncHelp({ onClose }: { onClose: () => void }) {
         <li>Przy pierwszym uruchomieniu iPhone zapyta o dostęp do danych Zdrowia: zezwól.</li>
       </ol>
       <p className="text-xs text-muted">Puste wartości (np. brak ważenia) są pomijane. Nazwy czynności mogą się nieznacznie różnić zależnie od wersji iOS. Dane nie wychodzą poza telefon.</p>
+    </Sheet>
+  );
+}
+
+export function PlanSettingsSheet({ plan, today, onClose }: { plan: import('../domain/types').PlanVersion; today: string; onClose: () => void }) {
+  const [cyc, setCyc] = useState({ ...DEFAULT_CYCLING, ...plan.cycling });
+  const [ir, setIr] = useState({ ...DEFAULT_RULES.insulinResistance, ...plan.rules?.insulinResistance });
+  const [dairy, setDairy] = useState(plan.rules?.dairyFree?.enabled ?? false);
+  const [per14, setPer14] = useState(plan.workoutsPer14d);
+  const draft = { ...plan, cycling: cyc, rules: { insulinResistance: ir, dairyFree: { enabled: dairy } }, workoutsPer14d: per14 };
+  const tr = dayTargets(draft, true), rest = dayTargets(draft, false);
+  async function save() {
+    await db.plans.add({ ...draft, id: uid(), createdAt: now(), updatedAt: now(), validFrom: today, reason: 'Zmiana ustawień planu (cykl kcal / reguły zdrowotne / liczba treningów)', approvedByUser: true, source: 'manual' });
+    await db.health.update('me', { dairyAvoid: dairy, updatedAt: now() });
+    toast('Ustawienia zapisane jako nowa wersja planu'); onClose();
+  }
+  const T = ({ t, label }: { t: ReturnType<typeof dayTargets>; label: string }) => (
+    <div className="rounded-xl bg-card2 p-3 text-sm"><div className="text-xs text-muted">{label}</div><div className="num font-semibold">{t.kcal} kcal</div>
+      <div className="num text-xs text-muted">B {t.proteinG} · T {t.fatG} · W {t.carbsG} · Bł ≥{t.fiberG}{t.sugarMaxG ? ` · cukry ≤${t.sugarMaxG}` : ''}</div></div>
+  );
+  return (
+    <Sheet open onClose={onClose} title="Ustawienia planu">
+      <p className="text-sm text-muted">Średni cel: {plan.kcal} kcal, B {plan.proteinG} g. Każda zmiana zapisuje się jako nowa wersja planu (historia zostaje).</p>
+      <div className="grid grid-cols-2 gap-2"><T t={tr} label="Dzień treningowy" /><T t={rest} label="Dzień bez treningu" /></div>
+
+      <div className="rounded-xl border border-line p-3 space-y-2">
+        <Toggle on={cyc.enabled} onChange={(v) => setCyc({ ...cyc, enabled: v })} label="Inne kalorie w dni treningowe" />
+        {cyc.enabled && <Field label="Dodatkowe kcal w dzień treningowy (z węglowodanów)"><NumInput value={cyc.trainingExtraKcal} onChange={(v) => setCyc({ ...cyc, trainingExtraKcal: Math.max(0, Math.min(500, v ?? 0)) })} /></Field>}
+        <p className="text-xs text-muted">Średnia tygodnia się nie zmienia: dni bez treningu dostają odpowiednio mniej. Deficyt i tempo chudnięcia są te same, a więcej węglowodanów przypada na trening.</p>
+      </div>
+
+      <div className="rounded-xl border border-line p-3 space-y-2">
+        <Toggle on={ir.enabled} onChange={(v) => setIr({ ...ir, enabled: v })} label="Insulinooporność: reguły posiłków" />
+        {ir.enabled && <div className="grid grid-cols-2 gap-2">
+          <Field label="Węglowodany max % kcal"><NumInput value={ir.carbMaxPct} onChange={(v) => setIr({ ...ir, carbMaxPct: Math.max(30, Math.min(60, v ?? 45)) })} /></Field>
+          <Field label="Cukry max % kcal"><NumInput value={ir.sugarMaxPct} onChange={(v) => setIr({ ...ir, sugarMaxPct: Math.max(5, Math.min(20, v ?? 10)) })} /></Field>
+          <Field label="Błonnik min (g)"><NumInput value={ir.fiberMin} onChange={(v) => setIr({ ...ir, fiberMin: Math.max(20, Math.min(50, v ?? 30)) })} /></Field>
+          <Field label="Węgle na posiłek max (g)"><NumInput value={ir.carbsPerMealMaxG} onChange={(v) => setIr({ ...ir, carbsPerMealMaxG: Math.max(40, Math.min(150, v ?? 80)) })} /></Field>
+        </div>}
+        <p className="text-xs text-muted">Bez eliminowania węglowodanów: limit udziału, mniej cukrów, więcej błonnika i rozłożenie węgli na posiłki. Nadwyżka ponad limit przechodzi do tłuszczu, białko bez zmian.</p>
+      </div>
+
+      <div className="rounded-xl border border-line p-3 space-y-2">
+        <Toggle on={dairy} onChange={setDairy} label="Bez nabiału (ostrzeżenia przy produktach z mlekiem)" />
+        <p className="text-xs text-muted">Przy diecie bez nabiału pilnuj wapnia (napój sojowy z wapniem, tofu z wapniem) i B12. Zapytaj lekarza o badanie B12 i witaminy D.</p>
+      </div>
+
+      <Field label="Treningi na 14 dni"><NumInput value={per14} onChange={(v) => setPer14(Math.max(0, Math.min(10, v ?? 4)))} /></Field>
+      <Btn className="w-full" onClick={save}>Zapisz jako nową wersję planu</Btn>
     </Sheet>
   );
 }
