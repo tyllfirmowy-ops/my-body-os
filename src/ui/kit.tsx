@@ -89,7 +89,7 @@ export function Stepper({ value, onChange, step = 1, min = 0, unit, big }: { val
     <div className="flex items-center gap-2">
       <button aria-label="Mniej" onClick={() => set(value - step)} className={cx('rounded-xl bg-card2 grid place-items-center', big ? 'w-14 h-14' : 'w-11 h-11')}><Minus size={20} /></button>
       <input inputMode="decimal" value={Number.isFinite(value) ? String(value) : ''} onChange={(e) => { const v = parseFloat(e.target.value.replace(',', '.')); if (!Number.isNaN(v)) set(v); }}
-        className={cx('num text-center bg-transparent font-semibold w-20 outline-none', big ? 'text-3xl' : 'text-xl')} aria-label={unit ?? 'wartość'} />
+        className={cx('num text-center bg-transparent font-semibold w-20 outline-none', big ? 'text-3xl h-14' : 'text-xl h-11')} aria-label={unit ?? 'wartość'} />
       <button aria-label="Więcej" onClick={() => set(value + step)} className={cx('rounded-xl bg-card2 grid place-items-center', big ? 'w-14 h-14' : 'w-11 h-11')}><Plus size={20} /></button>
       {unit && <span className="text-muted text-sm">{unit}</span>}
     </div>

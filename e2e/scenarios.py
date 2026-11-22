@@ -2,6 +2,10 @@
 import re
 from common import demo, tab, dialog, close_dialog, shot
 
+def past_warmup(pg):
+    b = pg.get_by_role('button', name='Pomiń rozgrzewkę')
+    if b.count(): b.click(); pg.wait_for_timeout(300)
+
 def check(cond, msg):
     if not cond: raise AssertionError(msg)
 
@@ -15,7 +19,7 @@ def exercise_card_and_swap(pg, url):
     shot(pg, 'card.png'); close_dialog(pg)
     start = pg.get_by_role('button', name='Start')
     if start.count() == 0: start = pg.get_by_role('button', name=re.compile('Mimo to zacznij'))
-    start.first.click(); pg.wait_for_timeout(500)
+    start.first.click(); pg.wait_for_timeout(500); past_warmup(pg)
     first = pg.locator('h2').first.inner_text()
     pg.get_by_role('button', name='Seria zrobiona').first.click(); pg.wait_for_timeout(300)
     pg.get_by_role('button', name='Zamień ćwiczenie').click(); pg.wait_for_timeout(300)
@@ -25,6 +29,7 @@ def exercise_card_and_swap(pg, url):
     pg.get_by_role('button', name='Seria zrobiona').first.click(); pg.wait_for_timeout(300)
     pg.reload(); pg.wait_for_timeout(1000)
     if pg.get_by_text('Wznów trening').count(): pg.get_by_text('Wznów trening').first.click(); pg.wait_for_timeout(400)
+    past_warmup(pg)
     check(pg.locator('h2').first.inner_text() == after, 'zamiana nie przetrwała odświeżenia')
     check(pg.get_by_text('Wcześniej w tym miejscu').count() > 0, 'brak notki o serii z ćwiczenia z planu')
     pg.get_by_text('Wróć do:').click(); pg.wait_for_timeout(400)
@@ -84,7 +89,7 @@ def workout_plan_flow(pg, url):
     close_dialog(pg)
     start = pg.get_by_role('button', name='Start')
     if start.count() == 0: start = pg.get_by_role('button', name=re.compile('Mimo to zacznij A'))
-    start.first.click(); pg.wait_for_timeout(500)
+    start.first.click(); pg.wait_for_timeout(500); past_warmup(pg)
     h = pg.locator('h2').first.inner_text()
     check(h in second, f'trening nie startuje od pierwszego ćwiczenia wariantu ({h} vs {second})')
     return {'first': h}
@@ -244,23 +249,8 @@ def seed_progress(pg, machine_w=40, incline_w=20, pain=None):
 def start_today(pg):
     start = pg.get_by_role('button', name='Start')
     if start.count() == 0: start = pg.get_by_role('button', name=re.compile('Mimo to zacznij'))
-    start.first.click(); pg.wait_for_timeout(500)
+    start.first.click(); pg.wait_for_timeout(500); past_warmup(pg)
     return pg.locator('h2').first.inner_text()
-
-def progression_big_jump(pg, url):
-    # 20 kg maszyna (+2,5 = 12,5%) i 16 kg hantle (+2 = 12,5%): domyślnie bez zwiększenia
-    demo(pg, url); seed_progress(pg, 20, 16); tab(pg, 'Trening')
-    first = start_today(pg)
-    old = '20' if first == 'Wyciskanie na maszynie' else '16'
-    check(pg.get_by_role('button', name=re.compile('^Przyjmij')).count() == 0, 'skok > 10% zaproponowany jako domyślny')
-    check(pg.get_by_text(re.compile('więcej niż zwykłe 2–10%')).count() > 0, 'brak wyjaśnienia dużego skoku')
-    check(pg.get_by_label('kg').first.input_value() == old, 'ciężar zmienił się bez wyboru')
-    alt = pg.get_by_role('button', name=re.compile('^Świadomie wybieram'))
-    check(alt.count() == 1, 'brak świadomego wyboru większego ciężaru')
-    alt.click(); pg.wait_for_timeout(400)
-    check(pg.get_by_text(re.compile('Decyzja: mój ciężar')).count() > 0, 'świadomy wybór nie zapisany')
-    check(pg.get_by_label('kg').first.input_value() != old, 'po świadomym wyborze ciężar w serii bez zmian')
-    return {'exercise': first, 'from': old, 'chosen': pg.get_by_label('kg').first.input_value()}
 
 def progression_pain(pg, url):
     demo(pg, url); seed_progress(pg, 40, 20, pain=5); tab(pg, 'Trening')
@@ -272,52 +262,9 @@ def progression_pain(pg, url):
     pg.get_by_role('button', name='Zamień ćwiczenie').nth(1).click(); pg.wait_for_timeout(300)
     check(dialog(pg).get_by_text('Zamień ćwiczenie').count() > 0, 'zamiana z ostrzeżenia nie otwiera listy')
     close_dialog(pg)
-    pg.get_by_role('button', name='Pomiń ćwiczenie').click(); pg.wait_for_timeout(400)
+    pg.get_by_role('button', name='Pomiń ćwiczenie').first.click(); pg.wait_for_timeout(400)
     check(pg.locator('h2').first.inner_text() != first, 'pominięcie nie przeszło dalej')
     return {'exercise': first}
-
-def progression_flow(pg, url):
-    demo(pg, url); seed_progress(pg)
-    tab(pg, 'Trening')
-    row = pg.locator('button.w-full').filter(has_text='Wyciskanie na maszynie').first
-    check('↑ 42,5 kg' in row.inner_text(), f'brak podglądu zwiększenia przed treningiem: {row.inner_text()}')
-    start = pg.get_by_role('button', name='Start')
-    if start.count() == 0: start = pg.get_by_role('button', name=re.compile('Mimo to zacznij'))
-    start.first.click(); pg.wait_for_timeout(500)
-    first = pg.locator('h2').first.inner_text()
-    exp = {'Wyciskanie na maszynie': ('40', '42,5', '42.5'), 'Wyciskanie hantli na ławce skośnej': ('20', '22', '22')}
-    check(first in exp, f'nieoczekiwane pierwsze ćwiczenie: {first}')
-    w_old, w_new_pl, w_new = exp[first]
-    check(pg.get_by_text(re.compile('Dwa treningi na górze zakresu')).count() > 0, 'brak uzasadnienia')
-    # bez decyzji: seria podpowiada dotychczasowy ciężar
-    w0 = pg.get_by_label('kg').first.input_value()
-    check(w0 == w_old, f'bez zgody ciężar zmienił się sam: {w0}')
-    shot(pg, 'progression.png')
-    pg.get_by_role('button', name=f'Przyjmij {w_new_pl} kg').click(); pg.wait_for_timeout(400)
-    check(pg.get_by_label('kg').first.input_value() == w_new, 'po akceptacji seria nie ma nowego ciężaru')
-    pg.get_by_role('group', name=re.compile('Zapas powtórzeń')).first.get_by_role('button', name='2').click()
-    pg.get_by_role('button', name='Seria zrobiona').first.click(); pg.wait_for_timeout(400)
-    pg.reload(); pg.wait_for_timeout(1000)
-    if pg.get_by_text('Wznów trening').count(): pg.get_by_text('Wznów trening').first.click(); pg.wait_for_timeout(400)
-    check(pg.get_by_text(re.compile('Decyzja: przyjęta')).count() > 0, 'decyzja nie przetrwała odświeżenia')
-    check(pg.get_by_text(re.compile('RIR|zapisana')).count() > 0, 'seria nie zapisana')
-    old = pg.evaluate("""async () => { const r = indexedDB.open('my-body-os'); await new Promise(ok => r.onsuccess = ok); const db = r.result; const g = db.transaction('sets').objectStore('sets').getAll(); await new Promise(ok => g.onsuccess = ok); db.close(); return g.result.filter(s => s.sessionId === 'p1' || s.sessionId === 'p2').map(s => s.weightKg + 'x' + s.reps).join(','); }""")
-    check(sorted(old.split(',')) == sorted(['40x12'] * 6 + ['20x12'] * 6), f'historyczne serie zmienione: {old}')
-    return {'exercise': first, 'before': w0, 'accepted': w_new}
-
-def progression_reject(pg, url):
-    demo(pg, url); seed_progress(pg)
-    tab(pg, 'Trening')
-    start = pg.get_by_role('button', name='Start')
-    if start.count() == 0: start = pg.get_by_role('button', name=re.compile('Mimo to zacznij'))
-    start.first.click(); pg.wait_for_timeout(500)
-    pg.get_by_role('button', name=re.compile('^Zostań przy (40|20) kg')).click(); pg.wait_for_timeout(300)
-    check(pg.get_by_text(re.compile('Decyzja: zostaję przy ciężarze')).count() > 0, 'odrzucenie nie zapisane')
-    pg.get_by_role('button', name='zmień').click(); pg.wait_for_timeout(200)
-    pg.get_by_role('button', name='Inny ciężar').click()
-    pg.get_by_role('button', name='Zapisz').first.click(); pg.wait_for_timeout(300)
-    check(pg.get_by_text(re.compile('Decyzja: mój ciężar')).count() > 0, 'ręczna zmiana nie zapisana')
-    return {'ok': True}
 
 def training_availability(pg, url):
     demo(pg, url); tab(pg, 'Trening')
@@ -340,4 +287,4 @@ def training_availability(pg, url):
     check(pg.get_by_text(re.compile('cel 2/tydz')).count() > 0, 'cel nie przetrwał odświeżenia')
     return {'toggled': lbl}
 
-ALL = [exercise_card_and_swap, backup_roundtrip, recipe_flow, workout_plan_flow, coach_feedback, food_search, storage_diagnostics, morning_backup_reminder, recipe_portions_in_diary, meal_suggestions, library_recipes, onboarding_health_survey, progression_flow, progression_reject, training_availability, progression_big_jump, progression_pain]
+ALL = [exercise_card_and_swap, backup_roundtrip, recipe_flow, workout_plan_flow, coach_feedback, food_search, storage_diagnostics, morning_backup_reminder, recipe_portions_in_diary, meal_suggestions, library_recipes, onboarding_health_survey, training_availability, progression_pain]

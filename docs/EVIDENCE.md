@@ -63,6 +63,16 @@ Zasada: każda reguła zdrowotna i żywieniowa ma źródło albo jest jawnie ozn
 | Ból rzepkowo-udowy / ocena urazu kolana | kliniczne | wytyczne JOSPT/APTA dot. bólu rzepkowo-udowego |
 | Wartości odżywcze produktów | referencyjne | USDA FoodData Central / etykiety (oznaczone w aplikacji) |
 
+## Kolejność ćwiczeń, rozgrzewka, rozciąganie (sprawdzone 2026-11-22)
+| Źródło | Data | Wniosek | Ograniczenia | Użycie w aplikacji |
+|---|---|---|---|---|
+| Nunes i in., Eur J Sport Sci, PMID 32077380, doi 10.1080/17461391.2020.1733672 | 2021 | Siła rośnie najbardziej w ćwiczeniach robionych na początku sesji; przyrost masy mięśniowej podobny niezależnie od kolejności | 11 badań, krótkie interwencje, głównie młodzi dorośli | Plan A/B zaczyna od ćwiczeń wielostawowych (wyciskanie, ściąganie, RDL), izolacja i core na końcu. Kolejność bez zmian: już zgodna. |
+| Ribeiro i in., Motricidade 17(1), doi 10.6063/motricidade.21143 | 2021 | Rozgrzewka specyficzna (lekkie serie ćwiczenia) ma lepsze wsparcie niż ogólna; wyniki dla rozgrzewki ogólnej + specyficznej niejednoznaczne | Przegląd systematyczny bez metaanalizy, mało badań, głównie wytrenowani | Rozgrzewka: 5 min marszu/roweru + 3 ruchy bez ciężaru + 1–2 lekkie serie pierwszego ćwiczenia; całość ok. 7–8 min, z opcją „Pomiń”. |
+| Behm i in., Appl Physiol Nutr Metab, PMID 26642915 | 2016 | Rozciąganie statyczne < 60 s na mięsień ma znikomy wpływ na siłę (ok. −1%), ≥ 60 s większy; rozciąganie dynamiczne lekko poprawia wynik; brak wyraźnego wpływu na kontuzje | Testy zwykle tuż po rozciąganiu, bez dalszej rozgrzewki | W rozgrzewce ruchy dynamiczne, bez długiego rozciągania statycznego. |
+| Herbert, de Noronha, Kamper, Cochrane CD004577, PMID 21735398 | 2011 | Rozciąganie przed ani po wysiłku nie zmniejsza zakwasów w klinicznie istotnym stopniu | Większość badań mała; dotyczy zakwasów, nie zakresu ruchu | Rozciąganie po treningu oznaczone jako nieobowiązkowe, z jawną informacją, że nie zmniejsza zakwasów; 20–30 s na pozycję. |
+
+Reguły projektowe: dobór konkretnych ćwiczeń rozgrzewki i rozciągania (bez przysiadów, wykroków i skoków, ze względu na kolano), czasy 20–30 s i opisy „czucia” to ostrożne decyzje projektowe, nie wynik badań.
+
 ## Użyteczność interfejsu
 | Źródło | Data | Wniosek | Ograniczenia | Użycie w aplikacji |
 |---|---|---|---|---|

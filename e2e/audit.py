@@ -2,7 +2,7 @@
 Uruchom: npm run build:single && python3 e2e/run.py audit_a audit_b ...  (albo bez nazw: wszystkie)"""
 import datetime, re
 from common import demo, tab, dialog, close_dialog, shot
-from scenarios import check
+from scenarios import check, past_warmup
 
 class Taps:
     """Licznik dotknięć: każde kliknięcie i wejście w pole liczone jako 1."""
@@ -40,22 +40,25 @@ def to_training(pg, t=None):
     (t.click if t else lambda l: (l.click(), pg.wait_for_timeout(300)))(pg.locator('nav').get_by_role('button', name='Trening', exact=True))
     if pg.get_by_text('Wznów trening').count(): pg.get_by_text('Wznów trening').first.click(); pg.wait_for_timeout(400)
 
-def start(pg, t):
+def start(pg, t, warm=True):
     b = pg.get_by_role('button', name='Start')
     if b.count() == 0: b = pg.get_by_role('button', name=re.compile('Mimo to zacznij'))
     t.click(b.first); pg.wait_for_timeout(300)
+    if warm: t.click(pg.get_by_role('button', name='Pomiń rozgrzewkę'))
     return pg.locator('h2').first.inner_text()
 
 def finish(pg):
     for _ in range(12):
-        z = pg.get_by_role('button', name='Zakończ trening')
+        z = pg.get_by_role('button', name='Zakończ trening', exact=True)
         if z.count(): z.click(); break
-        pg.get_by_role('button', name=re.compile('Następne ćwiczenie')).click(); pg.wait_for_timeout(150)
+        pg.get_by_role('button', name=re.compile('^Dalej:')).click(); pg.wait_for_timeout(150)
     pg.wait_for_timeout(300); dialog(pg).get_by_role('button', name='Zapisz trening').click(); pg.wait_for_timeout(600)
 
 def unit_inp(pg, u='kg'): return pg.get_by_label(u, exact=True)
 def series_btn(pg): return pg.get_by_role('button', name='Seria zrobiona')
-def row_text(pg, name): return pg.locator('button.w-full').filter(has_text=name).first.inner_text()
+def week_card(pg):
+    c = pg.locator('div.rounded-2xl').filter(has=pg.get_by_role('heading', name='Ten tydzień'))
+    return c.first.evaluate("e => e.innerText") if c.count() else ''
 TWO_TOP = lambda w=40: [(7, 'h1', 'B', {'machine_press': (w, [12, 12, 12])}), (3, 'h2', 'B', {'machine_press': (w, [12, 12, 12])})]
 
 def small_targets(pg):
@@ -65,95 +68,125 @@ def small_targets(pg):
       .filter(x => x.w < 44 || x.h < 44)
       .filter((x, i, a) => a.findIndex(y => y.t === x.t && y.w === x.w && y.h === x.h) === i)""")
 
+# ---------- 0. tryb skupienia: start → rozgrzewka → ćwiczenia → rozciąganie → koniec ----------
+def focus_flow(pg, url, ctx):
+    demo(pg, url); seed(pg, TWO_TOP()); t = Taps()
+    to_training(pg, t)
+    check(pg.locator('main, body').first.get_by_text(re.compile('↑|propozycja zwiększenia')).count() == 0, 'na liście zostały strzałki progresji')
+    start(pg, t, warm=False)
+    check(not pg.locator('nav[aria-label="Nawigacja"]').is_visible(), 'w trakcie treningu widać dolną nawigację')
+    check(pg.get_by_role('heading', name='Rozgrzewka').count() == 1, 'trening nie zaczyna się od rozgrzewki')
+    pg.get_by_role('button', name='Zrobione: Krążenia ramion').click(); pg.wait_for_timeout(300)
+    pg.get_by_role('button', name='Skłon z bioder bez ciężaru 10 powt.').click(); pg.wait_for_timeout(200)
+    check(pg.get_by_text('Wypchnij biodra do tyłu', exact=False).count() == 1, 'brak opisu po stuknięciu nazwy')
+    shot(pg, 'focus_warmup.png')
+    pg = restart(ctx, pg, url); to_training(pg)
+    check(pg.get_by_role('button', name='Odznacz: Krążenia ramion').count() == 1, 'odhaczenie rozgrzewki nie przetrwało restartu')
+    t.click(pg.get_by_role('button', name='Gotowe: pierwsze ćwiczenie'))
+    check(pg.get_by_role('button', name=re.compile('^Przyjmij|^Zostań|Inny ciężar|Świadomie')).count() == 0, 'w treningu zostały decyzje o ciężarze')
+    check(unit_inp(pg).first.input_value() == '40', 'ciężar nie jest przepisany z poprzedniego treningu')
+    t.click(series_btn(pg).first); t.click(series_btn(pg).first)
+    check(pg.get_by_role('button', name=re.compile('^✓ .*Wyciskanie')).count() == 1, 'ćwiczenie nie odhaczyło się po ostatniej serii')
+    shot(pg, 'focus_exercise.png')
+    for _ in range(10):
+        if pg.get_by_role('heading', name=re.compile('^Rozciąganie')).count(): break
+        pg.get_by_role('button', name=re.compile('^Dalej:')).click(); pg.wait_for_timeout(150)
+    check(pg.get_by_text(re.compile('nie zmniejsza zakwasów')).count() == 1, 'brak uczciwej notki o rozciąganiu')
+    shot(pg, 'focus_cooldown.png')
+    pg.get_by_role('button', name='Zakończ trening', exact=True).click(); pg.wait_for_timeout(300)
+    dialog(pg).get_by_role('button', name='Zapisz trening').click(); pg.wait_for_timeout(600)
+    pg.wait_for_timeout(800)
+    check(pg.locator('nav[aria-label="Nawigacja"]').is_visible(), 'nawigacja nie wróciła po treningu')
+    wk = week_card(pg); shot(pg, 'focus_after.png')
+    check('Możesz spróbować' in wk and '42,5 kg' in wk, f'podpowiedź ciężaru nie trafiła do podsumowania tygodnia: {wk}')
+    sess = next(x for x in store(pg, 'sessions') if x['id'] not in ('h1', 'h2'))
+    check(sess['status'] == 'completed' and 'cooldown' in sess.get('prep', []) and 'wu_arms' in sess.get('prep', []), f'sesja: {sess.get("status")} {sess.get("prep")}')
+    return {'weekCard': wk.replace('\n', ' | ')}
+
+def no_auto_increase(pg, url, ctx):
+    # 20 kg × 12 dwa razy: w treningu ten sam ciężar; skok 12,5% nie pojawia się nawet w podsumowaniu
+    demo(pg, url); seed(pg, TWO_TOP(20)); t = Taps()
+    to_training(pg, t); start(pg, t)
+    check(unit_inp(pg).first.input_value() == '20', 'ciężar zmienił się sam')
+    pg.locator('button', has_text='Wyjdź').first.click(); pg.wait_for_timeout(400)
+    wk = week_card(pg)
+    check('Wyciskanie na maszynie: 22,5' not in wk, f'skok > 10% podpowiedziany: {wk}')
+    return {'weekCard': wk.replace('\n', ' | ')}
+
 # ---------- A ----------
 def audit_a_first_workout(pg, url, ctx):
     demo(pg, url); t = Taps()
     to_training(pg, t); first = start(pg, t)
     check(first == 'Wyciskanie na maszynie', f'pierwsze ćwiczenie: {first}')
-    check(pg.get_by_text('Dobierz ciężar').count() and pg.get_by_text(re.compile('^Start: pierwsza seria lekko')).count(), 'brak propozycji startowej')
+    check(pg.get_by_text(re.compile('Pierwszy raz: zacznij lżej')).count() == 1, 'brak wskazówki na pierwszy raz')
     check(unit_inp(pg).first.input_value() == '0', 'bez historii ciężar powinien czekać na wpis')
     t.fill(unit_inp(pg).first, '30'); t.click(series_btn(pg).first)
     taps_first = t.n
-    check(unit_inp(pg).first.input_value() == '30', 'zapisana seria straciła ciężar')
-    check(series_btn(pg).count() and unit_inp(pg).nth(1).input_value() == '30', 'seria 2 nie przejęła ciężaru z serii 1')
+    check(unit_inp(pg).nth(1).input_value() == '30', 'seria 2 nie przejęła ciężaru z serii 1')
     t.click(series_btn(pg).first)
-    shot(pg, 'audit_a_sets.png')
     finish(pg)
     pg = restart(ctx, pg, url); to_training(pg)
-    sess = [s for s in store(pg, 'sessions') if s['status'] == 'completed']
-    sets = [s for s in store(pg, 'sets') if s['exerciseId'] == 'machine_press']
-    check(len(sess) == 1 and len(sets) == 2 and all(s['weightKg'] == 30 for s in sets), f'po restarcie: {len(sess)} sesji, {[(s["weightKg"], s["reps"]) for s in sets]}')
-    nxt = row_text(pg, 'Wyciskanie na maszynie')
-    check('30 kg' in nxt, f'kolejna sugestia nie bazuje na zapisanym ciężarze: {nxt}')
-    return {'tapsToFirstSet': taps_first, 'nextHint': nxt.split('\n')[-1]}
+    sess = [x for x in store(pg, 'sessions') if x['status'] == 'completed']
+    sets = [x for x in store(pg, 'sets') if x['exerciseId'] == 'machine_press']
+    check(len(sess) == 1 and len(sets) == 2 and all(x['weightKg'] == 30 for x in sets), f'po restarcie: {len(sess)} sesji, {[(x["weightKg"], x["reps"]) for x in sets]}')
+    return {'tapsToFirstSet (z pominięciem rozgrzewki)': taps_first}
 
 # ---------- B ----------
-def audit_b_accept(pg, url, ctx):
-    demo(pg, url); seed(pg, TWO_TOP()); t = Taps()
-    to_training(pg, t)
-    check('↑ 42,5 kg' in row_text(pg, 'Wyciskanie na maszynie'), 'brak podglądu na liście')
-    start(pg, t)
-    reason = pg.get_by_text(re.compile('na górze zakresu')).first.inner_text()
-    t.click(pg.get_by_role('button', name='Przyjmij 42,5 kg')); t.click(series_btn(pg).first)
-    taps = t.n
+def audit_b_weekly(pg, url, ctx):
+    demo(pg, url); seed(pg, [(8, 'h1', 'B', {'machine_press': (40, [10, 10])})]); t = Taps()
+    to_training(pg, t); start(pg, t)
+    t.click(series_btn(pg).first); taps = t.n
+    pg.get_by_label('powt.', exact=True).nth(1).fill('12'); pg.wait_for_timeout(200)
     t.click(series_btn(pg).first)
     targets = small_targets(pg); shot(pg, 'audit_b_session.png')
     finish(pg)
     pg = restart(ctx, pg, url); to_training(pg)
-    sess = next(s for s in store(pg, 'sessions') if s['id'] not in ('h1', 'h2'))
-    dec = sess.get('progress', {}).get('machine_press', {})
-    sets = sorted((s['weightKg'], s['reps']) for s in store(pg, 'sets') if s['sessionId'] == sess['id'] and s['exerciseId'] == 'machine_press')
-    check(dec.get('decision') == 'accepted' and dec.get('chosenKg') == 42.5, f'decyzja: {dec}')
-    check(sets == [(42.5, 10), (42.5, 10)], f'serie: {sets}')
-    old = [s['weightKg'] for s in store(pg, 'sets') if s['sessionId'] in ('h1', 'h2')]
-    check(old == [40] * 6, 'historia zmieniona')
-    return {'reason': reason, 'tapsToFirstSet': taps, 'next': row_text(pg, 'Wyciskanie na maszynie').split('\n')[-1], 'smallTargets': targets}
+    wk = week_card(pg)
+    check('Lepiej niż tydzień temu' in wk and '40×10 → 40×12' in wk, f'podsumowanie tygodnia: {wk}')
+    return {'tapsToFirstSet': taps, 'weekCard': wk.replace('\n', ' | '), 'smallTargets': targets}
 
 # ---------- C ----------
 def audit_c_no_rir(pg, url, ctx):
     demo(pg, url); seed(pg, [(3, 'h1', 'B', {'machine_press': (40, [12, 12])})]); t = Taps()
-    to_training(pg, t); start(pg, t)
-    check(pg.get_by_text(re.compile('Pierwszy raz górny zakres')).count() > 0, 'bez RIR jeden trening nie powinien dawać zwiększenia')
-    check(pg.get_by_role('button', name=re.compile('^Przyjmij')).count() == 0, 'propozycja zmiany ciężaru bez podstaw')
+    to_training(pg, t)
+    check('Możesz spróbować' not in week_card(pg), 'jeden trening bez RIR dał podpowiedź zwiększenia')
+    start(pg, t)
     t.click(series_btn(pg).first); taps = t.n; t.click(series_btn(pg).first)
     finish(pg)
     pg = restart(ctx, pg, url); to_training(pg)
-    mine = [s for s in store(pg, 'sets') if s['sessionId'] != 'h1' and s['exerciseId'] == 'machine_press']
-    check(len(mine) == 2 and all('rir' not in s or s['rir'] is None for s in mine), f'RIR dopisany sam: {mine}')
-    check(all(s['reps'] == 12 and s['weightKg'] == 40 for s in mine), f'domyślne powtórzenia: {[(s["weightKg"], s["reps"]) for s in mine]}')
-    nxt = row_text(pg, 'Wyciskanie na maszynie').split('\n')[-1]
-    return {'tapsToFirstSet': taps, 'nextAfter2xTopNoRir': nxt}
+    mine = [x for x in store(pg, 'sets') if x['sessionId'] != 'h1' and x['exerciseId'] == 'machine_press']
+    check(len(mine) == 2 and all(x.get('rir') is None for x in mine), f'RIR dopisany sam: {mine}')
+    check(all(x['reps'] == 12 and x['weightKg'] == 40 for x in mine), f'domyślne: {[(x["weightKg"], x["reps"]) for x in mine]}')
+    return {'tapsToFirstSet': taps, 'weekAfter2xTopNoRir': week_card(pg).replace('\n', ' | ')}
 
 # ---------- D ----------
 def audit_d_pain(pg, url, ctx):
     demo(pg, url); seed(pg, [(3, 'h1', 'B', {'machine_press': (40, [10, 10])})]); t = Taps()
     to_training(pg, t); start(pg, t)
-    t.click(pg.get_by_role('button', name='ból?').first)
+    t.click(pg.get_by_role('button', name='Ból? / zapas').first)
     t.click(pg.get_by_role('group', name='Ból podczas serii').first.get_by_role('button', name='5', exact=True))
     t.click(series_btn(pg).first)
     alert = pg.get_by_role('alert')
-    check(alert.count() == 1 and 'Ból 5/10' in alert.inner_text(), 'brak trwałego ostrzeżenia po bólu 5/10 w trakcie ćwiczenia')
+    check(alert.count() == 1 and 'Ból 5/10' in alert.inner_text(), 'brak trwałego ostrzeżenia po bólu 5/10')
     pg.wait_for_timeout(2600)
     check(pg.get_by_role('alert').count() == 1, 'ostrzeżenie znika razem z toastem')
     shot(pg, 'audit_d_pain.png')
-    # ból wpisany w serii 2 przed zapisem: szkic przetrwa restart
-    t.click(pg.get_by_role('button', name='ból?').first)
+    t.click(pg.get_by_role('button', name='Ból? / zapas').first)
     t.click(pg.get_by_role('group', name='Ból podczas serii').nth(1).get_by_role('button', name='2', exact=True))
     pg = restart(ctx, pg, url); to_training(pg)
     check(pg.get_by_role('alert').count() == 1, 'ostrzeżenie nie przetrwało restartu')
-    check(pg.get_by_role('button', name='ból 2').count() == 1, 'niezapisany ból z serii 2 zginął po restarcie')
-    # zmiana bólu w zapisanej serii zapisuje się od razu (bez „Popraw serię”)
+    check(pg.get_by_role('button', name='Ból 2/10').count() == 1, 'niezapisany ból z serii 2 zginął po restarcie')
     pg.get_by_role('group', name='Ból podczas serii').first.get_by_role('button', name='6', exact=True).click(); pg.wait_for_timeout(300)
     pg = restart(ctx, pg, url); to_training(pg)
-    s1 = [s for s in store(pg, 'sets') if s['sessionId'] != 'h1']
-    check(len(s1) == 1 and s1[0]['pain'] == 6 and s1[0]['weightKg'] == 40, f'ból zapisanej serii: {s1}')
-    pg.get_by_role('button', name='Zamień ćwiczenie').nth(1).click(); pg.wait_for_timeout(300)
+    s1 = [x for x in store(pg, 'sets') if x['sessionId'] != 'h1']
+    check(len(s1) == 1 and s1[0]['pain'] == 6, f'ból zapisanej serii: {s1}')
+    pg.get_by_role('alert').get_by_role('button', name='Zamień ćwiczenie').click(); pg.wait_for_timeout(300)
     check(dialog(pg).get_by_text(re.compile('Ta sama grupa mięśni')).count() > 0, 'zamiana nie otwiera listy'); close_dialog(pg)
-    pg.get_by_role('button', name='Pomiń ćwiczenie').click(); pg.wait_for_timeout(400)
+    pg.get_by_role('alert').get_by_role('button', name='Pomiń ćwiczenie').click(); pg.wait_for_timeout(400)
     check(pg.locator('h2').first.inner_text() != 'Wyciskanie na maszynie', 'pominięcie nie przeszło dalej')
     pg = restart(ctx, pg, url)
-    kept = [s for s in store(pg, 'sets') if s['sessionId'] != 'h1']
-    sess = next(s for s in store(pg, 'sessions') if s['id'] != 'h1')
+    kept = [x for x in store(pg, 'sets') if x['sessionId'] != 'h1']
+    sess = next(x for x in store(pg, 'sessions') if x['id'] != 'h1')
     check(len(kept) == 1 and 'machine_press' in sess['skipped'], 'pominięcie usunęło serię albo nie zapisało się')
     return {'alertAfterRestart': True, 'savedPain': kept[0]['pain']}
 
@@ -161,22 +194,17 @@ def audit_d_pain(pg, url, ctx):
 def audit_e_manual(pg, url, ctx):
     demo(pg, url); seed(pg, TWO_TOP()); t = Taps()
     to_training(pg, t); start(pg, t)
-    t.click(pg.get_by_role('button', name='Inny ciężar'))
-    t.click(pg.get_by_role('button', name='Więcej').first)  # 42,5 → 45
-    t.click(pg.get_by_role('button', name='Zapisz', exact=True))
-    check(unit_inp(pg).first.input_value() == '45', 'seria nie przejęła ręcznego ciężaru')
+    t.click(pg.get_by_role('button', name='Więcej').first)  # seria 1: 40 → 42,5
     t.click(series_btn(pg).first)
-    plus = pg.get_by_role('button', name='Więcej')
-    t.click(plus.nth(plus.count() - 2))  # seria 2: ciężar 45 → 47,5
+    check(unit_inp(pg).nth(1).input_value() == '42.5', f'seria 2 nie przejęła zmienionego ciężaru: {unit_inp(pg).nth(1).input_value()}')
     t.click(series_btn(pg).first)
     finish(pg)
     pg = restart(ctx, pg, url); to_training(pg)
-    sess = next(s for s in store(pg, 'sessions') if s['id'] not in ('h1', 'h2'))
-    dec = sess['progress']['machine_press']
-    sets = sorted(s['weightKg'] for s in store(pg, 'sets') if s['sessionId'] == sess['id'])
-    check(dec['decision'] == 'modified' and dec['chosenKg'] == 45 and dec['suggestedKg'] == 42.5, f'decyzja: {dec}')
-    check(sets == [45, 47.5], f'serie: {sets}')
-    return {'decision': f"{dec['decision']} {dec['suggestedKg']}→{dec['chosenKg']}", 'sets': sets, 'next': row_text(pg, 'Wyciskanie na maszynie').split('\n')[-1]}
+    sess = next(x for x in store(pg, 'sessions') if x['id'] not in ('h1', 'h2'))
+    sets = sorted(x['weightKg'] for x in store(pg, 'sets') if x['sessionId'] == sess['id'])
+    old = [x['weightKg'] for x in store(pg, 'sets') if x['sessionId'] in ('h1', 'h2')]
+    check(sets == [42.5, 42.5] and old == [40] * 6, f'serie: {sets}, historia: {old}')
+    return {'sets': sets, 'taps': t.n}
 
 # ---------- F ----------
 def audit_f_lb(pg, url, ctx):
@@ -184,24 +212,20 @@ def audit_f_lb(pg, url, ctx):
     to_training(pg)
     pg.get_by_role('button', name=re.compile('Jednostki i skoki')).click(); pg.wait_for_timeout(200)
     dialog(pg).get_by_role('button', name='lb', exact=True).click(); dialog(pg).get_by_role('button', name='Zapisz').click(); pg.wait_for_timeout(400)
-    rowt = row_text(pg, 'Wyciskanie na maszynie')
-    check('lb' in rowt and 'kg' not in rowt, f'lista: {rowt}')
+    wk = week_card(pg)
     pg = restart(ctx, pg, url); to_training(pg); start(pg, Taps())
-    card = pg.locator('main').inner_text() if pg.locator('main').count() else pg.locator('body').inner_text()
+    card = pg.locator('body').inner_text()
     kg = [ln for ln in card.split('\n') if re.search(r'\bkg\b', ln)]
     check(not kg, f'w sesji zostało „kg”: {kg}')
     check(unit_inp(pg, 'lb').first.input_value() == '88', f'ciężar serii w lb: {unit_inp(pg, "lb").first.input_value()}')
-    pg.get_by_role('button', name=re.compile('^Przyjmij 90 lb')).click(); pg.wait_for_timeout(300)
     series_btn(pg).first.click(); pg.wait_for_timeout(300)
     pg.locator('[aria-label=Instrukcja]').first.click(); pg.wait_for_timeout(300)
     hist = dialog(pg).inner_text()
     check('kg' not in hist.split('Ostatnie wyniki')[-1].split('Przy pierwszym')[0], 'historia w karcie ćwiczenia w kg')
     close_dialog(pg); shot(pg, 'audit_f_lb.png')
     s = [x['weightKg'] for x in store(pg, 'sets') if x['sessionId'] not in ('h1', 'h2')]
-    check(len(s) == 1 and abs(s[0] - 90 * 0.45359237) < 0.01, f'zapis w kg: {s}')
-    reason = [ln for ln in card.split('\n') if 'zakresu' in ln]
-    return {'listHint': rowt.split('\n')[-1], 'reason': reason[:1], 'storedKg': round(s[0], 2)}
-
+    check(s == [40], f'zapis bez ruszania ciężaru nie może dryfować przez przeliczenie lb: {s}')
+    return {'weekCardLb': wk.replace('\n', ' | '), 'storedKg': s[0]}
 # ---------- G ----------
 def audit_g_reschedule(pg, url, ctx):
     demo(pg, url); seed(pg, [(4, 'h1', 'B', {'machine_press': (40, [10, 10])})]); t = Taps()
@@ -224,9 +248,9 @@ def audit_g_reschedule(pg, url, ctx):
     when = (datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=1))) + datetime.timedelta(days=idx)).replace(hour=10, minute=0, second=0, microsecond=0)
     pg = restart(ctx, pg, url, at=when); to_training(pg)
     check(pg.get_by_role('button', name='Start').count() == 1, f'w dniu przełożonym brak treningu (dzień +{idx})')
-    t2 = Taps(); start(pg, t2)
+    t2 = Taps(); start(pg, t2, warm=False)
     check(pg.get_by_text(f'Trening {tpl}').count() >= 1, 'inny szablon niż zaplanowany')
-    unit_inp(pg).first.fill('40'); series_btn(pg).first.click(); pg.wait_for_timeout(300)
+    past_warmup(pg); unit_inp(pg).first.fill('40'); series_btn(pg).first.click(); pg.wait_for_timeout(300)
     finish(pg)
     pg = restart(ctx, pg, url, at=when); to_training(pg)
     done_s = [s for s in store(pg, 'sessions') if s['id'] != 'h1' and s['status'] == 'completed']
@@ -238,41 +262,37 @@ def audit_g_reschedule(pg, url, ctx):
 # ---------- H ----------
 def audit_h_break(pg, url, ctx):
     demo(pg, url); seed(pg, [(35, 'h1', 'B', {'machine_press': (40, [12, 12])}), (31, 'h2', 'B', {'machine_press': (40, [12, 12])})]); t = Taps()
-    to_training(pg, t)
-    check('↓ 35 kg' in row_text(pg, 'Wyciskanie na maszynie'), f'lista po przerwie: {row_text(pg, "Wyciskanie na maszynie")}')
-    start(pg, t)
+    to_training(pg, t); start(pg, t)
     reason = pg.get_by_text(re.compile('dni przerwy')).first.inner_text()
     w_default = unit_inp(pg).first.input_value()
-    t.click(pg.get_by_role('button', name='Przyjmij 35 kg')); t.click(series_btn(pg).first)
+    check(w_default == '35', f'po 4 tygodniach przerwy podpowiedź powinna być lżejsza: {w_default}')
+    t.click(series_btn(pg).first)
     finish(pg)
     pg = restart(ctx, pg, url); to_training(pg)
-    sets = [s['weightKg'] for s in store(pg, 'sets') if s['sessionId'] not in ('h1', 'h2')]
+    sets = [x['weightKg'] for x in store(pg, 'sets') if x['sessionId'] not in ('h1', 'h2')]
     check(sets == [35], f'serie po powrocie: {sets}')
-    return {'reason': reason, 'defaultBeforeDecision': w_default, 'next': row_text(pg, 'Wyciskanie na maszynie').split('\n')[-1]}
+    return {'reason': reason, 'defaultWeight': w_default}
 
 # ---------- I ----------
 def audit_i_swap(pg, url, ctx):
     demo(pg, url); seed(pg, TWO_TOP()); t = Taps()
     to_training(pg, t); start(pg, t)
-    t.click(pg.locator('header + div + * button[aria-label="Zamień ćwiczenie"], button[aria-label="Zamień ćwiczenie"]').first)
+    t.click(pg.locator('button[aria-label="Zamień ćwiczenie"]').first)
     t.click(dialog(pg).get_by_role('button', name=re.compile('^Wyciskanie hantli na ławce płaskiej')))
     check(pg.locator('h2').first.inner_text() == 'Wyciskanie hantli na ławce płaskiej', 'zamiana nie zadziałała')
     check(pg.get_by_text('zamiast: Wyciskanie na maszynie').count() == 1, 'brak informacji o zamianie')
-    check(pg.get_by_text('Dobierz ciężar').count() == 1, 'zamiennik przejął progresję oryginału')
+    check(pg.get_by_text(re.compile('Pierwszy raz: zacznij lżej')).count() == 1, 'zamiennik przejął historię oryginału')
     t.fill(unit_inp(pg).first, '14'); t.click(series_btn(pg).first)
     finish(pg)
     pg = restart(ctx, pg, url); to_training(pg)
-    mine = [s for s in store(pg, 'sets') if s['sessionId'] not in ('h1', 'h2')]
+    mine = [x for x in store(pg, 'sets') if x['sessionId'] not in ('h1', 'h2')]
     check(len(mine) == 1 and mine[0]['exerciseId'] == 'flat_db_press' and mine[0]['slot'] == 'machine_press', f'serie zamiennika: {mine}')
-    orig = row_text(pg, 'Wyciskanie na maszynie')
-    check('↑ 42,5 kg' in orig, f'historia oryginału zmieniona przez zamiennik: {orig}')
-    # kolejny trening (następny dzień): ten sam zamiennik pamięta własną historię
     tomorrow = (datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=1))) + datetime.timedelta(days=1)).replace(hour=10, minute=0)
     pg = restart(ctx, pg, url, at=tomorrow); to_training(pg); start(pg, Taps())
+    check(pg.locator('h2').first.inner_text() == 'Wyciskanie hantli na ławce skośnej', 'po A powinien być B')
     pg.locator('button[aria-label="Zamień ćwiczenie"]').first.click(); pg.wait_for_timeout(300)
     dialog(pg).get_by_role('button', name=re.compile('^Wyciskanie hantli na ławce płaskiej')).click(); pg.wait_for_timeout(400)
-    card = pg.locator('h2').first.locator('xpath=ancestor::div[contains(@class,"rounded-2xl")][1]').inner_text()
-    check('14×10' in card and 'Dobierz ciężar' not in card, f'zamiennik bez własnej historii: {card[:200]}')
-    return {'substituteSet': '14×10 flat_db_press (slot machine_press)', 'originalHint': orig.split('\n')[-1]}
+    check(pg.get_by_text(re.compile('Ostatnio .*14×10')).count() == 1 and unit_inp(pg).first.input_value() == '14', 'zamiennik bez własnej historii')
+    return {'substituteSet': '14×10 flat_db_press (slot machine_press)'}
 
-ALL = [audit_a_first_workout, audit_b_accept, audit_c_no_rir, audit_d_pain, audit_e_manual, audit_f_lb, audit_g_reschedule, audit_h_break, audit_i_swap]
+ALL = [focus_flow, no_auto_increase, audit_a_first_workout, audit_b_weekly, audit_c_no_rir, audit_d_pain, audit_e_manual, audit_f_lb, audit_g_reschedule, audit_h_break, audit_i_swap]

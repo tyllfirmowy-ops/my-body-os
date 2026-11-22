@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowDown, ArrowUp, Check, ChevronLeft, ChevronRight, Info, Play, Repeat, SkipForward, Timer, Undo2 } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, Info, Play, Repeat, SkipForward, Timer } from 'lucide-react';
 import type { ScreenProps } from '../App';
 import { db, now, uid } from '../db/db';
 import { EXERCISES, exerciseById, WORKOUTS, type Equip, type ExerciseCard, type TemplateExercise } from '../data/exercises';
@@ -8,11 +8,13 @@ import { WorkoutEditor } from './WorkoutEditor';
 import { Pencil } from 'lucide-react';
 import { actualFor, historyFor, kneeBlocked, lastSetsFor, setsForSlot, swapExercise, swapOptions } from '../domain/workout';
 import { rigFor } from '../data/rigs';
+import { COOLDOWN, WARMUP, type PrepItem } from '../data/warmup';
+import { weeklyReview } from '../domain/weeklyReview';
 import { RigPlayer } from '../ui/RigView';
 import { addDays, formatPl, range } from '../domain/dates';
 import { weekSummary } from '../domain/schedule';
-import { DEFAULT_STEPS, fmtWeight, fromDisplay, loadStepKg, plannedSetsFor, repCap, suggestProgression, toDisplay, type LoadEquip, type Suggestion, type WeightUnit } from '../domain/progression';
-import type { ProgressDecision, WorkoutSession, WorkoutSet } from '../domain/types';
+import { DEFAULT_STEPS, fmtWeight, fromDisplay, loadStepKg, plannedSetsFor, suggestProgression, toDisplay, type LoadEquip, type Suggestion, type WeightUnit } from '../domain/progression';
+import type { WorkoutSession, WorkoutSet } from '../domain/types';
 import type { AppData, Derived } from '../db/repo';
 import { Badge, Btn, Card, cx, Field, inputCls, NumInput, Scale, Sheet, Stepper, Title, toast } from '../ui/kit';
 
@@ -42,7 +44,7 @@ export function Training({ data, d }: ScreenProps) {
     await db.sessions.add({ id, createdAt: now(), updatedAt: now(), date: d.today, templateId: t, status: 'in_progress', order: pl.items.map((e) => e.exerciseId), plan: structuredClone(pl.items), planName: pl.name, skipped: [], technique: {}, painBefore: d.morningToday?.kneePain, startedAt: now(), source: 'manual' });
     setActive(id);
   }
-  if (session) return <SessionView data={data} d={d} s={session} onExit={() => setActive(null)} />;
+  if (session) return <SessionView data={data} d={d} s={session} onExit={() => { setActive(null); window.scrollTo(0, 0); }} />;
 
   return (
     <>
@@ -56,8 +58,8 @@ export function Training({ data, d }: ScreenProps) {
             {d.readiness.level === 'C' && <p className="text-sm text-warn mt-1">Plan C: trening nieobowiązkowy. Kolejny termin znajdzie się automatycznie.</p>}
             <p className="text-xs text-muted mt-1">Kiedy pasuje (np. {win.from}–{win.to}); pora dnia nie zmienia efektów.</p>
             <div className="flex gap-2 mt-3">
-              <Btn className="flex-1" onClick={() => start(d.todayWorkout!.templateId)}><Play size={16} className="inline -mt-0.5" /> Start</Btn>
-              <Btn kind="soft" onClick={() => toggleSkip(d.today)}>Przełóż</Btn>
+              <Btn className="flex-1 min-h-16 text-xl" onClick={() => start(d.todayWorkout!.templateId)}><Play size={20} className="inline -mt-1" /> Start</Btn>
+              <Btn kind="soft" className="min-h-16" onClick={() => toggleSkip(d.today)}>Przełóż</Btn>
             </div>
           </>) : (<>
             <p className="text-muted">{skip.has(d.today) ? 'Dziś oznaczone jako niedostępne.' : 'Dzień odpoczynku.'}</p>
@@ -65,6 +67,7 @@ export function Training({ data, d }: ScreenProps) {
             <div className="flex gap-2 mt-3"><Btn kind="soft" className="flex-1" onClick={() => start(next?.templateId ?? 'A')}>Mimo to zacznij {next?.templateId ?? 'A'}</Btn></div>
           </>)}
       </Card>
+      <WeekCard data={data} d={d} perWeek={perWeek} plans={plans} />
       <Card>
         <Title right={<span className="text-xs text-muted num">ten tydzień: {sum.done}/{sum.target}</span>}>Najbliższe 14 dni</Title>
         <div className="grid grid-cols-7 gap-1 text-center">
@@ -92,14 +95,12 @@ export function Training({ data, d }: ScreenProps) {
               <button key={te.exerciseId} onClick={() => setCard(e)} className="w-full flex justify-between items-center py-2.5 border-b border-line last:border-0 text-left">
                 <span className="text-sm">{e.namePl} {e.knee !== 'none' && <Badge tone={e.knee === 'moderate' ? 'warn' : 'muted'}>kolano</Badge>}</span>
                 <span className="text-xs text-muted num text-right">{plannedSetsFor(te.sets, d.weekIdx)}×{te.repMin === te.repMax ? te.repMin : `${te.repMin}–${te.repMax}`}{e.perSide ? '/str.' : ''} · {te.restSec}s
-                  {(() => { const sg = progressFor(data, d, e, te, plannedSetsFor(te.sets, d.weekIdx)); return sg.action === 'no_data' ? null : <span className={cx('block', sg.action === 'increase' ? 'text-accent' : sg.action === 'decrease' || sg.action === 'skip' || sg.action === 'pain' ? 'text-warn' : '')}>{ARROW[sg.action]} {sg.weightKg !== null ? fmtWeight(sg.weightKg, unitOf(data)) : ''}</span>; })()}
                 </span>
               </button>
             );
           })}
         </Card>
       ))}
-      <p className="text-xs text-muted px-1">↑ propozycja zwiększenia · ↓ lżej (ból, przerwa, słabszy wynik) · +1 powt. ten sam ciężar · = bez zmian. Zmiana ciężaru zawsze wymaga Twojej zgody na treningu.</p>
       <button className="text-xs text-accent underline px-1" onClick={() => setUnitsOpen(true)}>Jednostki i skoki obciążenia ({unitOf(data)})</button>
       <Card><Title>Biblioteka ćwiczeń</Title><div className="flex flex-wrap gap-1.5">{EXERCISES.map((e) => <button key={e.id} onClick={() => setCard(e)} className="rounded-full bg-card2 px-3 py-2 text-sm">{e.namePl}</button>)}</div></Card>
       {card && <ExerciseSheet e={card} data={data} d={d} onClose={() => setCard(null)} onOpen={setCard} />}
@@ -163,148 +164,188 @@ function progressFor(data: AppData, d: Derived, ex: ExerciseCard, te: { sets: nu
     kneeNoLoad: ex.knee === 'moderate' && !data.health?.kneeCleared && !kneeBlock, noIncrease, requirePainRecord: ex.knee !== 'none' && !data.health?.kneeCleared, unit: unitOf(data),
   });
 }
-const ARROW: Record<Suggestion['action'], string> = { increase: '↑', decrease: '↓', reps: '+1 powt.', hold: '=', skip: 'pomiń', no_data: 'start', pain: '! ból' };
+
+/** Raz w tygodniu: ile treningów, gdzie lepiej niż tydzień temu i najwyżej 3 podpowiedzi ciężaru (bez decyzji w trakcie treningu). */
+function WeekCard({ data, d, perWeek, plans }: { data: AppData; d: Derived; perWeek: number; plans: Record<'A' | 'B', { items: TemplateExercise[] }> }) {
+  const r = weeklyReview(data.sessions, data.sets, d.today);
+  const unit = unitOf(data);
+  const fmtB = (b: { weightKg: number; reps: number }) => `${String(toDisplay(b.weightKg, unit)).replace('.', ',')}×${b.reps}`;
+  const seen = new Set<string>();
+  const hints = [...plans.A.items, ...plans.B.items].filter((te) => !seen.has(te.exerciseId) && seen.add(te.exerciseId)).map((te) => {
+    const e = exerciseById(te.exerciseId);
+    return { e, sg: progressFor(data, d, e, te, plannedSetsFor(te.sets, d.weekIdx)) };
+  }).filter((x) => x.sg.action === 'increase' && x.sg.weightKg !== null).slice(0, 3);
+  if (!r.done && !r.prevDone) return null;
+  return (
+    <Card>
+      <Title right={<span className="text-xs text-muted num">{r.done}/{perWeek}</span>}>Ten tydzień</Title>
+      {r.improved.length ? <div className="text-sm space-y-0.5"><p>Lepiej niż tydzień temu:</p>{r.improved.slice(0, 4).map((x) => <p key={x.exerciseId} className="num text-accent">{exerciseById(x.exerciseId).namePl}: {fmtB(x.before)} → {fmtB(x.after)} {unit}</p>)}</div>
+        : <p className="text-sm text-muted">{r.compared ? 'Wyniki jak tydzień temu. Regularność to też postęp.' : r.done ? 'Porównanie pojawi się, gdy powtórzysz ćwiczenia w kolejnym tygodniu.' : 'W tym tygodniu jeszcze bez treningu.'}</p>}
+      {hints.length > 0 && <div className="mt-2 text-sm"><p className="text-muted text-xs">Możesz spróbować (gdy czujesz się dobrze):</p>{hints.map((h) => <p key={h.e.id}>{h.e.namePl}: {fmtWeight(h.sg.weightKg!, unit)}</p>)}</div>}
+    </Card>
+  );
+}
+
+const PREP_STEP = { warmup: '__warmup', cooldown: '__cooldown' } as const;
 
 function SessionView({ data, d, s, onExit }: { data: AppData; d: Derived; s: WorkoutSession; onExit: () => void }) {
   const tpl = sessionPlan(s, WORKOUTS);
   const order = s.order.filter((id) => tpl.some((t) => t.exerciseId === id));
-  const [idx, setIdx] = useState(() => Number(localStorage.getItem(`ws-idx-${s.id}`) ?? 0));
+  const steps = [PREP_STEP.warmup, ...order, PREP_STEP.cooldown];
+  const [idx, setIdx] = useState(() => Math.min(steps.length - 1, Number(localStorage.getItem(`ws-step-${s.id}`) ?? 0)));
   const [finish, setFinish] = useState(false);
-  useEffect(() => { localStorage.setItem(`ws-idx-${s.id}`, String(idx)); }, [idx, s.id]);
-  const slot = order[Math.min(idx, order.length - 1)];
-  const te = tpl.find((t) => t.exerciseId === slot)!;           // parametry serii/powtórzeń/przerw z planu
-  const exId = actualFor(s, slot);                              // faktycznie wykonywane ćwiczenie
+  const [swapOpen, setSwapOpen] = useState(false);
+  useEffect(() => { localStorage.setItem(`ws-step-${s.id}`, String(idx)); window.scrollTo(0, 0); }, [idx, s.id]);
+  // tryb skupienia: bez dolnej nawigacji
+  useEffect(() => { document.body.dataset.focus = '1'; return () => { delete document.body.dataset.focus; }; }, []);
+  const step = steps[idx];
+  const allDone = data.sets.filter((x) => x.sessionId === s.id);
+  const lvlB = d.readiness.level === 'B';
+  const plannedOf = (sl: string) => { const t = tpl.find((x) => x.exerciseId === sl)!; return lvlB ? Math.min(2, t.sets) : plannedSetsFor(t.sets, d.weekIdx); };
+  const doneCount = (sl: string) => setsForSlot(allDone, sl).filter((x) => x.done).length;
+  const prep = new Set(s.prep ?? []);
+  const isDone = (st: string) => st === PREP_STEP.warmup ? WARMUP.every((w) => prep.has(w.id)) || prep.has('warmup') : st === PREP_STEP.cooldown ? prep.has('cooldown') : doneCount(st) >= plannedOf(st);
+  const label = (st: string) => st === PREP_STEP.warmup ? 'Rozgrzewka' : st === PREP_STEP.cooldown ? 'Rozciąganie' : exerciseById(actualFor(s, st)).namePl.split(' ').slice(0, 2).join(' ');
+  const exCount = order.filter((o) => isDone(o)).length;
+  async function markPrep(ids: string[], on = true) {
+    const next = new Set(prep); ids.forEach((i) => (on ? next.add(i) : next.delete(i)));
+    await db.sessions.update(s.id, { prep: [...next], updatedAt: now() });
+  }
+  const go = (i: number) => setIdx(Math.max(0, Math.min(steps.length - 1, i)));
+
+  return (
+    <div className="space-y-3 pb-28">
+      <header className="flex items-center justify-between pt-2">
+        <button onClick={onExit} className="min-h-11 text-sm text-accent flex items-center"><ChevronLeft size={18} />Wyjdź (zapisane)</button>
+        <span className="text-sm text-muted num">Trening {s.templateId}{lvlB ? ' · skrócony' : ''} · {exCount}/{order.length} ✓</span>
+      </header>
+      <div className="flex gap-1.5 overflow-x-auto pb-1">
+        {steps.map((st, i) => (
+          <button key={st} onClick={() => go(i)} className={cx('shrink-0 min-h-11 rounded-full px-3 text-xs', i === idx ? 'bg-accent text-accent-ink font-semibold' : s.skipped.includes(st) ? 'bg-card2 text-muted line-through' : isDone(st) ? 'bg-accent/20 text-accent' : 'bg-card2')}>
+            {isDone(st) ? '✓ ' : st.startsWith('__') ? '' : `${order.indexOf(st) + 1}. `}{st.startsWith('__') ? '' : actualFor(s, st) !== st ? '↔ ' : ''}{label(st)}
+          </button>
+        ))}
+      </div>
+      <RestTimer />
+      {step === PREP_STEP.warmup ? <PrepList title="Rozgrzewka" sub="ok. 7–8 min. Krótka i lekka: ma przygotować, nie zmęczyć." items={WARMUP} prep={prep} onToggle={(id) => markPrep([id], !prep.has(id))}
+        note="Najlepiej udokumentowane są lekkie serie ćwiczenia, które zaraz robisz; marsz i ruchy bez ciężaru są dodatkiem. Bez przysiadów i wykroków, żeby oszczędzać kolano."
+        footer={<><Btn className="w-full min-h-14 text-lg" onClick={async () => { await markPrep(['warmup']); go(1); }}>Gotowe: pierwsze ćwiczenie <ChevronRight size={18} className="inline" /></Btn>
+          <button className="w-full min-h-11 text-sm text-muted" onClick={() => go(1)}>Pomiń rozgrzewkę</button></>} />
+      : step === PREP_STEP.cooldown ? <PrepList title="Rozciąganie (nieobowiązkowe)" sub="ok. 3 min. Każde 20–30 s, spokojny oddech, bez bólu." items={COOLDOWN} prep={prep} onToggle={(id) => markPrep([id], !prep.has(id))}
+        note="Rozciąganie po treningu nie zmniejsza zakwasów. Regularnie robione poprawia zakres ruchu i pomaga się wyciszyć."
+        footer={<Btn className="w-full min-h-14 text-lg" onClick={async () => { await markPrep(['cooldown']); setFinish(true); }}>Zakończ trening</Btn>} />
+      : <ExerciseStep key={step} data={data} d={d} s={s} slot={step} planned={plannedOf(step)} allDone={allDone} lvlB={lvlB} pos={order.indexOf(step)} onSwap={() => setSwapOpen(true)}
+          onUnswap={async () => { const { [step]: _drop, ...rest } = s.substitutions ?? {}; void _drop; await db.sessions.update(s.id, { substitutions: rest, updatedAt: now() }); toast('Wrócono do ćwiczenia z planu'); }}
+          onNext={() => go(idx + 1)} nextLabel={idx + 1 < steps.length - 1 ? label(steps[idx + 1]) : 'Rozciąganie'} onBack={() => go(idx - 1)}
+          onSkip={async () => { await db.sessions.update(s.id, { skipped: [...new Set([...s.skipped, step])], updatedAt: now() }); go(idx + 1); }} />}
+      {finish && <FinishSheet s={s} onClose={() => setFinish(false)} onDone={onExit} />}
+      {swapOpen && !step.startsWith('__') && <SwapFor s={s} d={d} data={data} slot={step} onClose={() => setSwapOpen(false)} />}
+    </div>
+  );
+}
+
+function PrepList({ title, sub, items, prep, onToggle, note, footer }: { title: string; sub: string; items: PrepItem[]; prep: Set<string>; onToggle: (id: string) => void; note: string; footer: React.ReactNode }) {
+  const [open, setOpen] = useState<string | null>(null);
+  return (
+    <>
+      <Card>
+        <h2 className="text-xl font-bold">{title}</h2>
+        <p className="text-sm text-muted">{sub}</p>
+        <div className="mt-3 divide-y divide-line">
+          {items.map((it) => (
+            <div key={it.id} className="py-2">
+              <div className="flex items-center gap-3">
+                <button aria-label={`${prep.has(it.id) ? 'Odznacz' : 'Zrobione'}: ${it.name}`} aria-pressed={prep.has(it.id)} onClick={() => onToggle(it.id)} className={cx('w-11 h-11 shrink-0 rounded-full grid place-items-center border-2', prep.has(it.id) ? 'bg-accent border-accent text-accent-ink' : 'border-line')}>{prep.has(it.id) && <Check size={20} />}</button>
+                <button className="flex-1 text-left min-h-11" onClick={() => setOpen(open === it.id ? null : it.id)}>
+                  <div className={cx('text-sm font-semibold', prep.has(it.id) && 'text-muted line-through')}>{it.name}</div>
+                  <div className="text-xs text-muted">{it.dose}</div>
+                </button>
+              </div>
+              <p className="text-xs mt-1 pl-14"><b>Czucie:</b> {it.focus}</p>
+              {open === it.id && <div className="pl-14 mt-1 space-y-1">
+                <ol className="list-decimal pl-4 text-sm space-y-0.5">{it.steps.map((x) => <li key={x}>{x}</li>)}</ol>
+                <a href={`https://www.youtube.com/results?search_query=${encodeURIComponent(it.video)}`} target="_blank" rel="noreferrer" className="inline-block min-h-11 leading-[2.75rem] text-sm text-accent">Zobacz wideo (YouTube)</a>
+              </div>}
+            </div>
+          ))}
+        </div>
+        <p className="text-xs text-muted mt-2">{note} Stuknij nazwę, żeby zobaczyć opis.</p>
+      </Card>
+      {footer}
+    </>
+  );
+}
+
+function ExerciseStep({ data, d, s, slot, planned, allDone, lvlB, pos, onSwap, onUnswap, onNext, nextLabel, onBack, onSkip }: { data: AppData; d: Derived; s: WorkoutSession; slot: string; planned: number; allDone: WorkoutSet[]; lvlB: boolean; pos: number; onSwap: () => void; onUnswap: () => void; onNext: () => void; nextLabel: string; onBack: () => void; onSkip: () => void }) {
+  const tpl = sessionPlan(s, WORKOUTS);
+  const te = tpl.find((t) => t.exerciseId === slot)!;
+  const exId = actualFor(s, slot);
   const ex = exerciseById(exId);
   const swapped = exId !== slot;
-  const [swapOpen, setSwapOpen] = useState(false);
-  const allDone = data.sets.filter((x) => x.sessionId === s.id);
   const done = setsForSlot(allDone, slot);
-  const earlierInSlot = setsForSlot(allDone, slot).filter((x) => x.exerciseId !== exId && x.done);
-  const lvlB = d.readiness.level === 'B';
-  const planned = lvlB ? Math.min(2, te.sets) : plannedSetsFor(te.sets, d.weekIdx);
+  const mine = done.filter((x) => x.exerciseId === exId && x.done);
+  const earlierInSlot = done.filter((x) => x.exerciseId !== exId && x.done);
   const kneeBlock = kneeBlocked(d.safety.level, ex.knee);
   const prev = lastSetsForData(data, exId, s.id);
   const sug = progressFor(data, d, ex, te, planned, s.id);
   const unit = unitOf(data);
-  const dec = s.progress?.[exId];
   const lastW = prev?.sets[0]?.weightKg;
-  const needsDecision = (sug.action === 'increase' || sug.action === 'decrease') && sug.weightKg !== null;
-  /** ciężar domyślny serii: decyzja użytkownika; bez decyzji przy zmianie ciężaru = ostatni ciężar (nic nie zmienia się samo) */
-  const plannedKg = dec ? dec.chosenKg : needsDecision ? (lastW ?? null) : sug.weightKg ?? lastW ?? null;
-  const [customKg, setCustomKg] = useState<number | null>(null);
-  /** ból ≥ 4 zapisany w TEJ sesji przy tym ćwiczeniu: ostrzeżenie zostaje na ekranie (nie tylko toast) */
-  const painNow = Math.max(0, ...done.filter((x) => x.exerciseId === exId && x.done).map((x) => x.pain ?? 0));
-  async function decide(decision: ProgressDecision['decision'], chosenKg: number | null) {
-    for (let i = 0; i < 10; i++) localStorage.removeItem(`ws-draft-${s.id}-${exId}-${i}`);
-    const rec: ProgressDecision = { action: sug.action, suggestedKg: sug.weightKg, targetReps: sug.targetReps, reason: sug.reason, decision, chosenKg, at: now() };
-    await db.sessions.update(s.id, { progress: { ...(s.progress ?? {}), [exId]: rec }, updatedAt: now() });
-    setCustomKg(null);
-    toast(decision === 'accepted' ? 'Przyjęte' : decision === 'rejected' ? 'Zostajesz przy dotychczasowym ciężarze' : 'Zapisano Twój ciężar');
-  }
+  /** ciężar podpowiadany: ostatni; lżej tylko gdy zasady bezpieczeństwa każą (przerwa, spadek wyników, kolano bez oceny); nigdy samo zwiększenie */
+  const startKg = sug.action === 'decrease' || (sug.action === 'hold' && sug.weightKg === 0) ? sug.weightKg : lastW ?? null;
+  const painNow = Math.max(0, ...mine.map((x) => x.pain ?? 0));
+  const reps = te.repMin === te.repMax ? `${te.repMin}` : `${te.repMin}–${te.repMax}`;
+  const rest = te.restSec >= 60 ? `${Math.round(te.restSec / 6) / 10} min`.replace('.', ',') : `${te.restSec} s`;
+  const fmtSets = (xs: { weightKg: number; reps: number }[]) => `${xs.map((x) => `${String(toDisplay(x.weightKg, unit)).replace('.', ',')}×${x.reps}`).join(', ')} ${unit}`;
+  const painButtons = <div className="grid grid-cols-2 gap-2"><Btn kind="soft" className="text-sm min-h-11" onClick={onSkip}>Pomiń ćwiczenie</Btn><Btn kind="soft" className="text-sm min-h-11" onClick={onSwap}>Zamień ćwiczenie</Btn></div>;
+  return (
+    <>
+      <Card>
+        <div className="flex items-start justify-between gap-2">
+          <div><h2 className="text-xl font-bold leading-tight">{ex.namePl}{mine.length >= planned && ' ✓'}</h2>
+            {swapped && <div className="text-xs text-muted">zamiast: {exerciseById(slot).namePl}</div>}
+            <div className="text-sm text-muted mt-0.5">{planned} {planned === 1 ? 'seria' : planned < 5 ? 'serie' : 'serii'} × {reps} powt.{ex.perSide ? ' na stronę' : ''} · przerwa {rest}</div>
+            <div className="text-xs text-muted">Kończ serię, gdy zostają ok. 2–3 powtórzenia w zapasie.</div></div>
+          <div className="flex gap-1.5"><button aria-label="Zamień ćwiczenie" onClick={onSwap} className="w-11 h-11 grid place-items-center rounded-lg bg-card2"><Repeat size={18} /></button><InfoBtn e={ex} data={data} d={d} /></div>
+        </div>
+        {swapped && <button onClick={onUnswap} className="min-h-11 text-sm text-accent">↩ Wróć do: {exerciseById(slot).namePl}</button>}
+        {earlierInSlot.length > 0 && <p className="mt-2 text-xs text-muted">Wcześniej w tym miejscu: {exerciseById(earlierInSlot[0].exerciseId).namePl}, {earlierInSlot.length} seria(e) zapisane.</p>}
+        {kneeBlock ? <p className="mt-3 rounded-xl bg-danger/10 p-3 text-sm text-danger">Blokada bezpieczeństwa: pomiń to ćwiczenie dziś (kolano).</p>
+          : painNow >= 4 ? <div role="alert" className="mt-3 rounded-xl bg-warn/10 p-3 text-sm space-y-2"><div><b>Ból {painNow}/10 przy tym ćwiczeniu.</b> Przerwij je albo wybierz zamiennik. Nie dokładaj ciężaru. Zapisane serie zostają.</div>{painButtons}</div>
+          : sug.action === 'pain' ? <div className="mt-3 rounded-xl bg-warn/10 p-3 text-sm space-y-2"><div>{sug.reason}</div>{painButtons}</div>
+          : (sug.action === 'decrease' || (sug.action === 'hold' && sug.weightKg === 0)) ? <p className="mt-3 rounded-xl bg-warn/10 p-3 text-sm">{sug.reason}{sug.weightKg ? ` Wpisałem ${fmtWeight(sug.weightKg, unit)}; zmień, jeśli trzeba.` : ''}</p>
+          : null}
+        <p className="mt-2 text-sm text-muted">{prev ? `Ostatnio (${formatPl(prev.session.date)}): ${fmtSets(prev.sets)}` : 'Pierwszy raz: zacznij lżej, wpisz ciężar w serii 1.'}</p>
+        {lvlB && pos >= 5 && <p className="text-xs text-warn mt-2">Plan B: to ćwiczenie jest opcjonalne.</p>}
+      </Card>
+      {Array.from({ length: Math.max(planned, mine.length) }, (_, i) => (
+        <SetRow key={`${exId}-${i}`} s={s} te={te} ex={ex} slot={slot} index={i} existing={done.find((x) => x.exerciseId === exId && x.setIndex === i)} unit={unit} stepKg={loadStepKg(ex, unit, data.settings?.loadSteps)}
+          defaultWeight={mine.at(-1)?.weightKg ?? startKg ?? 0} defaultReps={prev?.sets[i]?.reps ?? prev?.sets.at(-1)?.reps ?? te.repMin} disabled={kneeBlock} lastOfExercise={i === planned - 1} />
+      ))}
+      <div className="grid grid-cols-2 gap-2">
+        <Btn kind="soft" className="min-h-11 text-sm" onClick={onBack}><ChevronLeft size={16} className="inline -mt-0.5" /> Wstecz</Btn>
+        <Btn kind="soft" className="min-h-11 text-sm" onClick={onSkip}><SkipForward size={16} className="inline -mt-0.5" /> Pomiń ćwiczenie</Btn>
+      </div>
+      <Btn className="w-full min-h-14 text-lg" onClick={onNext}>Dalej: {nextLabel} <ChevronRight size={18} className="inline" /></Btn>
+    </>
+  );
+}
 
-  async function move(dir: -1 | 1) {
-    const o = [...s.order]; const i = o.indexOf(slot); const j = i + dir;
-    if (j < 0 || j >= o.length) return;
-    [o[i], o[j]] = [o[j], o[i]];
-    await db.sessions.update(s.id, { order: o, updatedAt: now() }); setIdx(idx + dir);
-  }
-  async function skip() {
-    await db.sessions.update(s.id, { skipped: [...new Set([...s.skipped, slot])], updatedAt: now() });
-    if (idx < order.length - 1) setIdx(idx + 1);
-  }
-  const doneCount = (sl: string) => setsForSlot(allDone, sl).filter((x) => x.done).length;
+function SwapFor({ s, d, data, slot, onClose }: { s: WorkoutSession; d: Derived; data: AppData; slot: string; onClose: () => void }) {
+  const exId = actualFor(s, slot);
   const opts = swapOptions(slot, (id) => exerciseById(id), { safety: d.safety.level, kneeCleared: !!data.health?.kneeCleared, inSession: s.order.filter((x) => x !== slot).map((x) => actualFor(s, x)) });
   async function doSwap(to: string) {
     try {
       const next = swapExercise(s, slot, to, opts);
       await db.sessions.update(s.id, { substitutions: next.substitutions, updatedAt: now() });
-      setSwapOpen(false); toast(to === slot ? 'Wrócono do ćwiczenia z planu' : `Zamieniono na: ${exerciseById(to).namePl}`);
+      onClose(); toast(to === slot ? 'Wrócono do ćwiczenia z planu' : `Zamieniono na: ${exerciseById(to).namePl}`);
     } catch (err) { toast((err as Error).message); }
   }
-
-  return (
-    <div className="space-y-3 pb-4">
-      <header className="flex items-center justify-between pt-2">
-        <button onClick={onExit} className="text-sm text-accent flex items-center"><ChevronLeft size={18} />Wyjdź (zapisane)</button>
-        <Badge tone="accent">Trening {s.templateId}{lvlB ? ' · skrócony' : ''}</Badge>
-      </header>
-      <div className="flex gap-1 overflow-x-auto pb-1">
-        {order.map((id, i) => (
-          <button key={id} onClick={() => setIdx(i)} className={cx('shrink-0 rounded-full px-3 py-1.5 text-xs', i === idx ? 'bg-accent text-accent-ink font-semibold' : s.skipped.includes(id) ? 'bg-card2 text-muted line-through' : doneCount(id) ? 'bg-accent/20 text-accent' : 'bg-card2')}>
-            {i + 1}. {actualFor(s, id) !== id && '↔ '}{exerciseById(actualFor(s, id)).namePl.split(' ').slice(0, 2).join(' ')}
-          </button>
-        ))}
-      </div>
-      <RestTimer />
-      <Card>
-        <div className="flex items-start justify-between gap-2">
-          <div><h2 className="text-xl font-bold leading-tight">{ex.namePl}</h2>
-            {swapped && <div className="text-xs text-muted">zamiast: {exerciseById(slot).namePl}</div>}
-            <div className="text-sm text-muted">{planned} × {te.repMin === te.repMax ? te.repMin : `${te.repMin}–${te.repMax}`}{ex.perSide ? ' na stronę' : ''} · przerwa {te.restSec}s · ~3 RIR</div></div>
-          <div className="flex gap-1.5"><button aria-label="Zamień ćwiczenie" onClick={() => setSwapOpen(true)} className="p-2 rounded-lg bg-card2"><Repeat size={18} /></button><InfoBtn e={ex} data={data} d={d} /></div>
-        </div>
-        {swapped && <button onClick={() => doSwap(slot)} className="mt-2 flex items-center gap-1 text-xs text-accent"><Undo2 size={14} /> Wróć do: {exerciseById(slot).namePl}</button>}
-        {earlierInSlot.length > 0 && <p className="mt-2 text-xs text-muted">Wcześniej w tym miejscu: {exerciseById(earlierInSlot[0].exerciseId).namePl}, {earlierInSlot.length} seria(e) zapisane.</p>}
-        {kneeBlock ? <p className="mt-3 rounded-xl bg-danger/10 p-3 text-sm text-danger">Blokada bezpieczeństwa: pomiń to ćwiczenie dziś (kolano).</p>
-          : painNow >= 4 ? <div role="alert" className="mt-3 rounded-xl bg-warn/10 p-3 text-sm space-y-2">
-            <div><b>Ból {painNow}/10 przy tym ćwiczeniu.</b> Przerwij to ćwiczenie albo wybierz zamiennik. Nie dokładaj ciężaru. Zapisane serie zostają.</div>
-            <div className="grid grid-cols-2 gap-2">
-              <Btn kind="soft" className="text-sm min-h-11" onClick={skip}>Pomiń ćwiczenie</Btn>
-              <Btn kind="soft" className="text-sm min-h-11" onClick={() => setSwapOpen(true)}>Zamień ćwiczenie</Btn>
-            </div>
-          </div>
-          : <div className={cx('mt-3 rounded-xl p-3 text-sm space-y-2', sug.action === 'increase' ? 'bg-accent/10' : sug.action === 'decrease' || sug.action === 'pain' ? 'bg-warn/10' : 'bg-card2')}>
-            <div><b>{sug.weightKg !== null ? fmtWeight(sug.weightKg, unit) : 'Dobierz ciężar'}</b> · {sug.targetReps} powt.{ex.perSide ? ' na stronę' : ''}</div>
-            <div className="text-xs">{sug.reason}</div>
-            {prev && <div className="text-xs text-muted">Ostatnio ({formatPl(prev.session.date)}): {prev.sets.map((x) => `${String(toDisplay(x.weightKg, unit)).replace('.', ',')}×${x.reps}`).join(', ')} {unit}</div>}
-            {dec ? <div className="text-xs flex items-center justify-between gap-2"><span>Decyzja: <b>{dec.decision === 'accepted' ? 'przyjęta' : dec.decision === 'rejected' ? 'zostaję przy ciężarze' : 'mój ciężar'}</b>{dec.chosenKg !== null ? ` · ${fmtWeight(dec.chosenKg, unit)}` : ''}</span>
-                <button className="text-accent underline" onClick={async () => { const p = { ...(s.progress ?? {}) }; delete p[exId]; await db.sessions.update(s.id, { progress: p, updatedAt: now() }); }}>zmień</button></div>
-              : needsDecision ? <div className="space-y-2">
-                <div className="grid grid-cols-2 gap-2">
-                  <Btn className="text-sm min-h-11" onClick={() => decide('accepted', sug.weightKg)}>Przyjmij {fmtWeight(sug.weightKg!, unit)}</Btn>
-                  <Btn kind="soft" className="text-sm min-h-11" onClick={() => decide('rejected', lastW ?? null)}>Zostań{lastW !== undefined ? ` przy ${fmtWeight(lastW, unit)}` : ''}</Btn>
-                </div>
-                {customKg === null ? <button className="text-xs text-accent underline" onClick={() => setCustomKg(toDisplay(sug.weightKg ?? lastW ?? 0, unit))}>Inny ciężar</button>
-                  : <div className="flex items-center gap-2"><Stepper value={customKg} onChange={setCustomKg} step={toDisplay(loadStepKg(ex, unit, data.settings?.loadSteps), unit) || 1} unit={unit} /><Btn kind="soft" className="text-sm" onClick={() => decide('modified', fromDisplay(customKg, unit))}>Zapisz</Btn></div>}
-              </div> : sug.action === 'pain' ? <div className="grid grid-cols-2 gap-2">
-                <Btn kind="soft" className="text-sm min-h-11" onClick={skip}>Pomiń ćwiczenie</Btn>
-                <Btn kind="soft" className="text-sm min-h-11" onClick={() => setSwapOpen(true)}>Zamień ćwiczenie</Btn>
-              </div> : sug.alternativeKg ? <button className="text-xs text-accent underline" onClick={() => decide('modified', sug.alternativeKg!)}>Świadomie wybieram {fmtWeight(sug.alternativeKg, unit)}</button>
-              : sug.action === 'no_data' ? <div className="flex gap-2">
-                <Btn className="flex-1 text-sm min-h-11" onClick={() => decide('accepted', null)}>Zatwierdź start</Btn>
-                {customKg === null ? <Btn kind="soft" className="text-sm min-h-11" onClick={() => setCustomKg(0)}>Podaj ciężar</Btn>
-                  : <><Stepper value={customKg} onChange={setCustomKg} step={toDisplay(loadStepKg(ex, unit, data.settings?.loadSteps), unit) || 1} unit={unit} /><Btn kind="soft" className="text-sm" onClick={() => decide('modified', fromDisplay(customKg, unit))}>OK</Btn></>}
-              </div> : null}
-          </div>}
-        {lvlB && idx >= 5 && <p className="text-xs text-warn mt-2">Plan B: to ćwiczenie jest opcjonalne.</p>}
-      </Card>
-      {Array.from({ length: Math.max(planned, doneCount(exId)) }, (_, i) => (
-        <SetRow key={`${exId}-${i}-${plannedKg ?? 'x'}`} s={s} te={te} ex={ex} slot={slot} index={i} existing={done.find((x) => x.exerciseId === exId && x.setIndex === i)} unit={unit} stepKg={loadStepKg(ex, unit, data.settings?.loadSteps)}
-          defaultWeight={done.filter((x) => x.exerciseId === exId).at(-1)?.weightKg ?? plannedKg ?? 0} defaultReps={dec && dec.chosenKg !== null && lastW !== undefined && dec.chosenKg !== lastW ? te.repMin : sug.action === 'reps' ? Math.min(sug.alternativeKg ? repCap(te.repMax) : te.repMax, (prev?.sets[i]?.reps ?? te.repMin - 1) + 1) : sug.action === 'hold' ? (prev?.sets[i]?.reps ?? te.repMin) : te.repMin} disabled={kneeBlock} />
-      ))}
-      <Card>
-        <div className="text-sm mb-2">Technika w tym ćwiczeniu</div>
-        <div className="grid grid-cols-2 gap-2">
-          {(['ok', 'bad'] as const).map((t) => <button key={t} onClick={() => db.sessions.update(s.id, { technique: { ...s.technique, [exId]: t }, updatedAt: now() })} className={cx('min-h-11 rounded-lg text-sm', s.technique[exId] === t ? 'bg-accent text-accent-ink font-semibold' : 'bg-card2')}>{t === 'ok' ? 'Poprawna' : 'Słabsza / niepewna'}</button>)}
-        </div>
-      </Card>
-      <div className="grid grid-cols-4 gap-2">
-        <Btn kind="soft" onClick={() => setIdx(Math.max(0, idx - 1))} disabled={idx === 0} className="px-0"><ChevronLeft className="mx-auto" /></Btn>
-        <Btn kind="soft" onClick={() => move(-1)} className="px-0" disabled={idx === 0}><ArrowUp className="mx-auto" size={18} /></Btn>
-        <Btn kind="soft" onClick={() => move(1)} className="px-0" disabled={idx >= order.length - 1}><ArrowDown className="mx-auto" size={18} /></Btn>
-        <Btn kind="soft" onClick={skip} className="px-0"><SkipForward className="mx-auto" size={18} /></Btn>
-      </div>
-      {idx < order.length - 1 ? <Btn className="w-full" onClick={() => setIdx(idx + 1)}>Następne ćwiczenie <ChevronRight size={18} className="inline" /></Btn>
-        : <Btn className="w-full" onClick={() => setFinish(true)}>Zakończ trening</Btn>}
-      {finish && <FinishSheet s={s} onClose={() => setFinish(false)} onDone={onExit} />}
-      {swapOpen && <SwapSheet slot={slot} current={exId} options={opts} onPick={doSwap} onClose={() => setSwapOpen(false)} />}
-    </div>
-  );
+  return <SwapSheet slot={slot} current={exId} options={opts} onPick={doSwap} onClose={onClose} />;
 }
 
 function InfoBtn({ e, data, d }: { e: ExerciseCard; data: AppData; d: Derived }) {
   const [o, setO] = useState<ExerciseCard | null>(null);
-  return <><button aria-label="Instrukcja" onClick={() => setO(e)} className="p-2 rounded-lg bg-card2"><Info size={18} /></button>{o && <ExerciseSheet e={o} data={data} d={d} onOpen={setO} onClose={() => setO(null)} />}</>;
+  return <><button aria-label="Instrukcja" onClick={() => setO(e)} className="w-11 h-11 grid place-items-center rounded-lg bg-card2"><Info size={18} /></button>{o && <ExerciseSheet e={o} data={data} d={d} onOpen={setO} onClose={() => setO(null)} />}</>;
 }
 
 const EQUIP_PL: Record<Equip, string> = { machine: 'Maszyna', dumbbell: 'Hantle', cable: 'Wyciąg', bench: 'Ławka', bodyweight: 'Bez sprzętu' };
@@ -331,14 +372,14 @@ function SwapSheet({ slot, current, options, onPick, onClose }: { slot: string; 
   );
 }
 
-function SetRow({ s, te, ex, slot, index, existing, defaultWeight, defaultReps, disabled, unit, stepKg }: { s: WorkoutSession; te: TemplateExercise; ex: ExerciseCard; slot: string; index: number; existing?: WorkoutSet; defaultWeight: number; defaultReps: number; disabled: boolean; unit: WeightUnit; stepKg: number }) {
+function SetRow({ s, te, ex, slot, index, existing, defaultWeight, defaultReps, disabled, unit, stepKg, lastOfExercise }: { s: WorkoutSession; te: TemplateExercise; ex: ExerciseCard; slot: string; index: number; existing?: WorkoutSet; defaultWeight: number; defaultReps: number; disabled: boolean; unit: WeightUnit; stepKg: number; lastOfExercise?: boolean }) {
   const key = `ws-draft-${s.id}-${ex.id}-${index}`;
   const draft = existing ? null : JSON.parse(localStorage.getItem(key) ?? 'null');
   const [w, setWS] = useState<number>(() => existing?.weightKg ?? draft?.w ?? defaultWeight);
   const [r, setRS] = useState<number>(() => existing?.reps ?? draft?.r ?? defaultReps);
   /** dopóki seria nie była ruszana, ciężar podąża za poprzednią zapisaną serią (np. seria 2 po wpisaniu serii 1) */
   const [touched, setTouched] = useState(!!draft);
-  useEffect(() => { if (!existing && !touched) setWS(defaultWeight); }, [defaultWeight, existing, touched]);
+  useEffect(() => { if (!existing && !touched) { setWS(defaultWeight); setRS(defaultReps); } }, [defaultWeight, defaultReps, existing, touched]);
   const setW = (v: number) => { setTouched(true); setWS(v); };
   const setR = (v: number) => { setTouched(true); setRS(v); };
   const [rir, setRirS] = useState<number | undefined>(existing ? existing.rir : draft?.rir ?? undefined);
@@ -356,6 +397,7 @@ function SetRow({ s, te, ex, slot, index, existing, defaultWeight, defaultReps, 
     localStorage.removeItem(key);
     if (!isDone) { localStorage.setItem('restUntil', String(Date.now() + te.restSec * 1000)); window.dispatchEvent(new Event('rest')); }
     if ((pain ?? 0) >= 4) toast('Ból ≥4/10: przerwij to ćwiczenie i nie dokładaj ciężaru.');
+    else if (!isDone && lastOfExercise) toast('Ćwiczenie zaliczone ✓');
   }
   return (
     <Card className={cx(isDone && 'border-accent/50')}>
@@ -364,13 +406,17 @@ function SetRow({ s, te, ex, slot, index, existing, defaultWeight, defaultReps, 
         <Stepper value={toDisplay(w, unit)} onChange={(v) => setW(fromDisplay(v, unit))} step={toDisplay(stepKg, unit) || 1} unit={unit} />
         <Stepper value={r} onChange={setR} step={1} unit={ex.perSide ? 'na str.' : 'powt.'} />
       </div>
-      <div className="flex items-center gap-1 mt-2" role="group" aria-label="Zapas powtórzeń (RIR), opcjonalnie">
-        <span className="text-xs text-muted mr-1">Zapas:</span>
-        {[0, 1, 2, 3, 4].map((v) => <button key={v} aria-pressed={rir === v} onClick={() => setRir(rir === v ? undefined : v)} className={cx('h-9 min-w-9 px-2 rounded-lg text-xs num', rir === v ? 'bg-accent text-accent-ink font-semibold' : 'bg-card2')}>{v === 4 ? '4+' : v}</button>)}
-        <button className="ml-auto text-xs text-accent" onClick={() => setMore(!more)}>{pain !== undefined ? `ból ${pain}` : 'ból?'}</button>
+      <div className="flex justify-end mt-1">
+        <button aria-expanded={more} className="min-h-11 px-3 -mr-3 text-sm text-accent" onClick={() => setMore(!more)}>{pain !== undefined ? `Ból ${pain}/10` : 'Ból? / zapas'}</button>
       </div>
-      {more && <div className="mt-2"><Scale label="Ból podczas serii" min={0} max={10} value={pain} onChange={setPain} hint="0 brak" /></div>}
-      <Btn className="w-full mt-3" kind={isDone ? 'soft' : 'primary'} disabled={disabled} onClick={save}>{isDone ? 'Popraw serię' : 'Seria zrobiona'}</Btn>
+      {more && <div className="space-y-3">
+        <Scale label="Ból podczas serii" min={0} max={10} value={pain} onChange={setPain} hint="0 = brak" />
+        <div role="group" aria-label="Zapas powtórzeń, opcjonalnie">
+          <div className="text-sm mb-1.5">Ile powtórzeń zostało w zapasie? <span className="text-muted text-xs">(opcjonalnie)</span></div>
+          <div className="flex gap-1">{[0, 1, 2, 3, 4].map((v) => <button key={v} aria-pressed={rir === v} onClick={() => setRir(rir === v ? undefined : v)} className={cx('flex-1 min-h-11 rounded-lg text-sm num', rir === v ? 'bg-accent text-accent-ink font-semibold' : 'bg-card2')}>{v === 4 ? '4+' : v}</button>)}</div>
+        </div>
+      </div>}
+      <Btn className="w-full mt-2 min-h-12" kind={isDone ? 'soft' : 'primary'} disabled={disabled} onClick={save}>{isDone ? 'Popraw serię' : 'Seria zrobiona'}</Btn>
     </Card>
   );
 }
@@ -387,7 +433,7 @@ function RestTimer() {
     <div className="sticky top-2 z-20 flex items-center justify-between rounded-2xl bg-accent text-accent-ink px-4 py-3 shadow-lg">
       <span className="flex items-center gap-2 font-semibold"><Timer size={18} /> Przerwa</span>
       <span className="num text-2xl font-bold">{Math.floor(left / 60)}:{String(left % 60).padStart(2, '0')}</span>
-      <button className="text-sm underline" onClick={() => { localStorage.removeItem('restUntil'); setLeft(0); }}>pomiń</button>
+      <button className="min-h-11 px-2 -mr-2 text-sm underline" onClick={() => { localStorage.removeItem('restUntil'); setLeft(0); }}>pomiń</button>
     </div>
   );
 }

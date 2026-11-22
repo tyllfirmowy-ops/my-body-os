@@ -9,6 +9,17 @@
 - EVIDENCE.md: ACSM 2026 (PMID 41843416), WHO 2021, Bruggisser 2023 (pora treningu), heurystyki planowania.
 - Testy: tests/w2b.test.ts (12), E2E `training_availability`.
 
+### Prosty trening w trybie skupienia (decyzja: mniej progresji w treningu)
+- Trening jako osobny ekran bez dolnej nawigacji: duży „Start” → Rozgrzewka → ćwiczenia → Rozciąganie (nieobowiązkowe) → „Zakończ trening”. Pasek etapów z ✓, licznik „x/7 ✓”, „Dalej: <następne>”, „Wstecz”, „Pomiń ćwiczenie” z etykietą.
+- Rozgrzewka (ok. 7–8 min) i rozciąganie (ok. 3 min) z opisem i „czuciem”, odhaczane (zapis w `WorkoutSession.prep`, przetrwa restart), wideo przez wyszukiwanie YouTube; bez nowych animacji. Dane: src/data/warmup.ts.
+- Seria = 1 dotknięcie: ciężar i powtórzenia z poprzedniego treningu; po ostatniej serii „Ćwiczenie zaliczone ✓”. Bez decyzji o ciężarze w trakcie treningu (usunięte „Przyjmij / Zostań / Inny ciężar / Świadomie wybieram / Zatwierdź start”), bez oceny techniki. Lżej podpowiadane tylko z powodów bezpieczeństwa (długa przerwa, spadek wyników, kolano bez oceny), z jednym zdaniem dlaczego; zwiększenie nigdy samo.
+- Ból i zapas pod jednym przyciskiem „Ból? / zapas” (44 pt), zapas opisany słowami. Ostrzeżenie przy bólu ≥ 4 bez zmian.
+- Podpowiedzi ciężaru przeniesione do karty „Ten tydzień” na ekranie Trening: ile treningów, w których ćwiczeniach lepiej niż tydzień temu (`domain/weeklyReview.ts`), najwyżej 3 propozycje zwiększenia (tylko skoki ≤ 10%). Usunięte strzałki progresji z listy planu.
+- Naprawa: spadek wyników liczony średnio na serię (wcześniej suma powtórzeń: trening z 2 seriami wyglądał na 33% słabszy od treningu z 3).
+- Pole liczby w stepperze 44 pt wysokości; po wyjściu z treningu ekran wraca na górę.
+- EVIDENCE.md: kolejność ćwiczeń (Nunes 2021), rozgrzewka (Ribeiro 2021), rozciąganie statyczne (Behm 2016), rozciąganie a zakwasy (Cochrane 2011).
+- Testy: tests/focus.test.ts, 2 nowe w w2audit; E2E `focus_flow`, `no_auto_increase`, audyt A–I przepisany; usunięte scenariusze decyzji (`progression_flow`, `progression_reject`, `progression_big_jump`).
+
 ### Audyt W2 przed scaleniem
 - Ból ≥ 4/10 wpisany w trakcie ćwiczenia: trwałe ostrzeżenie z „Pomiń ćwiczenie” / „Zamień ćwiczenie” na karcie ćwiczenia (wcześniej tylko znikający toast). Przetrwa restart.
 - Ból i zapas w niezapisanej serii trafiają do szkicu (przetrwają restart, zmianę ćwiczenia); w zapisanej serii zapisują się od razu, bez „Popraw serię”.

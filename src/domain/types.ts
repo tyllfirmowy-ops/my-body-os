@@ -184,6 +184,8 @@ export interface WorkoutSession extends Meta {
   planName?: string;
   /** decyzje o sugestii progresji per faktyczne ćwiczenie (exerciseId); serie historyczne się nie zmieniają */
   progress?: Record<string, ProgressDecision>;
+  /** odhaczone elementy rozgrzewki/rozciągania ('warmup', 'cooldown' = cały etap) */
+  prep?: string[];
 }
 
 export interface ProgressDecision {

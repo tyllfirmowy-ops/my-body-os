@@ -99,8 +99,8 @@ Przygotowanie
 
 ## 8e. Test intuicyjności W2 (bez podpowiedzi, gdzie są przyciski)
 Przy każdym zadaniu zapisz: znalazłem bez podpowiedzi (T/N), pomyliłem się (T/N), wiedziałem, co dalej (T/N).
-1. **Zrób pierwszą serię dzisiejszego treningu z ciężarem, który proponuje aplikacja.** Oczekiwane: seria oznaczona „zapisana”, rusza licznik przerwy. Sukces: ≤ 4 dotknięcia od ekranu głównego, bez cofania. Zwróć uwagę: czy wiedziałeś, jaki ciężar wybrać i dlaczego.
-2. **Nie zgódź się z proponowanym ciężarem i zrób serię z poprzednim.** Oczekiwane: decyzja widoczna („zostaję przy ciężarze”), seria zapisana ze starym ciężarem. Sukces: jedna decyzja, bez utraty serii. Zwróć uwagę: czy było jasne, że nic nie zmieniło się samo.
+1. **Rozpocznij dzisiejszy trening, zrób rozgrzewkę i pierwszą serię.** Oczekiwane: trening na pełnym ekranie bez dolnego paska, rozgrzewka z odhaczaniem, seria „zapisana”, rusza licznik przerwy. Sukces: bez szukania > 10 s, bez cofania. Zwróć uwagę: czy wiedziałeś, co czuć w ćwiczeniach rozgrzewki.
+2. **W drugiej serii zrób więcej kilogramów niż ostatnio i dokończ ćwiczenie.** Oczekiwane: zmiana ciężaru 1–2 dotknięciami, po ostatniej serii ✓ przy ćwiczeniu. Sukces: bez pomyłki w wartości. Zwróć uwagę: czy klawiatura albo przyciski nie przeszkadzały jedną ręką.
 3. **W trakcie ćwiczenia zgłoś ból 5/10 i przejdź do innego ćwiczenia.** Oczekiwane: ostrzeżenie zostaje na ekranie, zamiana albo pominięcie, wcześniejsza seria zostaje. Sukces: bez szukania > 10 s. Zwróć uwagę: czy ostrzeżenie było zrozumiałe i nie straszyło.
 4. **Dziś nie możesz ćwiczyć. Przesuń trening, a potem cofnij to.** Oczekiwane: dzień oznaczony jako niedostępny, następny termin widoczny; po cofnięciu trening wraca. Sukces: obie czynności bez pomyłki. Zwróć uwagę: czy pasek 14 dni było wiadomo, że można stuknąć.
 5. **Zamknij aplikację w trakcie treningu (przesuń z przełącznika aplikacji), otwórz ponownie i dokończ.** Oczekiwane: „Wznów trening”, zapisane serie i niezapisany ból na miejscu. Sukces: nic do wpisania od nowa. Zwróć uwagę: czy było widać, że wynik jest zapisany.

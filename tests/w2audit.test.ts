@@ -69,4 +69,14 @@ describe('Audyt W2: jednostki, siatka skoków, brak RIR', () => {
     expect(p[0]).toEqual({ date: '2026-11-27', templateId: 'B' });
     expect(p[1].templateId).toBe('A');
   });
+  it('mniej serii (2 zamiast 3) przy tych samych powtórzeniach to nie spadek wyników', () => {
+    const s = suggestProgression({ ...base, plannedSets: 2, history: [
+      { date: '2026-11-20', sets: sets(40, [12, 12]) }, { date: '2026-11-17', sets: sets(40, [12, 12, 12]) }] });
+    expect(s.action).toBe('increase');
+  });
+  it('faktyczny spadek powtórzeń na serię nadal wstrzymuje progresję', () => {
+    const s = suggestProgression({ ...base, history: [
+      { date: '2026-11-20', sets: sets(40, [8, 8, 8]) }, { date: '2026-11-17', sets: sets(40, [11, 11, 11]) }] });
+    expect(s.action).toBe('hold');
+  });
 });

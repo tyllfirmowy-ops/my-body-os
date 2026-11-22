@@ -95,8 +95,9 @@ export function suggestProgression(p: ProgressInput): Suggestion {
   const below = (sets: SetResult[]) => sets.filter((s) => s.reps < p.repMin).length >= Math.ceil(sets.length / 2);
   if (sameW1 && below(s0) && below(s1)) return res('decrease', down(w, 0.1, p.step), range, 'Dwa treningi z rzędu poniżej zakresu powtórzeń: lżej o ok. 10%.');
   if (s0.some((s) => s.reps < p.repMin) && s0.some((s) => s.rir === 0)) return res('decrease', down(w, 0.1, p.step), range, 'Poniżej zakresu bez zapasu (RIR 0): lżej o ok. 10%.');
-  const tot = (sets: SetResult[]) => sets.reduce((a, s) => a + s.reps, 0);
-  if (sameW1 && tot(s0) < tot(s1) * 0.8) return res('hold', w, range, `Wynik słabszy o ${Math.round((1 - tot(s0) / tot(s1)) * 100)}% niż poprzednio: ten sam ciężar.`);
+  // średnio na serię: mniej serii (tydz. 1–2, plan B) to nie spadek wydolności
+  const avg = (sets: SetResult[]) => sets.reduce((a, s) => a + s.reps, 0) / sets.length;
+  if (sameW1 && avg(s0) < avg(s1) * 0.8) return res('hold', w, range, `Wynik słabszy o ${Math.round((1 - avg(s0) / avg(s1)) * 100)}% niż poprzednio: ten sam ciężar.`);
 
   // górny zakres → zwiększenie tylko gdy uzasadnione
   if (atTop(s0, w, p)) {
