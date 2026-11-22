@@ -182,6 +182,19 @@ export interface WorkoutSession extends Meta {
   /** snapshot planu z chwili startu (edycja szablonu nie zmienia trwających ani zakończonych treningów) */
   plan?: PlanItem[];
   planName?: string;
+  /** decyzje o sugestii progresji per faktyczne ćwiczenie (exerciseId); serie historyczne się nie zmieniają */
+  progress?: Record<string, ProgressDecision>;
+}
+
+export interface ProgressDecision {
+  action: 'increase' | 'reps' | 'hold' | 'decrease' | 'skip' | 'no_data';
+  suggestedKg: number | null;
+  targetReps: string;
+  reason: string;
+  decision: 'accepted' | 'rejected' | 'modified';
+  /** ciężar wybrany przez użytkownika na dziś (kg) */
+  chosenKg: number | null;
+  at: number;
 }
 
 export interface PlanItem { exerciseId: string; sets: number; repMin: number; repMax: number; restSec: number; kneeCaution?: boolean }
@@ -220,6 +233,9 @@ export interface Settings {
   backupReminderDismissed?: string;
   /** propozycje „Co mam teraz zjeść?” ukryte przez użytkownika (id propozycji) */
   suggestHidden?: string[];
+  weightUnit?: 'kg' | 'lb';
+  /** najmniejsze dostępne skoki obciążenia w jednostce użytkownika */
+  loadSteps?: Partial<Record<'dumbbell' | 'machine' | 'cable' | 'barbell', number>>;
   backupReminderDays: number;
   aiIncludeHealth: boolean;
 }

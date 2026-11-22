@@ -1,4 +1,15 @@
 # Changelog
+## Niewydane — gałąź feat/w2-progression (Adaptive Coach, Wdrożenie 2: progres siłowy)
+- `suggestProgression` (domain/progression.ts) zastępuje logikę `suggestNext` (zostaje jako nakładka zgodności): podwójna progresja z historią 3 ostatnich treningów danego ćwiczenia. Kolejność: blokada bezpieczeństwa → kolano bez oceny (bez obciążenia) → brak historii → ból ≥ 4 (−10%) → przerwa (14/28/56 dni) → ból 3 / słabsza technika (bez zwiększania) → spadek wydolności (2× poniżej zakresu: −10%; −20% powtórzeń: bez zwiększania) → górny zakres (zwiększenie tylko po 2 treningach albo z RIR ≥ 2 w każdej serii; RIR 0 blokuje; plan B lub ból kolana ≥ 3 w check-inie blokują) → inaczej „dołóż powtórzenie” / „zrób wszystkie serie”.
+- Zmiana zachowania: ocena techniki nie jest już wymagana do zwiększenia (blokuje tylko „słabsza”), RIR opcjonalny; zamiast tego wymagane 2 kolejne treningi na górze zakresu. Testy w tests/domain.test.ts zaktualizowane świadomie.
+- Skoki obciążenia i jednostki: najmniejszy skok z ustawień (hantle/maszyna/wyciąg/sztanga) albo z karty ćwiczenia; kg lub lb (serie zawsze zapisywane w kg); ostrzeżenie przy skoku > 10%; obniżki w dół do siatki skoku. Trening → „Jednostki i skoki obciążenia”.
+- Decyzja użytkownika: przy propozycji zmiany ciężaru „Przyjmij X” / „Zostań przy Y” / „Inny ciężar”; bez decyzji serie podpowiadają dotychczasowy ciężar. Decyzja z uzasadnieniem zapisana w `WorkoutSession.progress[exerciseId]`; serie historyczne bez zmian; „zmień” cofa decyzję.
+- Szybki RIR: przyciski „Zapas: 0 1 2 3 4+” przy każdej serii (opcjonalnie, jedno dotknięcie); ból pod „ból?”.
+- Podgląd przed treningiem: przy ćwiczeniach w planie A/B znacznik ↑ / ↓ / +1 powt. / = z ciężarem.
+- Historia per ćwiczenie (`historyFor`): zamienniki w tym samym miejscu planu mają osobną progresję.
+- docs/EVIDENCE.md: ACSM 2026, ACSM 2009 (2–10%), dokładność RIR (Halperin 2022, Steele 2017), detrening (Encarnação 2022), reguły projektowe W2.
+- Testy: tests/w2.test.ts (20), E2E `progression_flow`, `progression_reject`. Bez migracji (nowe pola opcjonalne, nieindeksowane).
+
 ## 0.7.1 — 2026-11-22 (gotowe przepisy, ankieta zdrowotna, weryfikacja źródeł)
 - 25 gotowych, prostych przepisów domowych (`data/recipeLibrary.ts`): 6 śniadań, 11 obiadów (meal prep 2–4 porcje), 5 kolacji, 3 przekąski. Własne opracowanie typowych dań z redukcji, składniki wyłącznie z bazy (bez szacunków), kroki przygotowania, czas. Porcja posiłku 310–660 kcal, białko 21–48 g.
 - Przepisy → zakładka „Gotowe przepisy” z filtrem pory dnia; podgląd, dodanie porcji do dziennika, „Zapisz u siebie” (kopia z `libraryId`, nie dubluje się w propozycjach).

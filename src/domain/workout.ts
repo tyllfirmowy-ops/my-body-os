@@ -67,3 +67,17 @@ export function lastSetsFor<Se extends { id: string; date: string; status: strin
 export function kneeBlocked(level: string, knee: 'none' | 'low' | 'moderate'): boolean {
   return level === 'urgent' || (level === 'stop_legs' && knee !== 'none') || (level === 'caution_legs' && knee === 'moderate');
 }
+
+/** Historia ćwiczenia (exerciseId) z ostatnich zakończonych sesji, od najnowszej. Zamienniki mają osobną historię. */
+export function historyFor<Se extends { id: string; date: string; status: string; startedAt: number; technique?: Record<string, 'ok' | 'bad'> }, St extends { sessionId: string; exerciseId: string; done: boolean; setIndex: number; weightKg: number; reps: number; rir?: number; pain?: number }>(
+  sessions: Se[], sets: St[], exerciseId: string, excludeSession?: string, n = 3,
+): { date: string; sets: St[]; technique?: 'ok' | 'bad' }[] {
+  const out: { date: string; sets: St[]; technique?: 'ok' | 'bad' }[] = [];
+  const done = sessions.filter((s) => s.status === 'completed' && s.id !== excludeSession).sort((a, b) => b.date.localeCompare(a.date) || b.startedAt - a.startedAt);
+  for (const s of done) {
+    const ss = sets.filter((x) => x.sessionId === s.id && x.exerciseId === exerciseId && x.done).sort((a, b) => a.setIndex - b.setIndex);
+    if (ss.length) out.push({ date: s.date, sets: ss, technique: s.technique?.[exerciseId] });
+    if (out.length >= n) break;
+  }
+  return out;
+}

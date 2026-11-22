@@ -23,3 +23,5 @@ v0.6 Plany treningowe: `domain/workoutEdit.ts` + `screens/WorkoutEditor.tsx`. Ha
 v0.6.1: `domain/storageDiag.ts` (klasyfikacja błędów bazy, rejestr w localStorage, `diagnose`, `backupReminder`); globalny odbiornik błędów w `main.tsx`; `rescaleRecipeEntry`/`entryPortions` w `domain/recipes.ts`.
 
 W1 (gałąź): `domain/mealSuggest.ts` (remainingFor, suggestMeals, entriesFor, nextMealNumber) + `screens/MealSuggest.tsx`. Bez własnego liczenia wartości: `recipeTotals`/`scaleNutrients`; wpisy przez `recipeEntry`/`productEntry`.
+
+W2 (gałąź): `suggestProgression` w domain/progression.ts (+ jednostki, `loadStepKg`, `roundToStep`), `historyFor` w domain/workout.ts; w Training.tsx jedno źródło sugestii `progressFor` dla podglądu planu i sesji; decyzje w sesji.

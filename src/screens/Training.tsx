@@ -6,13 +6,13 @@ import { EXERCISES, exerciseById, WORKOUTS, type Equip, type ExerciseCard, type 
 import { effectivePlan, sessionPlan } from '../domain/workoutEdit';
 import { WorkoutEditor } from './WorkoutEditor';
 import { Pencil } from 'lucide-react';
-import { actualFor, kneeBlocked, lastSetsFor, setsForSlot, swapExercise, swapOptions } from '../domain/workout';
+import { actualFor, historyFor, kneeBlocked, lastSetsFor, setsForSlot, swapExercise, swapOptions } from '../domain/workout';
 import { rigFor } from '../data/rigs';
 import { RigPlayer } from '../ui/RigView';
 import { formatPl, range } from '../domain/dates';
 import { withDaughter, cycleSummary } from '../domain/schedule';
-import { plannedSetsFor, suggestNext, type Suggestion } from '../domain/progression';
-import type { WorkoutSession, WorkoutSet } from '../domain/types';
+import { DEFAULT_STEPS, fmtWeight, fromDisplay, loadStepKg, plannedSetsFor, suggestProgression, toDisplay, type LoadEquip, type Suggestion, type WeightUnit } from '../domain/progression';
+import type { ProgressDecision, WorkoutSession, WorkoutSet } from '../domain/types';
 import type { AppData, Derived } from '../db/repo';
 import { Badge, Btn, Card, cx, Field, NumInput, Scale, Sheet, Stepper, Title, toast } from '../ui/kit';
 
@@ -25,6 +25,7 @@ export function Training({ data, d }: ScreenProps) {
   const next = d.todayWorkout ?? d.upcoming[0];
   const plans = { A: effectivePlan('A', WORKOUTS, data.workoutTemplates, data.settings?.activeWorkouts), B: effectivePlan('B', WORKOUTS, data.workoutTemplates, data.settings?.activeWorkouts) };
   const [editSlot, setEditSlot] = useState<'A' | 'B' | null>(null);
+  const [unitsOpen, setUnitsOpen] = useState(false);
 
   async function start(t: 'A' | 'B') {
     if (d.safety.level === 'urgent') return toast('Objaw alarmowy: dziś bez treningu');
@@ -77,15 +78,20 @@ export function Training({ data, d }: ScreenProps) {
             return (
               <button key={te.exerciseId} onClick={() => setCard(e)} className="w-full flex justify-between items-center py-2.5 border-b border-line last:border-0 text-left">
                 <span className="text-sm">{e.namePl} {e.knee !== 'none' && <Badge tone={e.knee === 'moderate' ? 'warn' : 'muted'}>kolano</Badge>}</span>
-                <span className="text-xs text-muted num">{plannedSetsFor(te.sets, d.weekIdx)}×{te.repMin === te.repMax ? te.repMin : `${te.repMin}–${te.repMax}`}{e.perSide ? '/str.' : ''} · {te.restSec}s</span>
+                <span className="text-xs text-muted num text-right">{plannedSetsFor(te.sets, d.weekIdx)}×{te.repMin === te.repMax ? te.repMin : `${te.repMin}–${te.repMax}`}{e.perSide ? '/str.' : ''} · {te.restSec}s
+                  {(() => { const sg = progressFor(data, d, e, te, plannedSetsFor(te.sets, d.weekIdx)); return sg.action === 'no_data' ? null : <span className={cx('block', sg.action === 'increase' ? 'text-accent' : sg.action === 'decrease' || sg.action === 'skip' ? 'text-warn' : '')}>{ARROW[sg.action]} {sg.weightKg !== null ? fmtWeight(sg.weightKg, unitOf(data)) : ''}</span>; })()}
+                </span>
               </button>
             );
           })}
         </Card>
       ))}
+      <p className="text-xs text-muted px-1">↑ propozycja zwiększenia · ↓ lżej (ból, przerwa, słabszy wynik) · +1 powt. ten sam ciężar · = bez zmian. Zmiana ciężaru zawsze wymaga Twojej zgody na treningu.</p>
+      <button className="text-xs text-accent underline px-1" onClick={() => setUnitsOpen(true)}>Jednostki i skoki obciążenia ({unitOf(data)})</button>
       <Card><Title>Biblioteka ćwiczeń</Title><div className="flex flex-wrap gap-1.5">{EXERCISES.map((e) => <button key={e.id} onClick={() => setCard(e)} className="rounded-full bg-card2 px-3 py-2 text-sm">{e.namePl}</button>)}</div></Card>
       {card && <ExerciseSheet e={card} data={data} d={d} onClose={() => setCard(null)} onOpen={setCard} />}
       {editSlot && <WorkoutEditor slot={editSlot} data={data} onClose={() => setEditSlot(null)} />}
+      {unitsOpen && <UnitsSheet data={data} onClose={() => setUnitsOpen(false)} />}
     </>
   );
 }
@@ -130,6 +136,20 @@ function recentResults(data: AppData, exerciseId: string, n: number) {
 const Sec = ({ t, children }: { t: string; children: React.ReactNode }) => <div><div className="text-xs uppercase text-muted mb-0.5">{t}</div><div className="text-sm">{children}</div></div>;
 
 const lastSetsForData = (data: AppData, exerciseId: string, exclude: string) => lastSetsFor(data.sessions, data.sets, exerciseId, exclude);
+const unitOf = (data: AppData): WeightUnit => data.settings?.weightUnit ?? 'kg';
+
+/** Jedno źródło sugestii progresji (podgląd przed treningiem i sesja): reguły w domain/progression.ts. */
+function progressFor(data: AppData, d: Derived, ex: ExerciseCard, te: { sets: number; repMin: number; repMax: number }, plannedSets: number, excludeSession?: string): Suggestion {
+  const kneeBlock = kneeBlocked(d.safety.level, ex.knee);
+  const kneePain = d.morningToday?.kneePain ?? 0;
+  const noIncrease = d.readiness.level === 'B' ? 'Gorszy dzień (plan B)' : ex.knee !== 'none' && kneePain >= 3 ? `Ból kolana ${kneePain}/10 w check-inie` : undefined;
+  return suggestProgression({
+    history: historyFor(data.sessions, data.sets, ex.id, excludeSession), today: d.today, plannedSets, repMin: te.repMin, repMax: te.repMax,
+    step: loadStepKg(ex, unitOf(data), data.settings?.loadSteps), safetyBlock: kneeBlock,
+    kneeNoLoad: ex.knee === 'moderate' && !data.health?.kneeCleared && !kneeBlock, noIncrease,
+  });
+}
+const ARROW: Record<Suggestion['action'], string> = { increase: '↑', decrease: '↓', reps: '+1 powt.', hold: '=', skip: 'pomiń', no_data: 'start' };
 
 function SessionView({ data, d, s, onExit }: { data: AppData; d: Derived; s: WorkoutSession; onExit: () => void }) {
   const tpl = sessionPlan(s, WORKOUTS);
@@ -150,9 +170,21 @@ function SessionView({ data, d, s, onExit }: { data: AppData; d: Derived; s: Wor
   const planned = lvlB ? Math.min(2, te.sets) : plannedSetsFor(te.sets, d.weekIdx);
   const kneeBlock = kneeBlocked(d.safety.level, ex.knee);
   const prev = lastSetsForData(data, exId, s.id);
-  const sug: Suggestion = ex.knee === 'moderate' && !data.health?.kneeCleared && !kneeBlock
-    ? { action: 'hold', weightKg: 0, targetReps: `${te.repMin}–${te.repMax}`, reason: 'Bez obciążenia do czasu oceny kolana przez specjalistę.' }
-    : suggestNext({ last: prev?.sets, plannedSets: planned, repMin: te.repMin, repMax: te.repMax, increment: ex.increment, technique: prev?.session.technique[exId], safetyBlock: kneeBlock, minRir: 1 });
+  const sug = progressFor(data, d, ex, te, planned, s.id);
+  const unit = unitOf(data);
+  const dec = s.progress?.[exId];
+  const lastW = prev?.sets[0]?.weightKg;
+  const needsDecision = (sug.action === 'increase' || sug.action === 'decrease') && sug.weightKg !== null;
+  /** ciężar domyślny serii: decyzja użytkownika; bez decyzji przy zmianie ciężaru = ostatni ciężar (nic nie zmienia się samo) */
+  const plannedKg = dec ? dec.chosenKg : needsDecision ? (lastW ?? null) : sug.weightKg ?? lastW ?? null;
+  const [customKg, setCustomKg] = useState<number | null>(null);
+  async function decide(decision: ProgressDecision['decision'], chosenKg: number | null) {
+    for (let i = 0; i < 10; i++) localStorage.removeItem(`ws-draft-${s.id}-${exId}-${i}`);
+    const rec: ProgressDecision = { action: sug.action, suggestedKg: sug.weightKg, targetReps: sug.targetReps, reason: sug.reason, decision, chosenKg, at: now() };
+    await db.sessions.update(s.id, { progress: { ...(s.progress ?? {}), [exId]: rec }, updatedAt: now() });
+    setCustomKg(null);
+    toast(decision === 'accepted' ? 'Przyjęte' : decision === 'rejected' ? 'Zostajesz przy dotychczasowym ciężarze' : 'Zapisano Twój ciężar');
+  }
 
   async function move(dir: -1 | 1) {
     const o = [...s.order]; const i = o.indexOf(slot); const j = i + dir;
@@ -198,15 +230,26 @@ function SessionView({ data, d, s, onExit }: { data: AppData; d: Derived; s: Wor
         {swapped && <button onClick={() => doSwap(slot)} className="mt-2 flex items-center gap-1 text-xs text-accent"><Undo2 size={14} /> Wróć do: {exerciseById(slot).namePl}</button>}
         {earlierInSlot.length > 0 && <p className="mt-2 text-xs text-muted">Wcześniej w tym miejscu: {exerciseById(earlierInSlot[0].exerciseId).namePl}, {earlierInSlot.length} seria(e) zapisane.</p>}
         {kneeBlock ? <p className="mt-3 rounded-xl bg-danger/10 p-3 text-sm text-danger">Blokada bezpieczeństwa: pomiń to ćwiczenie dziś (kolano).</p>
-          : <p className={cx('mt-3 rounded-xl p-3 text-sm', sug.action === 'increase' ? 'bg-accent/10' : 'bg-card2')}>
-            <b>{sug.weightKg !== null ? `${sug.weightKg} kg` : 'Dobierz ciężar'}</b> · {sug.targetReps} powt. — {sug.reason}
-            {prev && <span className="block text-xs text-muted mt-1">Ostatnio ({formatPl(prev.session.date)}): {prev.sets.map((x) => `${x.weightKg}×${x.reps}`).join(', ')}</span>}
-          </p>}
+          : <div className={cx('mt-3 rounded-xl p-3 text-sm space-y-2', sug.action === 'increase' ? 'bg-accent/10' : sug.action === 'decrease' ? 'bg-warn/10' : 'bg-card2')}>
+            <div><b>{sug.weightKg !== null ? fmtWeight(sug.weightKg, unit) : 'Dobierz ciężar'}</b> · {sug.targetReps} powt.{ex.perSide ? ' na stronę' : ''}</div>
+            <div className="text-xs">{sug.reason}</div>
+            {prev && <div className="text-xs text-muted">Ostatnio ({formatPl(prev.session.date)}): {prev.sets.map((x) => `${toDisplay(x.weightKg, unit)}×${x.reps}`).join(', ')}</div>}
+            {dec ? <div className="text-xs flex items-center justify-between gap-2"><span>Decyzja: <b>{dec.decision === 'accepted' ? 'przyjęta' : dec.decision === 'rejected' ? 'zostaję przy ciężarze' : 'mój ciężar'}</b>{dec.chosenKg !== null ? ` · ${fmtWeight(dec.chosenKg, unit)}` : ''}</span>
+                <button className="text-accent underline" onClick={async () => { const p = { ...(s.progress ?? {}) }; delete p[exId]; await db.sessions.update(s.id, { progress: p, updatedAt: now() }); }}>zmień</button></div>
+              : needsDecision ? <div className="space-y-2">
+                <div className="grid grid-cols-2 gap-2">
+                  <Btn className="text-sm min-h-11" onClick={() => decide('accepted', sug.weightKg)}>Przyjmij {fmtWeight(sug.weightKg!, unit)}</Btn>
+                  <Btn kind="soft" className="text-sm min-h-11" onClick={() => decide('rejected', lastW ?? null)}>Zostań{lastW !== undefined ? ` przy ${fmtWeight(lastW, unit)}` : ''}</Btn>
+                </div>
+                {customKg === null ? <button className="text-xs text-accent underline" onClick={() => setCustomKg(toDisplay(sug.weightKg ?? lastW ?? 0, unit))}>Inny ciężar</button>
+                  : <div className="flex items-center gap-2"><Stepper value={customKg} onChange={setCustomKg} step={toDisplay(loadStepKg(ex, unit, data.settings?.loadSteps), unit) || 1} unit={unit} /><Btn kind="soft" className="text-sm" onClick={() => decide('modified', fromDisplay(customKg, unit))}>Zapisz</Btn></div>}
+              </div> : null}
+          </div>}
         {lvlB && idx >= 5 && <p className="text-xs text-warn mt-2">Plan B: to ćwiczenie jest opcjonalne.</p>}
       </Card>
       {Array.from({ length: Math.max(planned, doneCount(exId)) }, (_, i) => (
-        <SetRow key={`${exId}-${i}`} s={s} te={te} ex={ex} slot={slot} index={i} existing={done.find((x) => x.exerciseId === exId && x.setIndex === i)}
-          defaultWeight={done.filter((x) => x.exerciseId === exId).at(-1)?.weightKg ?? sug.weightKg ?? prev?.sets[0]?.weightKg ?? 0} defaultReps={te.repMin} disabled={kneeBlock} />
+        <SetRow key={`${exId}-${i}-${plannedKg ?? 'x'}`} s={s} te={te} ex={ex} slot={slot} index={i} existing={done.find((x) => x.exerciseId === exId && x.setIndex === i)} unit={unit} stepKg={loadStepKg(ex, unit, data.settings?.loadSteps)}
+          defaultWeight={done.filter((x) => x.exerciseId === exId).at(-1)?.weightKg ?? plannedKg ?? 0} defaultReps={sug.action === 'reps' ? Math.min(te.repMax, (prev?.sets[i]?.reps ?? te.repMin - 1) + 1) : sug.action === 'hold' ? (prev?.sets[i]?.reps ?? te.repMin) : te.repMin} disabled={kneeBlock} />
       ))}
       <Card>
         <div className="text-sm mb-2">Technika w tym ćwiczeniu</div>
@@ -257,7 +300,7 @@ function SwapSheet({ slot, current, options, onPick, onClose }: { slot: string; 
   );
 }
 
-function SetRow({ s, te, ex, slot, index, existing, defaultWeight, defaultReps, disabled }: { s: WorkoutSession; te: TemplateExercise; ex: ExerciseCard; slot: string; index: number; existing?: WorkoutSet; defaultWeight: number; defaultReps: number; disabled: boolean }) {
+function SetRow({ s, te, ex, slot, index, existing, defaultWeight, defaultReps, disabled, unit, stepKg }: { s: WorkoutSession; te: TemplateExercise; ex: ExerciseCard; slot: string; index: number; existing?: WorkoutSet; defaultWeight: number; defaultReps: number; disabled: boolean; unit: WeightUnit; stepKg: number }) {
   const key = `ws-draft-${s.id}-${ex.id}-${index}`;
   const [w, setW] = useState<number>(() => existing?.weightKg ?? JSON.parse(localStorage.getItem(key) ?? 'null')?.w ?? defaultWeight);
   const [r, setR] = useState<number>(() => existing?.reps ?? JSON.parse(localStorage.getItem(key) ?? 'null')?.r ?? defaultReps);
@@ -278,14 +321,15 @@ function SetRow({ s, te, ex, slot, index, existing, defaultWeight, defaultReps, 
     <Card className={cx(isDone && 'border-accent/50')}>
       <div className="flex items-center justify-between mb-2"><span className="text-sm font-semibold">Seria {index + 1}</span>{isDone && <Badge tone="accent"><Check size={12} /> zapisana</Badge>}</div>
       <div className="flex flex-wrap items-center justify-between gap-y-2">
-        <Stepper value={w} onChange={setW} step={ex.increment || 1} unit="kg" />
+        <Stepper value={toDisplay(w, unit)} onChange={(v) => setW(fromDisplay(v, unit))} step={toDisplay(stepKg, unit) || 1} unit={unit} />
         <Stepper value={r} onChange={setR} step={1} unit={ex.perSide ? 'na str.' : 'powt.'} />
       </div>
-      <button className="text-xs text-accent mt-2" onClick={() => setMore(!more)}>{more ? 'Ukryj' : 'RIR i ból'}{rir !== undefined ? ` · RIR ${rir}` : ''}{pain !== undefined ? ` · ból ${pain}` : ''}</button>
-      {more && <div className="space-y-3 mt-2">
-        <Scale label="Powtórzenia w zapasie (RIR)" min={0} max={5} value={rir} onChange={setRir} />
-        <Scale label="Ból podczas serii" min={0} max={10} value={pain} onChange={setPain} hint="0 brak" />
-      </div>}
+      <div className="flex items-center gap-1 mt-2" role="group" aria-label="Zapas powtórzeń (RIR), opcjonalnie">
+        <span className="text-xs text-muted mr-1">Zapas:</span>
+        {[0, 1, 2, 3, 4].map((v) => <button key={v} aria-pressed={rir === v} onClick={() => setRir(rir === v ? undefined : v)} className={cx('h-9 min-w-9 px-2 rounded-lg text-xs num', rir === v ? 'bg-accent text-accent-ink font-semibold' : 'bg-card2')}>{v === 4 ? '4+' : v}</button>)}
+        <button className="ml-auto text-xs text-accent" onClick={() => setMore(!more)}>{pain !== undefined ? `ból ${pain}` : 'ból?'}</button>
+      </div>
+      {more && <div className="mt-2"><Scale label="Ból podczas serii" min={0} max={10} value={pain} onChange={setPain} hint="0 brak" /></div>}
       <Btn className="w-full mt-3" kind={isDone ? 'soft' : 'primary'} disabled={disabled} onClick={save}>{isDone ? 'Popraw serię' : 'Seria zrobiona'}</Btn>
     </Card>
   );
@@ -329,3 +373,24 @@ function FinishSheet({ s, onClose, onDone }: { s: WorkoutSession; onClose: () =>
   );
 }
 
+
+const EQ_PL: Record<LoadEquip, string> = { dumbbell: 'Hantle (na rękę)', machine: 'Maszyna', cable: 'Wyciąg', barbell: 'Sztanga' };
+function UnitsSheet({ data, onClose }: { data: AppData; onClose: () => void }) {
+  const [unit, setUnit] = useState<WeightUnit>(data.settings?.weightUnit ?? 'kg');
+  const [steps, setSteps] = useState<Partial<Record<LoadEquip, number>>>(() => (data.settings?.weightUnit ?? 'kg') === unit ? data.settings?.loadSteps ?? {} : {});
+  async function save() {
+    await db.settings.update('settings', { weightUnit: unit, loadSteps: steps });
+    toast('Zapisano'); onClose();
+  }
+  return (
+    <Sheet open onClose={onClose} title="Jednostki i skoki obciążenia">
+      <div className="grid grid-cols-2 gap-1 rounded-xl bg-card2 p-1 text-sm">{(['kg', 'lb'] as const).map((u) => <button key={u} onClick={() => { setUnit(u); setSteps({}); }} className={cx('rounded-lg py-2', unit === u ? 'bg-card font-semibold' : 'text-muted')}>{u}</button>)}</div>
+      <p className="text-xs text-muted">Najmniejszy skok, jaki masz na siłowni. Aplikacja proponuje zwiększenie tylko o tyle. Puste pole = wartość domyślna.</p>
+      {(Object.keys(EQ_PL) as LoadEquip[]).map((k) => (
+        <Field key={k} label={`${EQ_PL[k]} (domyślnie: ${unit === 'kg' ? 'wg ćwiczenia' : `${DEFAULT_STEPS.lb[k]} lb`})`}><NumInput value={steps[k]} onChange={(v) => setSteps({ ...steps, [k]: v && v > 0 ? v : undefined })} placeholder={unit === 'kg' ? 'wg ćwiczenia' : String(DEFAULT_STEPS.lb[k])} /></Field>
+      ))}
+      <p className="text-xs text-muted">Zapisane serie zawsze są w kg; zmiana jednostki zmienia tylko wyświetlanie i skoki.</p>
+      <Btn className="w-full" onClick={save}>Zapisz</Btn>
+    </Sheet>
+  );
+}

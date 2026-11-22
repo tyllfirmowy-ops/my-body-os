@@ -84,6 +84,13 @@ Przygotowanie
 - [ ] Nowe konto „Wpisz ręcznie”: krok „Zdrowie” z 3 pytaniami Tak/Nie i polem na inne choroby.
 - [ ] Oceń przepisy w praktyce: czy są proste, czy porcje są realne, czego brakuje.
 
+## 8c. W2: progres siłowy (po scaleniu)
+- [ ] Trening → plan A/B: przy ćwiczeniach z historią znacznik ↑ / ↓ / +1 powt. / = i ciężar.
+- [ ] W sesji przy propozycji zwiększenia: „Przyjmij X” / „Zostań przy Y” / „Inny ciężar”; bez decyzji serie mają dotychczasowy ciężar.
+- [ ] „Zapas: 0 1 2 3 4+” przy serii: jedno dotknięcie, można pominąć.
+- [ ] Trening → „Jednostki i skoki obciążenia”: lb pokazuje ciężary w lb, skok hantli zmienia propozycję.
+- [ ] Po zamianie ćwiczenia sugestia dotyczy zamiennika (własna historia).
+
 ## 9. Krótka kontrola z wcześniejszych wersji
 - [ ] Karta ćwiczenia: animacja płynna, pauza, suwak, 0,5×, fazy. Telefon nie grzeje się wyraźnie po 2 minutach odtwarzania.
 - [ ] Zamiana ćwiczenia w trakcie treningu i powrót do ćwiczenia z planu.

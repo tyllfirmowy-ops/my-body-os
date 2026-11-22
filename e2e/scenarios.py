@@ -228,4 +228,60 @@ def onboarding_health_survey(pg, url):
     check(dialog(pg).get_by_text(re.compile('Dopasowany: Skyr')).count() > 0, 'przepis ze skyrem nie dostał zamiennika')
     return {'toggles': states}
 
-ALL = [exercise_card_and_swap, backup_roundtrip, recipe_flow, workout_plan_flow, coach_feedback, food_search, storage_diagnostics, morning_backup_reminder, recipe_portions_in_diary, meal_suggestions, library_recipes, onboarding_health_survey]
+SEED_PROGRESS = """async () => {
+  const r = indexedDB.open('my-body-os'); await new Promise(ok => r.onsuccess = ok); const db = r.result;
+  const tx = db.transaction(['sessions', 'sets'], 'readwrite');
+  const d = (n) => { const x = new Date(Date.now() - n * 864e5); return x.toLocaleDateString('sv-SE', { timeZone: 'Europe/Warsaw' }); };
+  [[7, 'p1'], [3, 'p2']].forEach(([n, id], k) => {
+    tx.objectStore('sessions').put({ id, createdAt: k, updatedAt: k, date: d(n), templateId: 'A', status: 'completed', order: ['machine_press'], skipped: [], technique: {}, startedAt: k, finishedAt: k + 1 });
+    [['machine_press', 40], ['incline_db_press', 16]].forEach(([ex, w]) => [0, 1, 2].forEach(i => tx.objectStore('sets').put({ id: id + ex + i, sessionId: id, exerciseId: ex, slot: ex, setIndex: i, weightKg: w, reps: 12, done: true, createdAt: k, updatedAt: k })));
+  });
+  await new Promise(ok => tx.oncomplete = ok); db.close();
+}"""
+
+def progression_flow(pg, url):
+    demo(pg, url)
+    pg.evaluate(SEED_PROGRESS); pg.reload(); pg.wait_for_timeout(900)
+    tab(pg, 'Trening')
+    row = pg.locator('button.w-full').filter(has_text='Wyciskanie na maszynie').first
+    check('↑ 42,5 kg' in row.inner_text(), f'brak podglądu zwiększenia przed treningiem: {row.inner_text()}')
+    start = pg.get_by_role('button', name='Start')
+    if start.count() == 0: start = pg.get_by_role('button', name=re.compile('Mimo to zacznij'))
+    start.first.click(); pg.wait_for_timeout(500)
+    first = pg.locator('h2').first.inner_text()
+    exp = {'Wyciskanie na maszynie': ('40', '42,5', '42.5'), 'Wyciskanie hantli na ławce skośnej': ('16', '18', '18')}
+    check(first in exp, f'nieoczekiwane pierwsze ćwiczenie: {first}')
+    w_old, w_new_pl, w_new = exp[first]
+    check(pg.get_by_text(re.compile('Dwa treningi na górze zakresu')).count() > 0, 'brak uzasadnienia')
+    # bez decyzji: seria podpowiada dotychczasowy ciężar
+    w0 = pg.get_by_label('kg').first.input_value()
+    check(w0 == w_old, f'bez zgody ciężar zmienił się sam: {w0}')
+    shot(pg, 'progression.png')
+    pg.get_by_role('button', name=f'Przyjmij {w_new_pl} kg').click(); pg.wait_for_timeout(400)
+    check(pg.get_by_label('kg').first.input_value() == w_new, 'po akceptacji seria nie ma nowego ciężaru')
+    pg.get_by_role('group', name=re.compile('Zapas powtórzeń')).first.get_by_role('button', name='2').click()
+    pg.get_by_role('button', name='Seria zrobiona').first.click(); pg.wait_for_timeout(400)
+    pg.reload(); pg.wait_for_timeout(1000)
+    if pg.get_by_text('Wznów trening').count(): pg.get_by_text('Wznów trening').first.click(); pg.wait_for_timeout(400)
+    check(pg.get_by_text(re.compile('Decyzja: przyjęta')).count() > 0, 'decyzja nie przetrwała odświeżenia')
+    check(pg.get_by_text(re.compile('RIR|zapisana')).count() > 0, 'seria nie zapisana')
+    old = pg.evaluate("""async () => { const r = indexedDB.open('my-body-os'); await new Promise(ok => r.onsuccess = ok); const db = r.result; const g = db.transaction('sets').objectStore('sets').getAll(); await new Promise(ok => g.onsuccess = ok); db.close(); return g.result.filter(s => s.sessionId === 'p1' || s.sessionId === 'p2').map(s => s.weightKg + 'x' + s.reps).join(','); }""")
+    check(sorted(old.split(',')) == sorted(['40x12'] * 6 + ['16x12'] * 6), f'historyczne serie zmienione: {old}')
+    return {'exercise': first, 'before': w0, 'accepted': w_new}
+
+def progression_reject(pg, url):
+    demo(pg, url)
+    pg.evaluate(SEED_PROGRESS); pg.reload(); pg.wait_for_timeout(900)
+    tab(pg, 'Trening')
+    start = pg.get_by_role('button', name='Start')
+    if start.count() == 0: start = pg.get_by_role('button', name=re.compile('Mimo to zacznij'))
+    start.first.click(); pg.wait_for_timeout(500)
+    pg.get_by_role('button', name=re.compile('^Zostań przy (40|16) kg')).click(); pg.wait_for_timeout(300)
+    check(pg.get_by_text(re.compile('Decyzja: zostaję przy ciężarze')).count() > 0, 'odrzucenie nie zapisane')
+    pg.get_by_role('button', name='zmień').click(); pg.wait_for_timeout(200)
+    pg.get_by_role('button', name='Inny ciężar').click()
+    pg.get_by_role('button', name='Zapisz').first.click(); pg.wait_for_timeout(300)
+    check(pg.get_by_text(re.compile('Decyzja: mój ciężar')).count() > 0, 'ręczna zmiana nie zapisana')
+    return {'ok': True}
+
+ALL = [exercise_card_and_swap, backup_roundtrip, recipe_flow, workout_plan_flow, coach_feedback, food_search, storage_diagnostics, morning_backup_reminder, recipe_portions_in_diary, meal_suggestions, library_recipes, onboarding_health_survey, progression_flow, progression_reject]
