@@ -26,3 +26,5 @@ W1 (gałąź): `domain/mealSuggest.ts` (remainingFor, suggestMeals, entriesFor, 
 
 W2 (gałąź): `suggestProgression` w domain/progression.ts (+ jednostki, `loadStepKg`, `roundToStep`), `historyFor` w domain/workout.ts; w Training.tsx jedno źródło sugestii `progressFor` dla podglądu planu i sesji; decyzje w sesji.
 Planowanie (gałąź W2): `planWeekly`/`weekSummary` (domain/schedule.ts); `historicalPlanned` wybiera planer wg `scheduleV2From` (dawny `planWorkouts` z kalendarzem opieki tylko dla dni przed przejściem). `derive().upcoming` z planera tygodniowego.
+
+1.0 W1 (gałąź): nawigacja w `App.tsx` (4 zakładki, `profile` bez pozycji w nawigacji, `tabBack`); `domain/nextAction.ts` (NextBestAction, odłożenie przez `feedback` z `recId` `nba_<rodzaj>`, porady coacha nadal przez `pickRecommendation`); `domain/mealSlot.ts` (domyślny posiłek). `FoodPicker` przyjmuje opcjonalne `meal` (wybór posiłku na końcu). `toast(msg, action?)` z akcją „Cofnij”. `WeeklyReportCard` ma `showCard` (karta ustępuje ważniejszej sugestii, arkusz zostaje).

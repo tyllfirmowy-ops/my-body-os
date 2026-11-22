@@ -41,9 +41,10 @@ export function Onboarding({ data }: { data: AppData }) {
       toast(r.error);
     } catch { toast('Nie udało się odczytać pliku'); }
   }
+  // kolano niepotwierdzone do czasu ankiety zdrowotnej: przerwany onboarding nie może zostawić „ocenione przez specjalistę”
   async function saveManual() {
     await applyProfile({ ...DEMO, profile: { ...DEMO.profile, name: manual.name || 'Ja', sex: manual.sex, heightCm: manual.heightCm, ageYears: manual.ageYears, ageRefDate: today(), declaredWeightKg: manual.weightKg, goals: [{ kg: manual.goalKg, label: 'Cel 1' }] },
-      health: { ...DEMO.health, kneeCleared: true }, plan: { ...DEMO.plan, kcal: calc.kcal, proteinG: calc.proteinG, fatG: calc.fatG, carbsG: calc.carbsG, workoutsPer14d: Math.max(2, act.workoutsPerWeek * 2) } }, today());
+      health: { ...DEMO.health, kneeCleared: false }, plan: { ...DEMO.plan, kcal: calc.kcal, proteinG: calc.proteinG, fatG: calc.fatG, carbsG: calc.carbsG, workoutsPer14d: Math.max(2, act.workoutsPerWeek * 2) } }, today());
     await db.profile.update('me', { activity: act });
     setStep('health');
   }

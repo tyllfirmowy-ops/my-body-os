@@ -18,23 +18,27 @@ with serve('dist') as URL, sync_playwright() as p:
     m={x['name']:x['value'] for x in cdp.send('Performance.getMetrics')['metrics']}
     out['script_s']=round(m['ScriptDuration'],3)
     pg.get_by_role('button',name='Profil demo').click(); pg.wait_for_timeout(300)
-    pg.get_by_role('button',name='Nie').click(); pg.get_by_role('button',name='Zgadza się').click(); pg.get_by_role('button',name='Pomiń na teraz').click(); pg.wait_for_timeout(800)
+    pg.get_by_role('button',name='Nie',exact=True).click(); pg.get_by_role('button',name='Zgadza się').click(); pg.get_by_role('button',name='Pomiń na teraz').click(); pg.wait_for_timeout(800)
     # ponowne uruchomienie (z cache przeglądarki i danymi)
     pg.reload(); pg.get_by_text('Dzisiaj').first.wait_for(); out['warm_reload_ui_ms']=round(pg.evaluate("performance.now()"))
     pg.wait_for_timeout(500)
-    tabs=['Dieta','Trening','Postęp','Zdrowie','Dzisiaj']
+    tabs=['Jedzenie','Trening','Postęp','Dzisiaj']
     times={t:[] for t in tabs}
     for _ in range(3):
         for t in tabs: times[t].append(pg.evaluate(TAP,['nav button',t])); pg.wait_for_timeout(150)
     out['tab_switch_ms']={t:round(st.median(v)) for t,v in times.items()}
-    pg.evaluate(TAP,['nav button','Dieta']); pg.wait_for_timeout(300)
+    pg.evaluate(TAP,['nav button','Jedzenie']); pg.wait_for_timeout(300)
     pg.get_by_role('button',name='Dodaj').first.click(); pg.wait_for_timeout(300)
     SEARCH='''async (q) => { const i=document.querySelector('input[placeholder^="Szukaj w bazie"]'); const set=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set; const t=performance.now(); set.call(i,q); i.dispatchEvent(new Event('input',{bubbles:true})); await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))); return performance.now()-t; }'''
     s=[]
     for q in ['k','ku','kur','kurc','kurcz','kurczak','r','ry','ryż','j','jo','jogurt']*2: s.append(pg.evaluate(SEARCH,q))
     out['search_keystroke_ms']={'median':round(st.median(s)),'max':round(max(s))}
     pg.keyboard.press('Escape'); pg.locator('[aria-label=Zamknij]').first.click(); pg.wait_for_timeout(200)
+    pg.evaluate(TAP,['nav button','Dzisiaj']); pg.wait_for_timeout(300)
+    out['today_add_food_open_ms']=round(pg.evaluate(TAP,['main button','Dodaj jedzenie'])); pg.wait_for_timeout(200)
+    pg.locator('[aria-label=Zamknij]').first.click(); pg.wait_for_timeout(200)
     pg.evaluate(TAP,['nav button','Trening']); pg.wait_for_timeout(300)
+    pg.get_by_role('button',name='Plany treningowe i ćwiczenia').click(); pg.wait_for_timeout(200)
     pg.locator('text=Martwy ciąg rumuński z hantlami').first.click()
     pg.wait_for_timeout(500)
     fps=pg.evaluate('''async () => { const d=[]; let last=performance.now(); const end=last+4000; await new Promise(r=>{ const f=(t)=>{ d.push(t-last); last=t; t<end?requestAnimationFrame(f):r(); }; requestAnimationFrame(f); }); d.shift(); const s=[...d].sort((a,b)=>a-b); return {frames:d.length, fps:Math.round(1000*d.length/d.reduce((a,b)=>a+b,0)), p95_ms:+s[Math.floor(s.length*0.95)].toFixed(1), over_33ms:d.filter(x=>x>33).length}; }''')

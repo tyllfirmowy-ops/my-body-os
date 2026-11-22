@@ -11,9 +11,12 @@ export const basisLabel = (b: FoodProduct['basis']) => ({ raw: 'waga surowa', dr
 
 type Tab = 'local' | 'online' | 'scan' | 'quick';
 
-export function FoodPicker({ foods, entries, onClose, onAdd, onQuick, onNew, title }: {
+/** Wybór posiłku na końcu dodawania (opcjonalny): domyślny wg pory dnia, zmiana jednym dotknięciem. */
+export interface MealChoice { value: number; options: { value: number; label: string }[]; onChange: (m: number) => void }
+
+export function FoodPicker({ foods, entries, onClose, onAdd, onQuick, onNew, title, meal }: {
   foods: FoodProduct[]; entries: FoodEntry[]; onClose: () => void;
-  onAdd: (p: FoodProduct, g: number) => Promise<void>; onQuick?: (name: string, kcal: number, protein: number) => Promise<void>; onNew: () => void; title?: string;
+  onAdd: (p: FoodProduct, g: number) => Promise<void>; onQuick?: (name: string, kcal: number, protein: number) => Promise<void>; onNew: () => void; title?: string; meal?: MealChoice;
 }) {
   const [tab, setTab] = useState<Tab>('local');
   const [q, setQ] = useState('');
@@ -68,6 +71,7 @@ export function FoodPicker({ foods, entries, onClose, onAdd, onQuick, onNew, tit
         {sel.dairy === 'contains' && <p className="text-sm text-warn">Zawiera składniki mleczne (mleko, serwatka, kazeina, laktoza lub ser).</p>}
         {sel.dairy === 'unknown' && <p className="text-sm text-muted">Skład niepewny pod kątem mleka: sprawdź etykietę.</p>}
         {sel.ingredients && <details className="text-xs text-muted"><summary>Skład</summary>{sel.ingredients}</details>}
+        {meal && <MealChips meal={meal} />}
         <div className="flex gap-2"><Btn kind="soft" onClick={() => setSel(null)}>Wstecz</Btn><Btn className="flex-1" disabled={!g} onClick={async () => { await onAdd(sel, g!); onClose(); }}>Dodaj</Btn></div>
       </Sheet>
     );
@@ -103,9 +107,21 @@ export function FoodPicker({ foods, entries, onClose, onAdd, onQuick, onNew, tit
           <Field label="kcal"><NumInput value={quick.kcal} onChange={(v) => setQuick({ ...quick, kcal: v })} /></Field>
           <Field label="Białko (g, opcjonalnie)"><NumInput value={quick.protein} onChange={(v) => setQuick({ ...quick, protein: v })} /></Field>
         </div>
+        {meal && <MealChips meal={meal} />}
         <Btn className="w-full" disabled={!quick.kcal} onClick={async () => { await onQuick(quick.name || 'Szybki wpis', quick.kcal!, quick.protein ?? 0); onClose(); }}>Dodaj</Btn>
       </>)}
     </Sheet>
+  );
+}
+
+function MealChips({ meal }: { meal: MealChoice }) {
+  return (
+    <div role="radiogroup" aria-label="Posiłek" className="flex flex-wrap gap-1.5">
+      {meal.options.map((o) => (
+        <button key={o.value} role="radio" aria-checked={meal.value === o.value} onClick={() => meal.onChange(o.value)}
+          className={cx('min-h-11 rounded-full px-3 text-sm', meal.value === o.value ? 'bg-accent text-accent-ink font-semibold' : 'bg-card2')}>{o.label}</button>
+      ))}
+    </div>
   );
 }
 

@@ -14,10 +14,11 @@ describe('zapotrzebowanie', () => {
   it('więcej kroków = wyższe TDEE', () => {
     expect(estimateTdee(2152.5, 110, 190, { ...hubert, stepsPerDay: 10000 }).tdee).toBeGreaterThan(estimateTdee(2152.5, 110, 190, hubert).tdee);
   });
-  it('plan indywidualny: 190 cm / 110 kg mężczyzna, tempo 0,7%/tydz. przycięte limitem deficytu (BMI ≥ 30: ≤ 750 i ≤ 25% TDEE)', () => {
+  it('plan indywidualny: 190 cm / 110 kg mężczyzna, tempo 0,7%/tydz. przycięte limitem deficytu, potem minimum = BMR zaokrąglony w górę', () => {
     const p = planFor({ tdee: 2850, bmr: 2152, weightKg: 110, heightCm: 190, sex: 'male', pace: 'standard' });
-    expect(p.wantedDeficit).toBe(847); expect(p.cap).toBe(713); expect(p.bound).toBe('cap');
-    expect(p.kcal).toBe(2150); expect(p.floor).toBe(2150);
+    expect(p.wantedDeficit).toBe(847); expect(p.cap).toBe(713);
+    // 2850 − 713 → 2150 byłoby poniżej BMR 2152; minimum 2200 wygrywa
+    expect(p.bound).toBe('floor'); expect(p.kcal).toBe(2200); expect(p.floor).toBe(2200); expect(p.kcal).toBeGreaterThanOrEqual(2152);
     expect(p.proteinG).toBe(160); // 1,8 g/kg × 90,3 kg (masa przy BMI 25)
   });
   it('kobieta 165 cm / 70 kg (BMI 25,7): limit 500 kcal, minimum = przemiana spoczynkowa', () => {
@@ -31,7 +32,9 @@ describe('zapotrzebowanie', () => {
   });
   it('minimum kalorii: nie mniej niż 1200/1500 kcal i nie mniej niż przemiana spoczynkowa', () => {
     expect(planFor({ tdee: 1500, bmr: 1350, weightKg: 60, heightCm: 160, sex: 'female', pace: 'standard' })).toMatchObject({ kcal: 1350, bound: 'floor' });
-    expect(kcalFloor('female', 1000)).toBe(1200); expect(kcalFloor('male', 1400)).toBe(1500); expect(kcalFloor('male', 2152)).toBe(2150);
+    expect(kcalFloor('female', 1000)).toBe(1200); expect(kcalFloor('male', 1400)).toBe(1500); expect(kcalFloor('male', 2152)).toBe(2200);
+    // minimum nigdy poniżej szacowanego BMR (wcześniej floor dawał do 49 kcal mniej)
+    for (const b of [1501, 1849, 1850, 2001, 2449]) expect(kcalFloor('male', b)).toBeGreaterThanOrEqual(b);
     expect(deficitCap(80, 180, 2600)).toBe(500); expect(referenceWeight(60, 170)).toBe(60);
   });
   const w28 = (f: (i: number) => number) => Array.from({ length: 28 }, (_, i) => ({ date: addDays('2026-10-01', i), value: f(i) }));

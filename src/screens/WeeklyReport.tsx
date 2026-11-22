@@ -16,13 +16,14 @@ const CHANGES: [WeekChange, string][] = [['simpler_meals', 'Prostsze posiłki'],
 export const asksKnee = (data: AppData) => !!data.health && (!data.health.kneeCleared || !!data.health.kneeNote);
 const startedOn = (data: AppData) => [...data.plans].sort((a, b) => a.validFrom.localeCompare(b.validFrom))[0]?.validFrom;
 
-export function WeeklyReportCard({ data, d }: { data: AppData; d: Derived }) {
+/** showCard=false: przypomnienie ustępuje ważniejszej sugestii na Dzisiaj, ale otwarty arkusz zostaje (np. wyniki po zapisie). */
+export function WeeklyReportCard({ data, d, showCard = true }: { data: AppData; d: Derived; showCard?: boolean }) {
   const due = reportDue(new Date(), data.weeklyCheckins ?? [], { startedOn: startedOn(data), snoozedOn: data.settings?.reportSnoozedOn });
   const [open, setOpen] = useState(false);
-  if (!due.show && !open) return null;
+  if ((!due.show || !showCard) && !open) return null;
   return (
     <>
-      {due.show && <Card className="bg-accent/10 border-accent/40">
+      {due.show && showCard && <Card className="bg-accent/10 border-accent/40">
         <div className="flex items-center gap-3"><ClipboardCheck className="text-accent shrink-0" /><div><div className="font-semibold">Raport tygodnia</div><div className="text-sm text-muted">{formatPl(due.weekStart)}–{formatPl(addDays(due.weekStart, 6))} · 4 pytania, ok. 30 s</div></div></div>
         <div className="grid grid-cols-[1fr_auto] gap-2 mt-3">
           <Btn className="min-h-12" onClick={() => setOpen(true)}>Wypełnij</Btn>

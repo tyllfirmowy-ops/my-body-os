@@ -24,4 +24,5 @@ input, select, textarea { font-size: 16px; } /* iOS: brak zoomu przy focusie */
 @media (prefers-reduced-motion: reduce) { .rise { animation: none; } }
 
 /* tryb skupienia treningu: bez dolnej nawigacji */
-body[data-focus] nav[aria-label="Nawigacja"] { display: none; }
+body[data-focus] nav[aria-label="Nawigacja"], body[data-focus] [data-topbar] { display: none; }
+body[data-focus] main { padding-top: max(env(safe-area-inset-top), 12px); }

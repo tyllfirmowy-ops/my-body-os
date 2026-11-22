@@ -1,13 +1,13 @@
 # Stan projektu (2026-11-22)
 
-Wersja 0.6.1 (diagnostyka pamięci, przypomnienie o kopii w check-inie, porcje przepisu w dzienniku). ETAP 3 zakończony (3A–3F). Hosting: https://statuesque-sorbet-8dafde.netlify.app (Netlify, auto-deploy z GitHub main). Zainstalowana na iPhonie jako aplikacja z ekranu głównego.
+Wersja produkcyjna: 0.8.0 (main, https://statuesque-sorbet-8dafde.netlify.app, Netlify auto-deploy z main). Zainstalowana na iPhonie jako aplikacja z ekranu głównego.
 
-Weryfikacja: 209 testów Vitest, typecheck czysty, build OK, E2E `npm run e2e` 9/9 PASS (karta i zamiana ćwiczenia, kopia zapasowa, przepisy i szablony, warianty planu, feedback coacha, wyszukiwanie i offline, diagnostyka pamięci, przypomnienie o kopii, porcje w dzienniku). Pomiary `npm run perf` (Chrome, widok iPhone): start 0,2 s (CPU 1×) / 0,6–0,8 s (4×), zakładki 26–75 ms, wyszukiwarka ~30 ms na znak, animacja 60 fps.
-Baza: Dexie v4. Kopie starsze (v1, schemat 1–3) wczytują się; tabele nieobecne w kopii nie są czyszczone.
+W toku: przebudowa 1.0 „Everyday experience” etapami W1–W6 (plan: docs/ROADMAP.md, audyt: docs/UX_REDESIGN_AUDIT.md).
+- W1 (fundament UX) gotowe na gałęzi `feat/1.0-w1-ux` jako 0.9.0, **nie scalone**: 4 zakładki + profil w górnym rogu, nowy ekran Dzisiaj z NextBestAction, szybkie dodanie jedzenia z Cofnij, profil w sekcjach, poprawka `kcalFloor` i domyślnej oceny kolana.
+- Następne: W2 (dieta bez tarcia: parser „banan 120g”, ostatnie/częste, „Więcej możliwości”).
 
-Ograniczenia: animacje 2D z boku (3 wzorce referencyjne sprawdzone z opisami techniki, 10 schematycznych, alternatywy bez animacji); PWA nie robi kopii w tle i nie wie, czy plik trafił do iCloud (stąd ręczne potwierdzenie); wyniki OFF to dane społeczności (walidacja wychwytuje tylko niespójności).
-Do sprawdzenia na iPhonie: docs/IPHONE_TEST_CHECKLIST.md (wszystkie punkty NIEWYKONANE).
-Wersja 0.7.1: Adaptive Coach W1 „Co mam teraz zjeść?” + 25 gotowych przepisów + ankieta zdrowotna przy zakładaniu konta; EVIDENCE.md ze zweryfikowanymi źródłami. W2–W5 do zrobienia po testach na iPhonie (audyt: docs/ADAPTIVE_COACH_AUDIT.md).
+Weryfikacja 0.9.0 (gałąź): 316 testów Vitest, typecheck czysty, build OK, E2E `npm run e2e` 33/33 PASS (scenarios.py, audit.py, weekly.py, ux1.py). `npm run perf` (Chrome, widok iPhone, CPU 4×): pierwszy ekran 0,8–0,9 s (main na tej samej maszynie 0,6–0,8 s, w granicach rozrzutu), zakładki 22–54 ms, otwarcie „Dodaj jedzenie” 37 ms, wyszukiwarka ~29 ms na znak, animacja 60 fps.
+Baza: Dexie v5, bez zmian w W1. Kopie starsze wczytują się; tabele nieobecne w kopii nie są czyszczone.
 
-Wersja 0.8.0 (scalona do main 2026-11-22, wcześniej gałąź `feat/w2-progression`): W2 progres siłowy + planer tygodniowy; audyt przed scaleniem zrobiony 2026-11-22 (poprawki: ból w trakcie ćwiczenia, szkice bólu/zapasu, seria 2 przejmuje ciężar, arkusze przez portal, jednostki lb w uzasadnieniach, siatka skoków). Potem decyzja: prosty trening w trybie skupienia (rozgrzewka → ćwiczenia → rozciąganie, bez decyzji o ciężarze), progresja tylko w karcie „Ten tydzień”. Raport tygodnia z przypomnieniami w aplikacji i plikiem kalendarza; aplikacja gotowa dla drugiego użytkownika (kalendarz opieki opcjonalny). Kalorie i makro liczone indywidualnie (energy.planFor, kcalFloor); istniejący plan bez zmian do akceptacji. E2E: 28 scenariuszy (e2e/scenarios.py, audit.py, weekly.py). Nie potwierdzone na fizycznym iPhonie: docs/IPHONE_TEST_CHECKLIST.md, sekcja 8e.
-Następne: decyzja o ETAPIE 4 (patrz ROADMAP.md).
+Ograniczenia: animacje 2D z boku; PWA nie robi kopii w tle i nie wie, czy plik trafił do iCloud; wyniki OFF to dane społeczności; dwa źródła liczby treningów (`plan.workoutsPer14d` dla cyklu kalorii i `settings.trainingsPerWeek` dla planera) do ujednolicenia w W5.
+Do sprawdzenia na iPhonie: docs/IPHONE_TEST_CHECKLIST.md (sekcje 8e i 10 niewykonane).

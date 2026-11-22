@@ -40,8 +40,18 @@ def demo(pg, url):
     pg.get_by_role('button', name='Nie', exact=True).click(); pg.get_by_role('button', name='Zgadza się').click(); pg.get_by_role('button', name='Pomiń na teraz').click()
     pg.wait_for_timeout(500)
 
+LEGACY_TABS = {'Dieta': 'Jedzenie'}
+
 def tab(pg, name):
-    pg.locator('nav').get_by_role('button', name=name, exact=True).click(); pg.wait_for_timeout(300)
+    # 1.0: 4 zakładki; profil i ustawienia (dawniej „Zdrowie”) pod ikoną w górnym rogu
+    if name in ('Zdrowie', 'Profil'):
+        if pg.get_by_role('button', name='Profil i ustawienia').count() == 0: pg.locator('nav').get_by_role('button', name='Dzisiaj', exact=True).click(); pg.wait_for_timeout(200)
+        pg.get_by_role('button', name='Profil i ustawienia').click(); pg.wait_for_timeout(300); return
+    pg.locator('nav').get_by_role('button', name=LEGACY_TABS.get(name, name), exact=True).click(); pg.wait_for_timeout(300)
+
+def open_plans(pg):
+    b = pg.get_by_role('button', name='Plany treningowe i ćwiczenia')
+    if b.get_attribute('aria-expanded') != 'true': b.click(); pg.wait_for_timeout(200)
 
 def dialog(pg):
     return pg.locator('[role=dialog]').last

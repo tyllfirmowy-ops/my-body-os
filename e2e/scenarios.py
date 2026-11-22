@@ -1,6 +1,8 @@
 """Scenariusze E2E. Każdy zwraca słownik obserwacji; asercje opisują oczekiwane zachowanie."""
-import re
-from common import demo, tab, dialog, close_dialog, shot
+import datetime, re
+from common import demo, tab, dialog, close_dialog, shot, open_plans
+
+TZ = datetime.timezone(datetime.timedelta(hours=1))
 
 def past_warmup(pg):
     b = pg.get_by_role('button', name='Pomiń rozgrzewkę')
@@ -10,7 +12,7 @@ def check(cond, msg):
     if not cond: raise AssertionError(msg)
 
 def exercise_card_and_swap(pg, url):
-    demo(pg, url); tab(pg, 'Trening')
+    demo(pg, url); tab(pg, 'Trening'); open_plans(pg)
     pg.get_by_text('Martwy ciąg rumuński z hantlami').first.click(); pg.wait_for_timeout(800)
     pg.get_by_role('button', name='0,5×').click(); pg.get_by_role('button', name='Mięśnie').click()
     pg.get_by_role('group', name='Fazy ruchu').get_by_role('button').nth(2).click()
@@ -79,7 +81,7 @@ def recipe_flow(pg, url):
     return {'portion_kcal': kcal}
 
 def workout_plan_flow(pg, url):
-    demo(pg, url); tab(pg, 'Trening')
+    demo(pg, url); tab(pg, 'Trening'); open_plans(pg)
     pg.get_by_role('button', name='Edytuj plan A').click(); pg.get_by_role('button', name='Nowy wariant planu A').click()
     dialog(pg).locator('input').first.fill('A E2E')
     dialog(pg).get_by_role('button', name='W dół').first.click()
@@ -95,12 +97,20 @@ def workout_plan_flow(pg, url):
     return {'first': h}
 
 def coach_feedback(pg, url):
-    demo(pg, url)
-    check(pg.get_by_text('Coach', exact=True).count() == 1, 'brak karty coacha')
+    # 1.0: porada coacha to jedna sugestia „Na dziś”, gdy nic ważniejszego (trening, jedzenie) jej nie wyprzedza.
+    # Stały czas 9:00 (przed sugestią o jedzeniu); dzisiejszy trening przełożony, więc nic nie wyprzedza porady.
+    pg.clock.install(time=datetime.datetime(2026, 11, 26, 9, 0, tzinfo=TZ))
+    demo(pg, url); tab(pg, 'Trening')
+    if pg.get_by_role('button', name='Przełóż').count(): pg.get_by_role('button', name='Przełóż').click(); pg.wait_for_timeout(300)
+    tab(pg, 'Dzisiaj')
+    coach = lambda: pg.get_by_role('button', name='Nie teraz…').count()
+    check(coach() == 1, 'brak porady coacha w „Na dziś”')
     pg.get_by_role('button', name='Nie teraz…').click(); pg.get_by_role('button', name='Nie pomaga mi').click(); pg.wait_for_timeout(300)
-    check(pg.get_by_text('Coach', exact=True).count() == 0, 'odrzucona porada nadal widoczna')
-    pg.reload(); pg.get_by_text('Ukryte porady (1)').click(); pg.get_by_role('button', name='Pokazuj znowu').click(); pg.wait_for_timeout(300)
-    check(pg.get_by_text('Coach', exact=True).count() == 1, 'przywrócenie porady nie działa')
+    check(coach() == 0, 'odrzucona porada nadal widoczna')
+    check(pg.get_by_text('Na dziś', exact=True).count() <= 1, 'więcej niż jedna sugestia')
+    pg.reload(); pg.wait_for_timeout(800)
+    pg.get_by_role('button', name='Szczegóły dnia').click(); pg.get_by_text('Ukryte porady (1)').click(); pg.get_by_role('button', name='Pokazuj znowu').click(); pg.wait_for_timeout(300)
+    check(coach() == 1, 'przywrócenie porady nie działa')
     return {'ok': True}
 
 def food_search(pg, url, ctx):
@@ -131,16 +141,16 @@ CLEAR_DISMISS = "async () => { const r = indexedDB.open('my-body-os'); await new
 
 def morning_backup_reminder(pg, url):
     demo(pg, url)
-    pg.get_by_text('Poranny check-in').first.click(); pg.wait_for_timeout(300)
+    pg.get_by_role('button', name='Poranny check-in').click(); pg.wait_for_timeout(300)
     check(dialog(pg).get_by_text('brak potwierdzonej kopii').count() > 0, 'brak przypomnienia o kopii bez potwierdzonej kopii')
     dialog(pg).get_by_role('button', name='Za tydzień').click(); pg.wait_for_timeout(300)
     check(dialog(pg).get_by_text('brak potwierdzonej kopii').count() == 0, 'przypomnienie nie znika po „Za tydzień”')
     close_dialog(pg); pg.reload(); pg.wait_for_timeout(800)
-    pg.get_by_text('Poranny check-in').first.click(); pg.wait_for_timeout(300)
+    pg.get_by_role('button', name='Poranny check-in').click(); pg.wait_for_timeout(300)
     check(dialog(pg).get_by_text('brak potwierdzonej kopii').count() == 0, 'przypomnienie wraca po odświeżeniu')
     close_dialog(pg)
     pg.evaluate(CLEAR_DISMISS); pg.reload(); pg.wait_for_timeout(800)
-    pg.get_by_text('Poranny check-in').first.click(); pg.wait_for_timeout(300)
+    pg.get_by_role('button', name='Poranny check-in').click(); pg.wait_for_timeout(300)
     dialog(pg).get_by_role('button', name='Zapisz i zrób kopię').click(); pg.wait_for_timeout(700)
     check(pg.get_by_role('button', name='Przygotuj kopię').is_visible(), 'nie przeniesiono do karty kopii')
     return {'ok': True}
@@ -279,9 +289,11 @@ def training_availability(pg, url):
     lbl = strip.get_attribute('aria-label')
     strip.click(); pg.wait_for_timeout(300)
     check(pg.locator(f'button[aria-label="{lbl.split(":")[0]}: niedostępny"]').count() == 1, f'dzień nie oznaczony jako niedostępny: {lbl}')
+    pg.get_by_role('button', name=re.compile('^Ustawienia treningów:')).click(); pg.wait_for_timeout(400)
     pg.get_by_role('button', name=re.compile('^Dostępność:')).click(); pg.wait_for_timeout(200)
     dialog(pg).get_by_role('button', name='Mniej').click()
     dialog(pg).get_by_role('button', name='Zapisz').click(); pg.wait_for_timeout(300)
+    pg.get_by_role('button', name='Wróć').click(); pg.wait_for_timeout(300)
     check(pg.get_by_text(re.compile('cel 2/tydz')).count() > 0, 'zmiana celu tygodniowego nie zapisana')
     pg.reload(); pg.wait_for_timeout(900); tab(pg, 'Trening')
     check(pg.get_by_text(re.compile('cel 2/tydz')).count() > 0, 'cel nie przetrwał odświeżenia')

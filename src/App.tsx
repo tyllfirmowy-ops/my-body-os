@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Activity, Dumbbell, HeartPulse, Sun, UtensilsCrossed } from 'lucide-react';
+import { Activity, ChevronLeft, Dumbbell, Sun, UserRound, UtensilsCrossed } from 'lucide-react';
 import { loadAll, seedIfEmpty, derive, type AppData, type Derived } from './db/repo';
 import { useLive, cx, ToastHost } from './ui/kit';
 import { Onboarding } from './screens/Onboarding';
@@ -14,15 +14,18 @@ import { parseSync } from './domain/sync';
 export type Tab = 'today' | 'diet' | 'training' | 'progress' | 'profile';
 export interface ScreenProps { data: AppData; d: Derived; go: (t: Tab) => void }
 
+/** Główna nawigacja: 4 zakładki. Profil i ustawienia otwiera ikona w górnym rogu. */
 const TABS: { id: Tab; label: string; Icon: typeof Sun }[] = [
-  { id: 'today', label: 'Dzisiaj', Icon: Sun }, { id: 'diet', label: 'Dieta', Icon: UtensilsCrossed },
-  { id: 'training', label: 'Trening', Icon: Dumbbell }, { id: 'progress', label: 'Postępy', Icon: Activity }, { id: 'profile', label: 'Zdrowie', Icon: HeartPulse },
+  { id: 'today', label: 'Dzisiaj', Icon: Sun }, { id: 'diet', label: 'Jedzenie', Icon: UtensilsCrossed },
+  { id: 'training', label: 'Trening', Icon: Dumbbell }, { id: 'progress', label: 'Postępy', Icon: Activity },
 ];
 
 export default function App() {
   const [ready, setReady] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [tab, setTab] = useState<Tab>(() => (sessionStorage.getItem('tab') as Tab) || 'today');
+  const [tab, setTabRaw] = useState<Tab>(() => (sessionStorage.getItem('tab') as Tab) || 'today');
+  const [back, setBack] = useState<Tab>(() => (sessionStorage.getItem('tabBack') as Tab) || 'today');
+  const setTab = (t: Tab) => { if (t === 'profile' && tab !== 'profile') { setBack(tab); sessionStorage.setItem('tabBack', tab); } setTabRaw(t); };
   const [day, setDay] = useState(todayFn());
   useEffect(() => { // dane ze Skrótu iOS w adresie: #sync&steps=...
     const grab = () => {
@@ -51,7 +54,13 @@ export default function App() {
   const props: ScreenProps = { data, d, go: setTab };
   return (
     <div className="mx-auto max-w-lg min-h-dvh pb-24 lg:max-w-2xl">
-      <main className="px-4 safe-t space-y-3">
+      <div className="safe-t px-2 flex items-center justify-between h-11" aria-label="Pasek górny" data-topbar>
+        {tab === 'profile'
+          ? <button onClick={() => setTab(back)} className="min-h-11 px-2 flex items-center gap-1 text-accent"><ChevronLeft size={20} /> Wróć</button>
+          : <span />}
+        {tab !== 'profile' && <button onClick={() => setTab('profile')} aria-label="Profil i ustawienia" className="min-h-11 min-w-11 grid place-items-center rounded-full text-muted active:opacity-70"><UserRound size={24} /></button>}
+      </div>
+      <main className="px-4 space-y-3">
         {tab === 'today' && <Today {...props} />}
         {tab === 'diet' && <Diet {...props} />}
         {tab === 'training' && <Training {...props} />}
@@ -59,10 +68,10 @@ export default function App() {
         {tab === 'profile' && <Profile {...props} />}
       </main>
       <nav className="fixed bottom-0 inset-x-0 z-40 border-t border-line bg-bg/90 backdrop-blur safe-b" aria-label="Nawigacja">
-        <div className="mx-auto max-w-lg lg:max-w-2xl grid grid-cols-5">
+        <div className="mx-auto max-w-lg lg:max-w-2xl grid grid-cols-4">
           {TABS.map(({ id, label, Icon }) => (
             <button key={id} onClick={() => setTab(id)} aria-current={tab === id ? 'page' : undefined}
-              className={cx('flex flex-col items-center gap-0.5 pt-2 pb-1 text-[11px]', tab === id ? 'text-accent' : 'text-muted')}>
+              className={cx('flex flex-col items-center gap-0.5 pt-2 pb-1 min-h-12 text-xs', tab === id ? 'text-accent' : 'text-muted')}>
               <Icon size={22} strokeWidth={tab === id ? 2.4 : 1.8} />{label}
             </button>
           ))}

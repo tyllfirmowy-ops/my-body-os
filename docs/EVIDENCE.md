@@ -74,7 +74,7 @@ Zasada: każda reguła zdrowotna i żywieniowa ma źródło albo jest jawnie ozn
 | Morton i in., Br J Sports Med 52:376, PMID 28698222 | 2018 | Korzyść z białka dla masy beztłuszczowej do ok. 1,6 g/kg/dzień (górna granica przedziału ok. 2,2) | Głównie bez deficytu kalorii | Białko 1,8 g/kg masy referencyjnej (w deficycie bliżej górnej części przedziału). |
 | Leidy i in., Am J Clin Nutr, PMID 25926512 | 2015 | Przy odchudzaniu 1,2–1,6 g/kg poprawia sytość i skład ciała | Dane w przeliczeniu na masę aktualną, osoby z nadwagą | Uzasadnia, że przy nadwadze nie liczymy białka na pełną masę (masa referencyjna przy BMI 25). |
 
-Reguły projektowe: masa referencyjna = masa przy BMI 25, gdy BMI > 25; minimum kalorii nie niższe niż szacowana przemiana spoczynkowa; limit deficytu ≤ 25% TDEE; białko 1,8 g/kg (wybór w przedziale 1,6–2,2); tłuszcz ≥ 0,6 g/kg masy referencyjnej. Nowy plan powstaje przy zakładaniu konta albo po akceptacji w kalkulatorze; istniejący plan nie zmienia się sam.
+Reguły projektowe: masa referencyjna = masa przy BMI 25, gdy BMI > 25; minimum kalorii nie niższe niż szacowana przemiana spoczynkowa (zaokrąglona w górę do 50 kcal; konserwatywny limit projektowy aplikacji, a nie uniwersalny próg medyczny, bo Mifflin-St Jeor u pojedynczej osoby myli się o ±10% i więcej); limit deficytu ≤ 25% TDEE; białko 1,8 g/kg (wybór w przedziale 1,6–2,2); tłuszcz ≥ 0,6 g/kg masy referencyjnej. Nowy plan powstaje przy zakładaniu konta albo po akceptacji w kalkulatorze; istniejący plan nie zmienia się sam.
 
 ## Kolejność ćwiczeń, rozgrzewka, rozciąganie (sprawdzone 2026-11-22)
 | Źródło | Data | Wniosek | Ograniczenia | Użycie w aplikacji |

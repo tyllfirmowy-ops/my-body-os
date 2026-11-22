@@ -209,7 +209,7 @@ def audit_e_manual(pg, url, ctx):
 # ---------- F ----------
 def audit_f_lb(pg, url, ctx):
     demo(pg, url); seed(pg, TWO_TOP())
-    to_training(pg)
+    tab(pg, 'Profil')
     pg.get_by_role('button', name=re.compile('Jednostki i skoki')).click(); pg.wait_for_timeout(200)
     dialog(pg).get_by_role('button', name='lb', exact=True).click(); dialog(pg).get_by_role('button', name='Zapisz').click(); pg.wait_for_timeout(400)
     wk = week_card(pg)

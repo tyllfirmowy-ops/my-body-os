@@ -1,4 +1,29 @@
 # Changelog
+## 0.9.0 — 2026-11-22 (1.0 W1: fundament UX, gałąź `feat/1.0-w1-ux`)
+### Nawigacja i profil
+- Dolna nawigacja: Dzisiaj, Jedzenie, Trening, Postępy. Profil i ustawienia pod ikoną w prawym górnym rogu, „Wróć” wraca do poprzedniej zakładki.
+- Profil w sekcjach: Moje dane, Cel i plan, Zdrowie, Aktywność i integracje, Ustawienia treningów, Ustawienia żywienia, Kopie bezpieczeństwa i eksport, Pomoc, Ustawienia zaawansowane (motyw, pamięć urządzenia, usuwanie danych).
+- Jedno miejsce edycji: ustawienia planu żywienia tylko w Profilu (usunięta ikona w Jedzeniu); dostępność i jednostki obciążenia tylko w Profilu → Ustawienia treningów (Trening ma link).
+- Treści osobiste nie dla każdego: „Sen” bez stałych godzin; tematy do lekarza o nabiale i kolanie tylko po zgłoszeniu w ankiecie; kalendarz opieki tylko, gdy jest używany.
+### Ekran Dzisiaj
+- Kolejność: powitanie i data → alerty zdrowotne → kalorie (pozostało, zjedzone/cel, białko; reszta makro po dotknięciu, z pokryciem dla wpisów bez makro) → „+ Dodaj jedzenie” → kroki i trening → jedna sugestia „Na dziś” → check-in rano/wieczorem → średnia waga 7 dni → „Szczegóły dnia” (woda, sen, kolano, typ dnia, wklejanie ze Zdrowia, ukryte porady).
+- Bez wpisów: „Nie zapisano jeszcze jedzenia” i cel dnia (brak wpisu ≠ 0 zjedzonych). Ponad plan bez czerwieni, z informacją „bez odrabiania”.
+- Bez „Plan A/B/C”, „Brak danych: …”, gramów węglowodanów i nazwy szablonu na pierwszym ekranie. Po porannym check-inie jedno zdanie o dniu (dobry / trudniejszy / regeneracja).
+- `domain/nextAction.ts`: NextBestAction, stała kolejność: alert pilny → blokada nóg przy dzisiejszym treningu → trening w trakcie → powrót po przerwie → raport tygodnia → zaplanowany trening (plan C = regeneracja, krótki sen = bez zwiększania obciążenia) → pierwszy posiłek (od 11:00) → regeneracja → porada coacha → spacer. Każda akcja ma tytuł, opis, przycisk, ważność, źródło („Dlaczego?”), odłożenie (poza bezpieczeństwem) przez istniejący feedback (`nba_<rodzaj>`, pamięć odrzuceń).
+- Powrót po przerwie: „Dobrze, że jesteś” + „Wracam” (zapis w feedbacku, historia bez zmian, bez nadrabiania).
+- Raport tygodnia na Dzisiaj tylko jako ta jedna sugestia; po zapisie arkusz z wynikami zostaje otwarty.
+### Dodawanie jedzenia z Dzisiaj
+- „+ Dodaj jedzenie” otwiera od razu wyszukiwarkę (fokus w polu). Posiłek wybierany na końcu, domyślnie wg pory dnia albo ten sam co ostatni wpis sprzed < 90 min (`domain/mealSlot.ts`).
+- Po dodaniu toast „Dodano: … · Cofnij” (5 s), cofnięcie usuwa wpis. 3 dotknięcia bez pisania (przycisk, produkt, Dodaj).
+### Poprawki
+- `kcalFloor` zaokrągla przemianę spoczynkową w górę do 50 kcal (wcześniej w dół: minimum mogło być do 49 kcal poniżej BMR, np. 190 cm / 110 kg: 2150 kcal przy BMR 2152, teraz 2200). Istniejące plany bez zmian. Opis: limit projektowy, nie próg medyczny.
+- Ręczny onboarding zapisywał „kolano ocenione przez specjalistę” przed ankietą zdrowotną; przerwanie na kroku ankiety zostawiało tę wartość. Teraz domyślnie nieocenione, ankieta ustawia wynik.
+- Ciemny motyw jako przełącznik w ustawieniach zaawansowanych; toast z akcją ma kontrastowy przycisk.
+### Testy
+- tests/nextAction.test.ts (14), tests/mealSlot.test.ts (3), test minimum kalorii ≥ BMR. Razem 316.
+- E2E e2e/ux1.py: `nav_and_profile`, `quick_add_undo`, `urgent_beats_suggestions`, `knee_block_today`, `return_after_break`; starsze scenariusze dostosowane do nowej nawigacji (`tab()` mapuje „Dieta”/„Zdrowie”, `open_plans`). 33/33. `npm run perf`: naprawiony selektor, nowy pomiar `today_add_food_open_ms`.
+- Bez migracji (Dexie v5 bez zmian).
+
 ## 0.8.0 — 2026-11-22 (prosty trening w trybie skupienia, raport tygodnia, kalorie indywidualne, W2 i nowe planowanie)
 ### Planowanie treningów (korekta założeń)
 - Planer tygodniowy `planWeekly` (domain/schedule.ts): cel domyślnie 3 FBW/tydz. (pon–nd, wliczając wykonane), min. 2 dni odstępu, rotacja A/B, dni niedostępne pomijane, pominięte treningi się nie kumulują. Nie korzysta z kalendarza opieki.

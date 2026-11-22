@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Download, Upload, Trash2, Moon, Sun } from 'lucide-react';
+import { Download, Upload, Trash2 } from 'lucide-react';
+import type { ReactNode } from 'react';
+import { AvailabilitySheet, UnitsSheet, unitOf } from './Training';
+import { asksKnee } from './WeeklyReport';
 import type { ScreenProps } from '../App';
 import { db, now, uid } from '../db/db';
 import { classifyStorageError, clearStorageErrors, diagnose, logStorageError, readStorageErrors, type StorageInfo } from '../domain/storageDiag';
@@ -11,10 +14,16 @@ import { EnergySheet, HealthSyncHelp, PlanEditorSheet, PlanSettingsSheet } from 
 import { Badge, Btn, Card, copyText, cx, download, Field, inputCls, NumInput, Sheet, Title, toast, Toggle } from '../ui/kit';
 
 const DOCTOR_TOPICS = ['Morfologia', 'Glukoza na czczo', 'HbA1c', 'Lipidogram', 'TSH', 'ALT i AST', 'Kreatynina z eGFR', 'Ferrytyna', 'Witamina B12', 'Elektrolity', 'Ciśnienie tętnicze',
-  'Przewlekłe zmęczenie i jakość snu', 'Czy potrzebna diagnostyka zaburzeń oddychania w czasie snu', 'Nawracające objawy po nabiale', 'Ocena kolana: fizjoterapeuta lub ortopeda'];
+  'Przewlekłe zmęczenie i jakość snu', 'Czy potrzebna diagnostyka zaburzeń oddychania w czasie snu'];
+/** Tematy wspólne + tylko te, które wynikają z ankiety zdrowotnej tej osoby (drugi użytkownik nie widzi cudzych). */
+const doctorTopics = (data: ScreenProps['data']) => [...DOCTOR_TOPICS, ...(data.health?.dairyAvoid ? ['Nawracające objawy po nabiale'] : []), ...(asksKnee(data) ? ['Ocena kolana: fizjoterapeuta lub ortopeda'] : [])];
+
+function Section({ title, id, children }: { title: string; id?: string; children: ReactNode }) {
+  return <section id={id} aria-label={title} className="space-y-3 pt-4"><h2 className="px-1 text-base font-semibold">{title}</h2>{children}</section>;
+}
 
 export function Profile({ data, d }: ScreenProps) {
-  const [sheet, setSheet] = useState<'custody' | 'lab' | 'symptom' | 'wipe' | 'profile' | 'supp' | 'energy' | 'sync' | 'plan' | 'edit' | null>(null);
+  const [sheet, setSheet] = useState<'custody' | 'lab' | 'symptom' | 'wipe' | 'profile' | 'supp' | 'energy' | 'sync' | 'plan' | 'edit' | 'avail' | 'units' | null>(null);
   const [pass, setPass] = useState('');
   const [pending, setPending] = useState<unknown>(null);
   const [paste, setPaste] = useState('');
@@ -31,7 +40,8 @@ export function Profile({ data, d }: ScreenProps) {
   const [errLog, setErrLog] = useState(() => readStorageErrors(localStorage));
   useEffect(() => { storageStatus().then(setStorage); }, []);
   useEffect(() => {
-    if (sessionStorage.getItem('scrollTo') === 'backup') { sessionStorage.removeItem('scrollTo'); setTimeout(() => document.getElementById('backup')?.scrollIntoView({ behavior: 'smooth' }), 100); }
+    const to = sessionStorage.getItem('scrollTo');
+    if (to) { sessionStorage.removeItem('scrollTo'); setTimeout(() => document.getElementById(to)?.scrollIntoView({ behavior: 'smooth' }), 100); }
   }, []);
   const standalone = typeof matchMedia !== 'undefined' && (matchMedia('(display-mode: standalone)').matches || (navigator as Navigator & { standalone?: boolean }).standalone === true);
   const diag = diagnose({ supported: typeof indexedDB !== 'undefined', ...storage, standalone, errors: errLog, writeTest }, now());
@@ -100,33 +110,34 @@ export function Profile({ data, d }: ScreenProps) {
 
   return (
     <>
-      <header className="pt-2 flex items-end justify-between">
-        <h1 className="text-2xl font-bold">Profil i zdrowie</h1>
-        <button aria-label="Motyw" className="p-2" onClick={() => db.settings.update('settings', { theme: data.settings?.theme === 'dark' ? 'light' : 'dark' })}>{data.settings?.theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}</button>
-      </header>
+      <header className="pt-1"><h1 className="text-2xl font-bold">Profil i ustawienia</h1></header>
 
       {backupDue && <Card className="border-warn"><div className="font-semibold text-warn">Zrób kopię zapasową</div><p className="text-sm text-muted">Dane są tylko w tej przeglądarce i mogą zostać usunięte (np. przy czyszczeniu Safari).</p></Card>}
 
+      <Section title="Moje dane">
       <Card onClick={() => setSheet('profile')}>
         <Title>Profil</Title>
         <div className="text-sm">{p.name} · {ageOn(p, d.today)} lat · {p.heightCm} cm · cele: {p.goals.map((g) => `${g.kg} kg`).join(' → ') || '—'}</div>
-        {bmr && <div className="text-xs text-muted mt-1">BMR (Mifflin-St Jeor): {Math.round(bmr)} kcal · TDEE szacunkowo {tdeeRange(bmr).join('–')} kcal (hipoteza, nie pomiar)</div>}
       </Card>
 
+      {d.custody && (
+      <Card onClick={() => setSheet('custody')}>
+        <Title>Kalendarz opieki (opcjonalny)</Title>
+        <div className="grid grid-cols-7 gap-1">
+          {range(d.today, 14).map((dt) => <div key={dt} className={cx('rounded-md py-1 text-center text-[11px]', withDaughter(d.custody!, dt) ? 'bg-accent text-accent-ink' : 'bg-card2')}>{Number(dt.slice(8))}</div>)}
+        </div>
+        <p className="text-xs text-muted mt-2">Dotknij, aby zmienić pojedyncze dni lub fazę.</p>
+      </Card>
+      )}
+
+      </Section>
+
+      <Section title="Cel i plan">
       <Card onClick={() => setSheet('energy')}>
         <Title>Zapotrzebowanie kaloryczne</Title>
         <p className="text-sm">{p.activity ? 'Wywiad o ruchu zapisany. Dotknij, by przeliczyć.' : 'Odpowiedz na 6 pytań o ruch, a policzę TDEE i plan.'}</p>
+        {bmr && <div className="text-xs text-muted mt-1">Przemiana spoczynkowa (Mifflin-St Jeor): {Math.round(bmr)} kcal · całkowite zapotrzebowanie szacunkowo {tdeeRange(bmr).join('–')} kcal. To szacunek, aplikacja koryguje go później z trendu wagi.</div>}
       </Card>
-      <Card onClick={() => setSheet('sync')}>
-        <Title>Apple Zdrowie i zegarek</Title>
-        <p className="text-sm">Kroki, sen, waga, tętno spoczynkowe przez Skrót iOS + codzienne przypomnienie o 21:00.</p>
-      </Card>
-
-      <Card onClick={() => setSheet('plan')}>
-        <Title>Ustawienia planu</Title>
-        <p className="text-sm">Dni treningowe vs bez treningu, insulinooporność, bez nabiału, liczba treningów.</p>
-      </Card>
-
       <Card>
         <Title right={<button className="text-xs text-accent" onClick={() => setSheet('edit')}>edytuj kcal i makro</button>}>Plan (wersje)</Title>
         {[...data.plans].reverse().map((pl, i) => (
@@ -137,16 +148,11 @@ export function Profile({ data, d }: ScreenProps) {
         ))}
       </Card>
 
-      <Card onClick={() => setSheet('custody')}>
-        <Title>Kalendarz opieki 2-2-3</Title>
-        <div className="grid grid-cols-7 gap-1">
-          {range(d.today, 14).map((dt) => <div key={dt} className={cx('rounded-md py-1 text-center text-[11px]', withDaughter(d.custody!, dt) ? 'bg-accent text-accent-ink' : 'bg-card2')}>{Number(dt.slice(8))}</div>)}
-        </div>
-        <p className="text-xs text-muted mt-2">Dotknij, aby zmienić pojedyncze dni lub fazę.</p>
-      </Card>
+      </Section>
 
+      <Section title="Zdrowie">
       <Card>
-        <Title>Zdrowie</Title>
+        <Title>Kolano i nietolerancje</Title>
         {data.health?.conditions.map((c) => <div key={c} className="text-sm">• {c}</div>)}
         {data.health?.kneeNote && <div className="text-sm">• Kolano: {data.health.kneeNote}</div>}
         <div className="mt-2"><Toggle on={!!data.health?.kneeCleared} onChange={(v) => db.health.update('me', { kneeCleared: v, updatedAt: now() })} label="Kolano ocenione przez specjalistę, zgoda na cięższe ćwiczenia nóg" /></div>
@@ -156,7 +162,7 @@ export function Profile({ data, d }: ScreenProps) {
 
       <Card>
         <Title>Tematy do omówienia z lekarzem</Title>
-        <ul className="text-sm space-y-1">{DOCTOR_TOPICS.map((t) => <li key={t}>☐ {t}</li>)}</ul>
+        <ul className="text-sm space-y-1">{doctorTopics(data).map((t) => <li key={t}>☐ {t}</li>)}</ul>
         <p className="text-xs text-muted mt-2">Lista tematów, nie skierowanie. Zakres badań ustala lekarz.</p>
       </Card>
 
@@ -181,30 +187,36 @@ export function Profile({ data, d }: ScreenProps) {
       </Card>
 
       <Card>
-        <Title>Sen: kierunek</Title>
-        <p className="text-sm">Pobudka 07:30 · śniadanie 08:00 · ostatnia kawa ~14:00 · wyciszenie 22:30 · sen ~23:30. Przesuwaj o 15–30 min co kilka dni. Cel 7–9 h.</p>
+        <Title>Sen</Title>
+        <p className="text-sm">Stałe pory wstawania i zasypiania, cel 7–9 h snu. Zmieniaj pory stopniowo, o 15–30 min co kilka dni.</p>
       </Card>
 
-      <Card>
-        <Title>Przypomnienia</Title>
-        <p className="text-sm text-muted">W tej wersji przypomnienia pokazują się po otwarciu aplikacji (check-in, kopia, pomiar). Powiadomienia push na iPhonie wymagają instalacji na ekranie głównym i serwera wysyłającego: to etap 4.</p>
+      </Section>
+
+      <Section title="Aktywność i integracje">
+      <Card onClick={() => setSheet('sync')}>
+        <Title>Apple Zdrowie i zegarek</Title>
+        <p className="text-sm">Kroki, sen, waga, tętno spoczynkowe przez Skrót iOS + codzienne przypomnienie o 21:00.</p>
       </Card>
 
-      <Card>
-        <Title>Pamięć urządzenia</Title>
-        <div className="text-xs text-muted space-y-0.5 num">
-          <div>persisted(): {storage.persisted === undefined ? 'brak odpowiedzi' : storage.persisted ? 'tak (trwała)' : 'nie'} · tryb: {standalone ? 'aplikacja z ekranu głównego' : 'przeglądarka'}</div>
-          <div>Zajęte: {storage.usage !== undefined ? mb(storage.usage) : 'brak danych'}{storage.quota ? ` z limitu ${mb(storage.quota)} (${Math.round((100 * (storage.usage ?? 0)) / storage.quota)}%)` : ''}</div>
-          <div>Błędy zapisu: {errLog.length ? `${errLog.length}, ostatni ${new Date(errLog[0].t).toLocaleString('pl-PL')} (${errLog[0].name})` : 'brak'}</div>
-        </div>
-        <div className="mt-2 space-y-1">{diag.items.map((i) => <p key={i.text} className={cx('text-xs', i.level === 'danger' ? 'text-danger' : i.level === 'warn' ? 'text-warn' : i.level === 'ok' ? 'text-accent' : 'text-muted')}>{i.text}</p>)}</div>
-        <div className="grid grid-cols-2 gap-2 mt-2">
-          <Btn kind="soft" className="text-sm" onClick={runWriteTest}>Test zapisu</Btn>
-          <Btn kind="soft" className="text-sm" onClick={askPersist} disabled={storage.persisted === true}>Poproś o trwałą pamięć</Btn>
-        </div>
-        {errLog.length > 0 && <Btn kind="ghost" className="w-full mt-1 text-xs" onClick={() => { clearStorageErrors(localStorage); setErrLog([]); }}>Wyczyść rejestr błędów</Btn>}
+      </Section>
+
+      <Section title="Ustawienia treningów" id="training-settings">
+        <Card>
+          <button className="w-full min-h-12 flex items-center justify-between text-left text-sm" onClick={() => setSheet('avail')}>Dostępność: {data.settings?.trainingsPerWeek ?? 3}×/tydz. · {(data.settings?.trainingWindow ?? { from: '09:00' }).from}–{(data.settings?.trainingWindow ?? { to: '15:00' }).to}<span className="text-accent">zmień</span></button>
+          <button className="w-full min-h-12 flex items-center justify-between text-left text-sm border-t border-line" onClick={() => setSheet('units')}>Jednostki i skoki obciążenia ({unitOf(data)})<span className="text-accent">zmień</span></button>
+        </Card>
+      </Section>
+
+      <Section title="Ustawienia żywienia">
+      <Card onClick={() => setSheet('plan')}>
+        <Title>Dni treningowe i reguły żywienia</Title>
+        <p className="text-sm">Dni treningowe vs bez treningu, insulinooporność, bez nabiału, liczba treningów.</p>
       </Card>
 
+      </Section>
+
+      <Section title="Kopie bezpieczeństwa i eksport">
       <Card id="backup">
         <Title>Kopia zapasowa</Title>
         <div className="text-xs text-muted mb-2 space-y-0.5">
@@ -236,14 +248,54 @@ export function Profile({ data, d }: ScreenProps) {
           <div className="text-xs text-muted">Integralność: {preview.integrity === 'verified' ? 'suma kontrolna zgodna' : 'starsza kopia bez sumy kontrolnej (sprawdzono format i rekordy)'}{preview.missing.length ? ` · brak tabel w kopii (zostaną bez zmian): ${preview.missing.join(', ')}` : ''}</div>
           <div className="mt-1">Import zastąpi obecne dane tabelami z kopii. Przy błędzie nic nie zostanie zmienione.</div>
           <div className="flex gap-2 mt-2"><Btn kind="danger" className="flex-1" onClick={confirmImport}>Zastąp dane</Btn><Btn kind="ghost" onClick={() => { setPending(null); setPreview(null); }}>Anuluj</Btn></div></div>}
-        <Btn kind="ghost" className="w-full mt-2 text-danger" onClick={() => setSheet('wipe')}><Trash2 size={16} className="inline -mt-0.5" /> Usuń wszystkie dane</Btn>
       </Card>
-      <p className="text-center text-xs text-muted pb-2">My Body OS 0.8.0 · dane lokalne · bez reklam i śledzenia · nie jest wyrobem medycznym</p>
+        <p className="text-xs text-muted px-1">Kopia zapasowa to pełny eksport danych (plik JSON). Raport dla AI i podsumowania 7/14/28 dni są w Postępach.</p>
+      </Section>
+
+      <Section title="Pomoc">
+        <Card>
+          <ul className="text-sm space-y-1.5">
+            <li><b>Dzisiaj</b>: ile kalorii zostało, dodawanie jedzenia, ruch i jedna rzecz do zrobienia.</li>
+            <li><b>Jedzenie</b>: dziennik dnia, przepisy, szablony i lista zakupów.</li>
+            <li><b>Trening</b>: dzisiejszy trening i plan tygodnia. W trakcie treningu aplikacja prowadzi krok po kroku.</li>
+            <li><b>Postępy</b>: trend wagi i pomiary.</li>
+          </ul>
+          <p className="text-xs text-muted mt-2">Dane są tylko na tym urządzeniu. Na iPhonie dodaj aplikację do ekranu początkowego (Udostępnij → Do ekranu początk.) i rób kopię zapasową raz w tygodniu.</p>
+        </Card>
+      </Section>
+
+      <Section title="Ustawienia zaawansowane">
+        <Card><Toggle on={data.settings?.theme !== 'light'} onChange={(v) => db.settings.update('settings', { theme: v ? 'dark' : 'light' })} label="Ciemny motyw" /></Card>
+      <Card>
+        <Title>Przypomnienia</Title>
+        <p className="text-sm text-muted">W tej wersji przypomnienia pokazują się po otwarciu aplikacji (check-in, kopia, pomiar). Powiadomienia push na iPhonie wymagają instalacji na ekranie głównym i serwera wysyłającego: to etap 4.</p>
+      </Card>
+
+      <Card>
+        <Title>Pamięć urządzenia</Title>
+        <div className="text-xs text-muted space-y-0.5 num">
+          <div>persisted(): {storage.persisted === undefined ? 'brak odpowiedzi' : storage.persisted ? 'tak (trwała)' : 'nie'} · tryb: {standalone ? 'aplikacja z ekranu głównego' : 'przeglądarka'}</div>
+          <div>Zajęte: {storage.usage !== undefined ? mb(storage.usage) : 'brak danych'}{storage.quota ? ` z limitu ${mb(storage.quota)} (${Math.round((100 * (storage.usage ?? 0)) / storage.quota)}%)` : ''}</div>
+          <div>Błędy zapisu: {errLog.length ? `${errLog.length}, ostatni ${new Date(errLog[0].t).toLocaleString('pl-PL')} (${errLog[0].name})` : 'brak'}</div>
+        </div>
+        <div className="mt-2 space-y-1">{diag.items.map((i) => <p key={i.text} className={cx('text-xs', i.level === 'danger' ? 'text-danger' : i.level === 'warn' ? 'text-warn' : i.level === 'ok' ? 'text-accent' : 'text-muted')}>{i.text}</p>)}</div>
+        <div className="grid grid-cols-2 gap-2 mt-2">
+          <Btn kind="soft" className="text-sm" onClick={runWriteTest}>Test zapisu</Btn>
+          <Btn kind="soft" className="text-sm" onClick={askPersist} disabled={storage.persisted === true}>Poproś o trwałą pamięć</Btn>
+        </div>
+        {errLog.length > 0 && <Btn kind="ghost" className="w-full mt-1 text-xs" onClick={() => { clearStorageErrors(localStorage); setErrLog([]); }}>Wyczyść rejestr błędów</Btn>}
+      </Card>
+
+        <Btn kind="ghost" className="w-full text-danger" onClick={() => setSheet('wipe')}><Trash2 size={16} className="inline -mt-0.5" /> Usuń wszystkie dane</Btn>
+      </Section>
+      <p className="text-center text-xs text-muted pb-2">My Body OS 0.9.0 · dane lokalne · bez reklam i śledzenia · nie jest wyrobem medycznym</p>
 
       {sheet === 'energy' && <EnergySheet data={data} d={d} onClose={() => setSheet(null)} />}
       {sheet === 'sync' && <HealthSyncHelp onClose={() => setSheet(null)} />}
       {sheet === 'edit' && <PlanEditorSheet data={data} d={d} onClose={() => setSheet(null)} />}
       {sheet === 'plan' && <PlanSettingsSheet plan={d.plan!} today={d.today} onClose={() => setSheet(null)} />}
+      {sheet === 'avail' && <AvailabilitySheet data={data} onClose={() => setSheet(null)} />}
+      {sheet === 'units' && <UnitsSheet data={data} onClose={() => setSheet(null)} />}
       {sheet === 'custody' && <CustodySheet d={d} onClose={() => setSheet(null)} />}
       {sheet === 'lab' && <LabSheet today={d.today} onClose={() => setSheet(null)} />}
       {sheet === 'symptom' && <SymptomSheet today={d.today} onClose={() => setSheet(null)} />}

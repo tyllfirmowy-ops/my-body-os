@@ -61,9 +61,10 @@ export const bmiOf = (kg: number, cm: number) => kg / (cm / 100) ** 2;
 export const referenceWeight = (kg: number, cm: number) => Math.min(kg, 25 * (cm / 100) ** 2);
 /**
  * Minimum kalorii: dolne wartości z wytycznych AHA/ACC/TOS 2013 (1500 kcal mężczyźni, 1200 kobiety)
- * i nie mniej niż szacowana przemiana spoczynkowa (reguła projektowa: ochrona mięśni, sytości i wytrwałości).
+ * i nie mniej niż szacowana przemiana spoczynkowa, zaokrąglona w górę do 50 kcal, żeby minimum nigdy nie było poniżej BMR.
+ * To konserwatywny limit projektowy aplikacji (ochrona mięśni, sytości i wytrwałości), a nie uniwersalny próg medyczny.
  */
-export const kcalFloor = (sex: 'male' | 'female', bmr: number) => Math.max(sex === 'female' ? 1200 : 1500, Math.floor(bmr / 50) * 50);
+export const kcalFloor = (sex: 'male' | 'female', bmr: number) => Math.max(sex === 'female' ? 1200 : 1500, Math.ceil(bmr / 50) * 50);
 /**
  * Górny limit deficytu: przy treningu siłowym deficyt > ~500 kcal/dzień blokuje przyrost masy beztłuszczowej (Murphy i Koehler 2022);
  * przy otyłości (BMI ≥ 30) dopuszczamy do 750 kcal (AHA/ACC/TOS 2013: 500–750). Zawsze ≤ 25% TDEE (reguła projektowa).

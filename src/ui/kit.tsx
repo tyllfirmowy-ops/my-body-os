@@ -117,13 +117,24 @@ export function Toggle({ on, onChange, label }: { on: boolean; onChange: (v: boo
   );
 }
 
-let toastSet: ((s: string | null) => void) | null = null;
-export function toast(msg: string) { toastSet?.(msg); setTimeout(() => toastSet?.(null), 2200); }
+type ToastMsg = { text: string; action?: { label: string; run: () => void } };
+let toastSet: ((s: ToastMsg | null) => void) | null = null;
+let toastTimer = 0;
+/** Krótki komunikat; z akcją (np. „Cofnij”) zostaje dłużej. */
+export function toast(msg: string, action?: ToastMsg['action']) {
+  toastSet?.({ text: msg, action });
+  clearTimeout(toastTimer); toastTimer = window.setTimeout(() => toastSet?.(null), action ? 5000 : 2200);
+}
 export function ToastHost() {
-  const [m, setM] = useState<string | null>(null);
+  const [m, setM] = useState<ToastMsg | null>(null);
   useEffect(() => { toastSet = setM; return () => { toastSet = null; }; }, []);
   if (!m) return null;
-  return <div className="fixed left-1/2 -translate-x-1/2 bottom-24 z-[60] rounded-full bg-ink text-bg px-4 py-2 text-sm shadow-lg rise" role="status">{m}</div>;
+  return (
+    <div className="fixed left-1/2 -translate-x-1/2 bottom-24 z-[60] max-w-[92vw] flex items-center gap-3 rounded-full bg-ink text-bg pl-4 pr-2 py-1.5 text-sm shadow-lg rise" role="status">
+ <span className="py-1 whitespace-nowrap overflow-hidden text-ellipsis">{m.text}</span>
+      {m.action && <button className="min-h-10 shrink-0 rounded-full px-4 font-semibold bg-accent text-accent-ink" onClick={() => { m.action!.run(); setM(null); }}>{m.action.label}</button>}
+    </div>
+  );
 }
 
 export function download(name: string, content: string, type = 'application/json') {

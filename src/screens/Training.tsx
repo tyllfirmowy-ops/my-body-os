@@ -19,7 +19,8 @@ import type { WorkoutSession, WorkoutSet } from '../domain/types';
 import type { AppData, Derived } from '../db/repo';
 import { Badge, Btn, Card, cx, Field, inputCls, NumInput, Scale, Sheet, Stepper, Title, toast } from '../ui/kit';
 
-export function Training({ data, d }: ScreenProps) {
+export function Training({ data, d, go }: ScreenProps) {
+  const [plansOpen, setPlansOpen] = useState(false);
   const [card, setCard] = useState<ExerciseCard | null>(null);
   const [active, setActive] = useState<string | null>(d.inProgress?.id ?? null);
   const session = data.sessions.find((s) => s.id === active && s.status === 'in_progress');
@@ -28,7 +29,6 @@ export function Training({ data, d }: ScreenProps) {
   const sum = weekSummary(data.sessions, d.today, perWeek);
   const skip = new Set(data.settings?.trainingSkip ?? []);
   const win = data.settings?.trainingWindow ?? { from: '09:00', to: '15:00' };
-  const [availOpen, setAvailOpen] = useState(false);
   async function toggleSkip(dt: string) {
     const next = skip.has(dt) ? [...skip].filter((x) => x !== dt) : [...skip, dt];
     await db.settings.update('settings', { trainingSkip: next.filter((x) => x >= addDays(d.today, -60)).sort() });
@@ -37,7 +37,6 @@ export function Training({ data, d }: ScreenProps) {
   const next = d.todayWorkout ?? d.upcoming[0];
   const plans = { A: effectivePlan('A', WORKOUTS, data.workoutTemplates, data.settings?.activeWorkouts), B: effectivePlan('B', WORKOUTS, data.workoutTemplates, data.settings?.activeWorkouts) };
   const [editSlot, setEditSlot] = useState<'A' | 'B' | null>(null);
-  const [unitsOpen, setUnitsOpen] = useState(false);
 
   async function start(t: 'A' | 'B') {
     if (d.safety.level === 'urgent') return toast('Objaw alarmowy: dziś bez treningu');
@@ -50,7 +49,7 @@ export function Training({ data, d }: ScreenProps) {
 
   return (
     <>
-      <header className="pt-2"><h1 className="text-2xl font-bold">Trening</h1><p className="text-sm text-muted">FBW A/B · cel {perWeek}/tydz.{perWeek > 2 ? ' (2 też jest OK)' : ''} · tydzień {d.weekIdx + 1}</p></header>
+      <header className="pt-2"><h1 className="text-2xl font-bold">Trening</h1><p className="text-sm text-muted">Trening całego ciała A/B · cel {perWeek}/tydz.{perWeek > 2 ? ' (2 też jest OK)' : ''}</p></header>
       {d.inProgress && <Card onClick={() => setActive(d.inProgress!.id)} className="border-accent"><div className="font-semibold">Wznów trening {d.inProgress.templateId}</div><div className="text-sm text-muted">Zapisane serie są bezpieczne.</div></Card>}
       <Card>
         <Title>Dziś</Title>
@@ -86,29 +85,31 @@ export function Training({ data, d }: ScreenProps) {
           })}
         </div>
         <p className="text-xs text-muted mt-2">Stuknij dzień, gdy nie możesz ćwiczyć: plan sam się przesunie (min. 1 dzień przerwy między treningami). Pominięte treningi nie kumulują się i nie zwiększają obciążenia.</p>
-        <button className="text-xs text-accent underline mt-1" onClick={() => setAvailOpen(true)}>Dostępność: {perWeek}×/tydz. · {win.from}–{win.to}</button>
+        <button className="min-h-11 text-sm text-accent" onClick={() => { sessionStorage.setItem('scrollTo', 'training-settings'); go('profile'); }}>Ustawienia treningów: {perWeek}×/tydz. · {win.from}–{win.to}</button>
       </Card>
-      {(['A', 'B'] as const).map((t) => (
-        <Card key={t}>
-          <Title right={<button aria-label={`Edytuj plan ${t}`} className="text-xs text-accent flex items-center gap-1" onClick={() => setEditSlot(t)}><Pencil size={12} /> edytuj</button>}>{plans[t].name}{plans[t].custom ? ' (wariant)' : plans[t].edited ? ' (zmieniony)' : ''}</Title>
-          {plans[t].items.map((te) => {
-            const e = exerciseById(te.exerciseId);
-            return (
-              <button key={te.exerciseId} onClick={() => setCard(e)} className="w-full flex justify-between items-center py-2.5 border-b border-line last:border-0 text-left">
-                <span className="text-sm">{e.namePl} {e.knee !== 'none' && <Badge tone={e.knee === 'moderate' ? 'warn' : 'muted'}>kolano</Badge>}</span>
-                <span className="text-xs text-muted num text-right">{plannedSetsFor(te.sets, d.weekIdx)}×{te.repMin === te.repMax ? te.repMin : `${te.repMin}–${te.repMax}`}{e.perSide ? '/str.' : ''} · {te.restSec}s
-                </span>
-              </button>
-            );
-          })}
-        </Card>
-      ))}
-      <button className="text-xs text-accent underline px-1" onClick={() => setUnitsOpen(true)}>Jednostki i skoki obciążenia ({unitOf(data)})</button>
-      <Card><Title>Biblioteka ćwiczeń</Title><div className="flex flex-wrap gap-1.5">{EXERCISES.map((e) => <button key={e.id} onClick={() => setCard(e)} className="rounded-full bg-card2 px-3 py-2 text-sm">{e.namePl}</button>)}</div></Card>
+      <button onClick={() => setPlansOpen(!plansOpen)} aria-expanded={plansOpen} className="w-full min-h-12 flex items-center justify-between rounded-2xl border border-line bg-card px-4 text-sm">
+        <span>Plany treningowe i ćwiczenia</span><ChevronRight size={18} className={cx('transition', plansOpen && 'rotate-90')} />
+      </button>
+      {plansOpen && (<>
+        {(['A', 'B'] as const).map((t) => (
+          <Card key={t}>
+            <Title right={<button aria-label={`Edytuj plan ${t}`} className="text-xs text-accent flex items-center gap-1" onClick={() => setEditSlot(t)}><Pencil size={12} /> edytuj</button>}>{plans[t].name}{plans[t].custom ? ' (wariant)' : plans[t].edited ? ' (zmieniony)' : ''}</Title>
+            {plans[t].items.map((te) => {
+              const e = exerciseById(te.exerciseId);
+              return (
+                <button key={te.exerciseId} onClick={() => setCard(e)} className="w-full flex justify-between items-center py-2.5 border-b border-line last:border-0 text-left">
+                  <span className="text-sm">{e.namePl} {e.knee !== 'none' && <Badge tone={e.knee === 'moderate' ? 'warn' : 'muted'}>kolano</Badge>}</span>
+                  <span className="text-xs text-muted num text-right">{plannedSetsFor(te.sets, d.weekIdx)}×{te.repMin === te.repMax ? te.repMin : `${te.repMin}–${te.repMax}`}{e.perSide ? '/str.' : ''} · {te.restSec}s
+                  </span>
+                </button>
+              );
+            })}
+          </Card>
+        ))}
+        <Card><Title>Biblioteka ćwiczeń</Title><div className="flex flex-wrap gap-1.5">{EXERCISES.map((e) => <button key={e.id} onClick={() => setCard(e)} className="rounded-full bg-card2 px-3 py-2 text-sm">{e.namePl}</button>)}</div></Card>
+      </>)}
       {card && <ExerciseSheet e={card} data={data} d={d} onClose={() => setCard(null)} onOpen={setCard} />}
       {editSlot && <WorkoutEditor slot={editSlot} data={data} onClose={() => setEditSlot(null)} />}
-      {unitsOpen && <UnitsSheet data={data} onClose={() => setUnitsOpen(false)} />}
-      {availOpen && <AvailabilitySheet data={data} onClose={() => setAvailOpen(false)} />}
     </>
   );
 }
@@ -153,7 +154,7 @@ function recentResults(data: AppData, exerciseId: string, n: number, unit: Weigh
 const Sec = ({ t, children }: { t: string; children: React.ReactNode }) => <div><div className="text-xs uppercase text-muted mb-0.5">{t}</div><div className="text-sm">{children}</div></div>;
 
 const lastSetsForData = (data: AppData, exerciseId: string, exclude: string) => lastSetsFor(data.sessions, data.sets, exerciseId, exclude);
-const unitOf = (data: AppData): WeightUnit => data.settings?.weightUnit ?? 'kg';
+export const unitOf = (data: AppData): WeightUnit => data.settings?.weightUnit ?? 'kg';
 
 /** Jedno źródło sugestii progresji (podgląd przed treningiem i sesja): reguły w domain/progression.ts. */
 function progressFor(data: AppData, d: Derived, ex: ExerciseCard, te: { sets: number; repMin: number; repMax: number }, plannedSets: number, excludeSession?: string): Suggestion {
@@ -464,7 +465,7 @@ function FinishSheet({ s, onClose, onDone }: { s: WorkoutSession; onClose: () =>
 
 
 const EQ_PL: Record<LoadEquip, string> = { dumbbell: 'Hantle (na rękę)', machine: 'Maszyna', cable: 'Wyciąg', barbell: 'Sztanga' };
-function UnitsSheet({ data, onClose }: { data: AppData; onClose: () => void }) {
+export function UnitsSheet({ data, onClose }: { data: AppData; onClose: () => void }) {
   const [unit, setUnit] = useState<WeightUnit>(data.settings?.weightUnit ?? 'kg');
   const [steps, setSteps] = useState<Partial<Record<LoadEquip, number>>>(() => (data.settings?.weightUnit ?? 'kg') === unit ? data.settings?.loadSteps ?? {} : {});
   async function save() {
@@ -484,7 +485,7 @@ function UnitsSheet({ data, onClose }: { data: AppData; onClose: () => void }) {
   );
 }
 
-function AvailabilitySheet({ data, onClose }: { data: AppData; onClose: () => void }) {
+export function AvailabilitySheet({ data, onClose }: { data: AppData; onClose: () => void }) {
   const [per, setPer] = useState(data.settings?.trainingsPerWeek ?? 3);
   const [win, setWin] = useState(data.settings?.trainingWindow ?? { from: '09:00', to: '15:00' });
   async function save() {

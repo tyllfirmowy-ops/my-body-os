@@ -105,6 +105,14 @@ Przy każdym zadaniu zapisz: znalazłem bez podpowiedzi (T/N), pomyliłem się (
 4. **Dziś nie możesz ćwiczyć. Przesuń trening, a potem cofnij to.** Oczekiwane: dzień oznaczony jako niedostępny, następny termin widoczny; po cofnięciu trening wraca. Sukces: obie czynności bez pomyłki. Zwróć uwagę: czy pasek 14 dni było wiadomo, że można stuknąć.
 5. **Zamknij aplikację w trakcie treningu (przesuń z przełącznika aplikacji), otwórz ponownie i dokończ.** Oczekiwane: „Wznów trening”, zapisane serie i niezapisany ból na miejscu. Sukces: nic do wpisania od nowa. Zwróć uwagę: czy było widać, że wynik jest zapisany.
 
+## 10. 1.0 W1: nawigacja i Dzisiaj (gałąź, przed scaleniem)
+- [ ] Ikona profilu w prawym górnym rogu nie wchodzi pod notch / Dynamic Island; „Wróć” wraca do poprzedniej zakładki.
+- [ ] Dzisiaj: kalorie i „+ Dodaj jedzenie” widoczne bez przewijania.
+- [ ] „+ Dodaj jedzenie”: klawiatura otwiera się od razu, arkusz nie skacze; posiłek domyślny pasuje do pory dnia.
+- [ ] Po dodaniu toast „Cofnij” nie zasłania dolnej nawigacji i działa jednym dotknięciem.
+- [ ] W trakcie treningu nie widać ani dolnej nawigacji, ani ikony profilu; treść nie wchodzi pod notch.
+- [ ] Profil: sekcje czytelne przy dużym rozmiarze tekstu (Ustawienia → Ekran → Rozmiar tekstu).
+
 ## 9. Krótka kontrola z wcześniejszych wersji
 - [ ] Karta ćwiczenia: animacja płynna, pauza, suwak, 0,5×, fazy. Telefon nie grzeje się wyraźnie po 2 minutach odtwarzania.
 - [ ] Zamiana ćwiczenia w trakcie treningu i powrót do ćwiczenia z planu.

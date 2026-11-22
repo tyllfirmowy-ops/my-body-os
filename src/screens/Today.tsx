@@ -1,29 +1,37 @@
-import { useEffect, useState } from 'react';
-import { AlertTriangle, Baby, ClipboardPaste, Droplets, Moon, RotateCcw, Sunrise, Sunset } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { AlertTriangle, ChevronRight, ClipboardPaste, Droplets, Footprints, Dumbbell, Moon, Plus, Sunrise, Sunset } from 'lucide-react';
 import { parseSync, type HealthSync } from '../domain/sync';
 import type { ScreenProps } from '../App';
 import { db, now, uid } from '../db/db';
-import { effectiveTemplates } from '../domain/recipes';
-import type { DayTemplateRec, RejectReason } from '../domain/types';
-import { HIDE_DAYS, REASON_LABEL, pickRecommendation } from '../domain/feedback';
-import { DAY_TEMPLATES } from '../data/foods';
-import { PLAN_COPY } from '../domain/readiness';
-import { addDays, diffDays, formatPl } from '../domain/dates';
+import { productEntry } from '../domain/recipes';
+import type { RejectReason } from '../domain/types';
+import { HIDE_DAYS, REASON_LABEL, pickRecommendation, type Suppression } from '../domain/feedback';
+import { addDays, formatPl } from '../domain/dates';
 import { mean } from '../domain/calc';
-import { Badge, Bar, Btn, Card, cx, inputCls, Sheet, Stat, Title, toast } from '../ui/kit';
+import { DAY_MESSAGE, nextBestAction, type NextAction } from '../domain/nextAction';
+import { defaultMeal } from '../domain/mealSlot';
+import { reportDue } from '../domain/weeklyCheckin';
+import { Bar, Btn, Card, cx, inputCls, Sheet, Title, toast } from '../ui/kit';
 import { MorningSheet, EveningSheet } from './CheckIns';
+import { FoodPicker, addQuickEntry } from './FoodPicker';
+import { MEALS } from './Diet';
+import { WeeklyReportCard, asksKnee } from './WeeklyReport';
 
-export function templateFor(date: string, user: DayTemplateRec[] = []) { return effectiveTemplates(DAY_TEMPLATES, user)[((diffDays('2026-01-05', date) % 3) + 3) % 3]; }
-
-import { WeeklyReportCard } from './WeeklyReport';
+const localHM = () => {
+  const p = new Intl.DateTimeFormat('pl-PL', { timeZone: 'Europe/Warsaw', hour: 'numeric', minute: 'numeric', hour12: false }).formatToParts(new Date());
+  return { hour: Number(p.find((x) => x.type === 'hour')?.value ?? 12) % 24, minute: Number(p.find((x) => x.type === 'minute')?.value ?? 0) };
+};
 
 export function Today({ data, d, go }: ScreenProps) {
   const [mOpen, setMOpen] = useState(false);
   const [eOpen, setEOpen] = useState(false);
-  const [back, setBack] = useState(false);
   const [prefill, setPrefill] = useState<HealthSync | undefined>();
   const [pasteBox, setPasteBox] = useState(false);
   const [pasteTxt, setPasteTxt] = useState('');
+  const [adding, setAdding] = useState(false);
+  const [meal, setMeal] = useState(1);
+  const [macrosOpen, setMacrosOpen] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
   useEffect(() => {
     const take = () => {
       const raw = sessionStorage.getItem('pendingSync');
@@ -40,162 +48,213 @@ export function Today({ data, d, go }: ScreenProps) {
   async function pasteHealth() {
     try { applySync(await navigator.clipboard.readText()); } catch { setPasteBox(true); }
   }
-  const plan = { ...d.plan!, kcal: d.targets!.kcal, proteinG: d.targets!.proteinG };
-  const lvl = d.readiness.level;
-  const tpl = templateFor(d.today, data.mealTemplates);
+
+  const t = d.targets!;
+  const hm = localHM();
+  const todayEntries = useMemo(() => data.entries.filter((e) => e.date === d.today), [data.entries, d.today]);
+  const eaten = d.intake?.kcal ?? 0;
+  const left = Math.round(t.kcal - eaten);
   const w7 = mean(d.weights.filter((w) => w.date > addDays(d.today, -7)).map((w) => w.value));
-  const lastW = d.weights.at(-1);
-  const goal = data.profile?.goals[0];
+  const weeklyDue = reportDue(new Date(), data.weeklyCheckins ?? [], { startedOn: [...data.plans].sort((a, b) => a.validFrom.localeCompare(b.validFrom))[0]?.validFrom, snoozedOn: data.settings?.reportSnoozedOn }).show;
+  const { rec, hidden } = pickRecommendation(d.recs, data.feedback, d.today);
+  const lvl = d.morningToday ? d.readiness.level : undefined;
+  const action = nextBestAction({
+    today: d.today, hour: hm.hour, safetyLevel: d.safety.level, alerts: d.safety.alerts,
+    inProgress: d.inProgress, todayWorkout: d.todayWorkout, doneToday: !!d.doneToday, readiness: lvl, sleepMinutes: d.morningToday?.sleepMinutes,
+    entriesToday: todayEntries.length, returnMode: d.returnMode, weeklyDue, rec, feedback: data.feedback,
+  });
   const urgent = d.safety.alerts.filter((a) => a.level === 'urgent' || a.level === 'stop_legs');
   const info = d.safety.alerts.filter((a) => a.level === 'caution_legs' || (a.level === 'none' && a.code !== 'knee_not_cleared'));
-  const trainingToday = d.todayWorkout && lvl !== 'C' && d.safety.level !== 'urgent';
-  const hour = Number(new Intl.DateTimeFormat('pl-PL', { timeZone: 'Europe/Warsaw', hour: 'numeric', hour12: false }).format(new Date()));
+  const steps = d.eveningToday?.steps;
 
-  const main = d.safety.level === 'urgent' ? 'Najpierw zdrowie: bez treningu, w razie potrzeby 112.'
-    : d.inProgress ? 'Dokończ rozpoczęty trening.'
-    : trainingToday ? `Trening ${d.todayWorkout!.templateId}${lvl === 'B' ? ' w wersji skróconej' : ''}.`
-    : lvl === 'C' ? 'Odpoczynek i regularne, proste posiłki.'
-    : d.recs[0] && d.recs[0].priority >= 60 ? d.recs[0].action
-    : `${plan.mealsPerDay} posiłki z planu i ${d.steps.toLocaleString('pl-PL')} kroków.`;
-  const why = d.morningToday ? `${PLAN_COPY[lvl].title.split(':')[0]}, bo: ${d.readiness.reasons.join(', ')}.` : 'Zrób check-in, żeby dopasować plan do dzisiejszego dnia.';
-
-  const eaten = d.intake?.kcal ?? 0;
+  function openAdd() {
+    const last = [...todayEntries].sort((a, b) => b.createdAt - a.createdAt)[0];
+    setMeal(defaultMeal(hm, d.plan?.mealsPerDay ?? 4, last, now()));
+    setAdding(true);
+  }
+  async function undoable(id: string, label: string) {
+    toast(label, { label: 'Cofnij', run: () => { db.entries.delete(id).then(() => toast('Cofnięto')); } });
+  }
   async function addWater(ml: number) {
     await db.water.put({ date: d.today, ml: Math.max(0, d.water + ml), updatedAt: now() });
   }
-  const [rejecting, setRejecting] = useState(false);
-  const [note, setNote] = useState('');
-  const [otherOpen, setOtherOpen] = useState(false);
-  const [showHidden, setShowHidden] = useState(false);
-  async function feedback(recId: string, action: 'accepted' | 'rejected' | 'reset', reason?: RejectReason, health?: boolean) {
-    await db.feedback.add({ id: uid(), createdAt: now(), updatedAt: now(), recId, date: d.today, action, ...(reason ? { reason } : {}), ...(reason === 'other' && note.trim() ? { note: note.trim() } : {}) });
-    setRejecting(false); setNote(''); setOtherOpen(false);
-    if (action === 'accepted') return toast('Przyjęte');
-    if (action === 'reset') return toast('Porada znów będzie pokazywana');
-    const days = health ? 0 : HIDE_DAYS[reason ?? 'not_now'];
-    toast(reason === 'health' ? 'Zapisane. Objawy zapisz w check-inie; przy niepokojących skontaktuj się z lekarzem.' : days ? `Nie pokażę tej porady przez ${days} dni` : 'Nie pokażę jej dziś ponownie');
+  async function act(a: NextAction) {
+    const target = a.cta?.target;
+    if (target === 'training') return go('training');
+    if (target === 'food') return openAdd();
+    if (target === 'return') {
+      await db.feedback.add({ id: uid(), createdAt: now(), updatedAt: now(), recId: 'return', date: d.today, action: 'accepted' });
+      toast('Zaczynamy od dzisiaj');
+    }
   }
-  const { rec, hidden } = pickRecommendation(d.recs, data.feedback, d.today);
 
   return (
     <>
-      <header className="flex items-end justify-between pt-2">
-        <div><div className="text-sm text-muted">{formatPl(d.today)}</div><h1 className="text-2xl font-bold">Cześć{data.profile?.name ? `, ${data.profile.name}` : ''}</h1></div>
-        <div className="flex gap-1.5">
-          {d.withDaughterToday && <Badge tone="accent"><Baby size={13} /> dzień z dzieckiem</Badge>}
-          <Badge tone={lvl === 'A' ? 'accent' : 'warn'}>Plan {lvl}</Badge>
-        </div>
+      <header className="pt-1">
+        <div className="text-sm text-muted">{formatPl(d.today)}</div>
+        <h1 className="text-2xl font-bold">Cześć{data.profile?.name && data.profile.name !== 'Ja' ? `, ${data.profile.name}` : ''}!</h1>
+        <p className="text-sm text-muted">Dzisiaj też możesz zrobić coś dla siebie.</p>
       </header>
 
       {urgent.map((a) => (
         <div key={a.code} className="rounded-2xl border border-danger bg-danger/10 p-4" role="alert">
           <div className="flex items-center gap-2 font-semibold text-danger"><AlertTriangle size={18} />{a.title}</div>
           <p className="text-sm mt-1">{a.text}</p>
-          {a.level === 'urgent' && <a href="tel:112" className="mt-3 inline-flex min-h-12 items-center rounded-xl bg-danger px-4 font-semibold text-white">Zadzwoń 112</a>}{a.level === "urgent" && <span className="ml-3 text-sm">numer alarmowy: <b>112</b></span>}
+          {a.level === 'urgent' && <><a href="tel:112" className="mt-3 inline-flex min-h-12 items-center rounded-xl bg-danger px-4 font-semibold text-white">Zadzwoń 112</a><span className="ml-3 text-sm">numer alarmowy: <b>112</b></span></>}
         </div>
       ))}
-
-      <WeeklyReportCard data={data} d={d} />
-
-      {d.returnMode && !d.morningToday && (
-        <Card className="border-accent">
-          <div className="font-semibold">Dobrze, że jesteś</div>
-          <p className="text-sm text-muted mt-1">Historia i osiągnięcia zostają. Nie musisz niczego nadrabiać.</p>
-          {back ? <ul className="mt-2 text-sm list-disc pl-5 space-y-1"><li>Check-in (30 s)</li><li>2 posiłki z planu</li><li>15 min spaceru</li></ul>
-            : <Btn className="w-full mt-3" onClick={() => setBack(true)}><RotateCcw size={16} className="inline mr-1" />Wracam do planu</Btn>}
-        </Card>
-      )}
-
-      {!d.morningToday ? (
-        <Card onClick={() => setMOpen(true)} className="bg-accent/10 border-accent/40">
-          <div className="flex items-center gap-3"><Sunrise className="text-accent" /><div><div className="font-semibold">Poranny check-in</div><div className="text-sm text-muted">Waga, sen, energia · ~30 s</div></div></div>
-        </Card>
-      ) : null}
 
       <Card>
-        <Title right={<button className="text-xs text-accent" onClick={() => setMOpen(true)}>{d.morningToday ? 'edytuj check-in' : ''}</button>}>Najważniejsze dziś</Title>
-        <p className="text-lg font-semibold leading-snug">{main}</p>
-        <p className="text-sm text-muted mt-1">{why}</p>
-        {d.readiness.missing.length > 0 && d.morningToday && <p className="text-xs text-muted mt-1">Brak danych: {d.readiness.missing.join(', ')}</p>}
-        <div className="grid grid-cols-2 gap-3 mt-4">
-          <button onClick={() => go('diet')} className="text-left">
-            <Stat label="Kalorie" value={Math.round(plan.kcal - eaten).toLocaleString('pl-PL')} unit="zostało" sub={`${Math.round(eaten)} / ${plan.kcal} kcal`} />
-            <div className="mt-1.5"><Bar value={eaten} max={plan.kcal} tone={eaten > plan.kcal * 1.1 ? 'warn' : 'accent'} /></div>
-          </button>
-          <button onClick={() => go('diet')} className="text-left">
-            <Stat label="Białko" value={Math.round(d.intake?.protein ?? 0)} unit={`/ ${plan.proteinG} g`} />
-            <div className="mt-1.5"><Bar value={d.intake?.protein ?? 0} max={plan.proteinG} /></div>
-          </button>
+        <div className="flex items-end justify-between gap-3">
+          <div>
+            <div className="text-xs text-muted">{todayEntries.length ? (left >= 0 ? 'Zostało w planie' : 'Ponad plan') : 'Cel na dziś'}</div>
+            <div className="num text-5xl font-bold leading-none mt-1">{(todayEntries.length ? Math.abs(left) : t.kcal).toLocaleString('pl-PL')}<span className="text-base font-normal text-muted"> kcal</span></div>
+          </div>
+          {todayEntries.length > 0 && <div className="text-right text-sm"><div className="num font-semibold">{Math.round(eaten).toLocaleString('pl-PL')} / {t.kcal.toLocaleString('pl-PL')}</div><div className="text-xs text-muted">zjedzone / cel</div></div>}
         </div>
-        <div className="mt-4 space-y-2 text-sm">
-          {d.targets!.dayType !== 'flat' && <Row k="Typ dnia" v={d.targets!.dayType === 'training' ? `treningowy: ${d.targets!.kcal} kcal, W ${d.targets!.carbsG} g` : `bez treningu: ${d.targets!.kcal} kcal, W ${d.targets!.carbsG} g`} />}
-          <Row k="Jedzenie" v={`${tpl.name}: ${tpl.meals.map((m) => m.name).join(' · ')}`} />
-          <Row k="Ruch" v={`${d.steps.toLocaleString('pl-PL')} kroków${lvl === 'C' ? ' (opcjonalnie)' : ''}${d.withDaughterToday ? ' · spacer z córką się liczy' : ''}`} />
-          <Row k="Trening" v={d.doneToday ? `Trening ${d.doneToday.templateId} zrobiony ✓` : trainingToday ? `Trening ${d.todayWorkout!.templateId} · ok. 60 min + 10–15 min marszu` : d.withDaughterToday ? 'Dzień z córką: bez siłowni' : 'Odpoczynek'} onClick={() => go('training')} />
-        </div>
-        {info.map((a) => <p key={a.code} className="mt-3 text-sm text-warn">⚠ {a.title}: {a.text}</p>)}
+        {todayEntries.length ? <div className="mt-3"><Bar value={eaten} max={t.kcal} /></div>
+          : <p className="text-sm text-muted mt-2">Nie zapisano jeszcze jedzenia.</p>}
+        {left < 0 && todayEntries.length > 0 && <p className="text-xs text-muted mt-2">Bez odrabiania: wracasz do zwykłego planu od następnego posiłku.</p>}
+        <button className="w-full mt-3 text-left" onClick={() => setMacrosOpen(!macrosOpen)} aria-expanded={macrosOpen}>
+          <div className="flex justify-between text-sm"><span>Białko</span><span className="num"><b>{Math.round(d.intake?.protein ?? 0)}</b> / {t.proteinG} g <ChevronRight size={14} className={cx('inline transition', macrosOpen && 'rotate-90')} /></span></div>
+          <div className="mt-1.5"><Bar value={d.intake?.protein ?? 0} max={t.proteinG} /></div>
+        </button>
+        {d.intake && d.intake.coverage.protein < 1 && <p className="text-xs text-muted mt-1">Część wpisów bez białka: znane dla {Math.round(d.intake.coverage.protein * 100)}% kcal.</p>}
+        {macrosOpen && <div className="grid grid-cols-3 gap-3 mt-3 text-sm">
+          {([['Tłuszcz', d.intake?.fat, t.fatG, 'fat'], ['Węglowodany', d.intake?.carbs, t.carbsG, 'carbs'], ['Błonnik', d.intake?.fiber, t.fiberG, 'fiber']] as const).map(([l, v, max, k]) => (
+            <div key={l}><div className="text-xs text-muted">{l}</div><div className="num font-semibold">{Math.round(v ?? 0)}<span className="text-muted font-normal">/{max} g</span></div><div className="mt-1"><Bar value={v ?? 0} max={max} /></div>
+              {d.intake && d.intake.coverage[k] < 1 && <div className="text-[11px] text-muted mt-0.5">znane dla {Math.round(d.intake.coverage[k] * 100)}% kcal</div>}</div>
+          ))}
+        </div>}
       </Card>
 
+      <button onClick={openAdd} className="w-full min-h-16 rounded-2xl bg-accent text-accent-ink text-lg font-semibold flex items-center justify-center gap-2 active:opacity-80 shadow-sm"><Plus size={24} /> Dodaj jedzenie</button>
+
       <div className="grid grid-cols-2 gap-3">
-        <Card onClick={() => go('progress')}>
-          <Stat label="Waga" value={lastW ? lastW.value.toFixed(1) : '—'} unit="kg" sub={w7.n ? `śr. 7 dni ${w7.value!.toFixed(1)} (${w7.n})` : 'brak ważeń'} />
-          {goal && w7.value && <div className="text-xs text-muted mt-1">do {goal.kg} kg: {(w7.value - goal.kg).toFixed(1)} kg</div>}
+        <Card onClick={() => setEOpen(true)}>
+          <div className="flex items-center gap-1.5 text-xs text-muted"><Footprints size={14} /> Kroki</div>
+          <div className="num text-2xl font-semibold mt-0.5">{steps !== undefined ? steps.toLocaleString('pl-PL') : '—'}</div>
+          <div className="text-xs text-muted">cel ok. {d.steps.toLocaleString('pl-PL')}{steps === undefined ? ' · brak danych' : d.eveningToday?.healthSyncAt ? ` · Zdrowie ${new Date(d.eveningToday.healthSyncAt).toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' })}` : ' · wpis ręczny'}</div>
         </Card>
-        <Card>
-          <div className="flex items-center justify-between"><Stat label="Woda" value={(d.water / 1000).toFixed(2)} unit="l" /><Droplets size={18} className="text-accent" /></div>
-          <div className="flex gap-1.5 mt-2">
-            <button onClick={() => addWater(250)} className="flex-1 min-h-10 rounded-lg bg-card2 text-sm">+250</button>
-            <button onClick={() => addWater(500)} className="flex-1 min-h-10 rounded-lg bg-card2 text-sm">+500</button>
-            <button onClick={() => addWater(-250)} className="min-h-10 px-2 rounded-lg bg-card2 text-sm text-muted" aria-label="Cofnij 250 ml">−</button>
-          </div>
-        </Card>
-        <Card>
-          <div className="flex items-center justify-between"><Stat label="Sen" value={d.morningToday?.sleepMinutes ? (d.morningToday.sleepMinutes / 60).toFixed(1) : '—'} unit="h" sub={d.morningToday?.sleepQuality ? `jakość ${d.morningToday.sleepQuality}/5` : 'brak danych'} /><Moon size={18} className="text-muted" /></div>
-        </Card>
-        <Card>
-          <Stat label="Kolano" value={d.morningToday?.kneePain ?? '—'} unit="/10" sub={data.health?.kneeCleared ? 'po ocenie specjalisty' : 'bez oceny specjalisty'} />
+        <Card onClick={() => go('training')}>
+          <div className="flex items-center gap-1.5 text-xs text-muted"><Dumbbell size={14} /> Trening</div>
+          {d.doneToday ? <div className="font-semibold mt-1">Zrobiony ✓</div>
+            : d.inProgress ? <div className="font-semibold mt-1 text-accent">W trakcie: wznów</div>
+            : d.todayWorkout && lvl !== 'C' ? <div className="font-semibold mt-1">Dzisiaj trening {d.todayWorkout.templateId}<div className="text-sm text-accent">rozpocznij →</div></div>
+            : <div className="font-semibold mt-1">Dzisiaj odpoczynek{d.upcoming[0] && <div className="text-xs text-muted font-normal">następny: {formatPl(d.upcoming[0].date)}</div>}</div>}
         </Card>
       </div>
+      {info.map((a) => <p key={a.code} className="text-sm text-warn px-1">⚠ {a.title}: {a.text}</p>)}
 
-      {rec && (
-        <Card>
-          <Title>Coach</Title>
-          <div className="font-semibold">{rec.title}</div>
-          <p className="text-sm mt-1">{rec.action}</p>
-          <p className="text-xs text-muted mt-2">Podstawa: {rec.basis} ({rec.days} dni) · dane: {rec.completeness}. {rec.limits}</p>
-          {!rejecting ? <div className="flex gap-2 mt-3"><Btn kind="soft" className="flex-1" onClick={() => feedback(rec.id, 'accepted')}>OK, robię</Btn><Btn kind="ghost" onClick={() => setRejecting(true)}>Nie teraz…</Btn></div>
-            : <div className="mt-3 space-y-2">
-              <div className="text-xs text-muted">Dlaczego? Na tej podstawie rzadziej pokażę podobne porady.</div>
-              <div className="grid grid-cols-2 gap-1.5">{(Object.keys(REASON_LABEL) as RejectReason[]).map((r) => <Btn key={r} kind="soft" className="text-xs min-h-10" onClick={() => (r === 'other' ? setOtherOpen(true) : feedback(rec.id, 'rejected', r, rec.health))}>{REASON_LABEL[r]}</Btn>)}</div>
-              {otherOpen && <div className="flex gap-2"><input className={inputCls + ' flex-1'} placeholder="Krótko, co nie pasuje (opcjonalnie)" value={note} onChange={(e) => setNote(e.target.value)} /><Btn onClick={() => feedback(rec.id, 'rejected', 'other', rec.health)}>OK</Btn></div>}
-              <button className="text-xs text-muted underline" onClick={() => { setRejecting(false); setNote(''); setOtherOpen(false); }}>anuluj</button>
-            </div>}
-        </Card>
-      )}
-      {hidden.length > 0 && <button className="text-xs text-muted underline w-full text-center" onClick={() => setShowHidden(!showHidden)}>Ukryte porady ({hidden.length})</button>}
-      {showHidden && hidden.map(({ rec: h, s }) => (
-        <Card key={h.id}><div className="text-sm font-semibold">{h.title}</div>
-          <div className="text-xs text-muted">{s.reason ? REASON_LABEL[s.reason] : ''}{s.until ? ` · ukryta do ${formatPl(s.until)}` : ''}{s.rejections >= 3 ? ' · odrzucana kilka razy' : ''}</div>
-          <Btn kind="soft" className="w-full mt-2 text-sm" onClick={() => feedback(h.id, 'reset')}>Pokazuj znowu</Btn></Card>
-      ))}
+      <WeeklyReportCard data={data} d={d} showCard={action?.kind === 'weekly_report'} />
+      {action && action.kind !== 'health' && action.kind !== 'weekly_report' && <ActionCard a={action} today={d.today} onAct={() => act(action)} />}
 
-      <button onClick={pasteHealth} className="w-full flex items-center justify-center gap-2 min-h-12 rounded-2xl border border-line bg-card text-sm"><ClipboardPaste size={18} className="text-accent" /> Wklej dane ze Zdrowia</button>
+      <div className="flex items-center gap-2">
+        <span className="text-sm text-muted pl-1 pr-1">Check-in</span>
+        <button onClick={() => setMOpen(true)} aria-label="Poranny check-in" className={cx('flex-1 min-h-12 rounded-2xl border px-3 text-sm flex items-center justify-center gap-1.5 whitespace-nowrap', d.morningToday ? 'border-line bg-card' : 'border-accent/40 bg-accent/10')}>
+          <Sunrise size={18} className="text-accent shrink-0" />Rano{d.morningToday ? ' ✓' : ''}
+        </button>
+        <button onClick={() => setEOpen(true)} aria-label="Wieczorny check-in" className={cx('flex-1 min-h-12 rounded-2xl border px-3 text-sm flex items-center justify-center gap-1.5 whitespace-nowrap', hm.hour >= 18 && !d.eveningToday ? 'border-accent/40 bg-accent/10' : 'border-line bg-card')}>
+          <Sunset size={18} className={hm.hour >= 18 ? 'text-accent shrink-0' : 'text-muted shrink-0'} />Wieczorem{d.eveningToday ? ' ✓' : ''}
+        </button>
+      </div>
+      {lvl && <p className="text-sm text-muted px-1">{DAY_MESSAGE[lvl]}</p>}
+
+      {w7.n > 0 && <button onClick={() => go('progress')} className="w-full text-left px-1 text-sm flex justify-between items-center min-h-11">
+        <span>Średnia waga z 7 dni: <b className="num">{w7.value!.toFixed(1).replace('.', ',')} kg</b> <span className="text-muted">({w7.n} {w7.n === 1 ? 'ważenie' : w7.n < 5 ? 'ważenia' : 'ważeń'})</span></span><ChevronRight size={16} className="text-muted" />
+      </button>}
+
+      <button onClick={() => setDetailsOpen(!detailsOpen)} aria-expanded={detailsOpen} className="w-full min-h-12 flex items-center justify-between rounded-2xl border border-line bg-card px-4 text-sm">
+        <span>Szczegóły dnia</span><ChevronRight size={18} className={cx('transition', detailsOpen && 'rotate-90')} />
+      </button>
+      {detailsOpen && <DayDetails data={data} d={d} onWater={addWater} onPaste={pasteHealth} hiddenRecs={hidden} />}
+
       <Sheet open={pasteBox} onClose={() => setPasteBox(false)} title="Wklej dane ze Zdrowia">
         <p className="text-sm text-muted">Przytrzymaj pole i wybierz „Wklej”.</p>
         <textarea className={inputCls + ' min-h-24 py-2'} value={pasteTxt} onChange={(e) => setPasteTxt(e.target.value)} placeholder="MBOS1;steps=…" />
         <Btn className="w-full" disabled={!pasteTxt} onClick={() => applySync(pasteTxt)}>Dalej</Btn>
       </Sheet>
 
-      <Card onClick={() => setEOpen(true)} className={cx(hour >= 18 && !d.eveningToday && 'bg-accent/10 border-accent/40')}>
-        <div className="flex items-center gap-3"><Sunset className={hour >= 18 ? 'text-accent' : 'text-muted'} /><div><div className="font-semibold">Wieczorny check-in {d.eveningToday && '✓'}</div><div className="text-sm text-muted">Kroki, głód, objawy · ~60 s</div></div></div>
-      </Card>
-
+      {adding && <FoodPicker foods={data.foods} entries={data.entries} title="Dodaj jedzenie" onClose={() => setAdding(false)}
+        meal={{ value: meal, options: [...MEALS.slice(0, Math.max(1, Math.min(4, d.plan?.mealsPerDay ?? 4))).map((label, i) => ({ value: i + 1, label })), { value: 5, label: MEALS[4] }], onChange: setMeal }}
+        onAdd={async (p, g) => { const e = productEntry(p, g, d.today, meal, uid(), now()); await db.entries.add(e); undoable(e.id, `Dodano: ${p.name}`); }}
+        onQuick={async (name, kcal, protein) => { const id = uid(); await addQuickEntry(d.today, meal, name, kcal, protein, id); undoable(id, 'Dodano szacunek'); }}
+        onNew={() => go('diet')} />}
       {mOpen && <MorningSheet open onClose={() => setMOpen(false)} data={data} d={d} onBackup={() => { sessionStorage.setItem('scrollTo', 'backup'); go('profile'); }} />}
       {eOpen && <EveningSheet open onClose={() => { setEOpen(false); setPrefill(undefined); }} d={d} prefill={prefill} />}
     </>
   );
 }
 
-function Row({ k, v, onClick }: { k: string; v: string; onClick?: () => void }) {
-  return <div className={cx('flex gap-3', onClick && 'cursor-pointer')} onClick={onClick}><span className="w-16 shrink-0 text-muted">{k}</span><span>{v}</span></div>;
+/** Jedna sugestia na dziś. Zwykłą można odłożyć; porada coacha ma pełny wybór powodów (pamięć odrzuceń). */
+function ActionCard({ a, today, onAct }: { a: NextAction; today: string; onAct: () => void }) {
+  const [rejecting, setRejecting] = useState(false);
+  const [note, setNote] = useState('');
+  const [otherOpen, setOtherOpen] = useState(false);
+  const [why, setWhy] = useState(false);
+  async function feedback(action: 'accepted' | 'rejected', reason?: RejectReason) {
+    await db.feedback.add({ id: uid(), createdAt: now(), updatedAt: now(), recId: a.recId, date: today, action, ...(reason ? { reason } : {}), ...(reason === 'other' && note.trim() ? { note: note.trim() } : {}) });
+    setRejecting(false); setNote(''); setOtherOpen(false);
+    if (action === 'accepted') return toast('Przyjęte');
+    const health = a.importance === 'high';
+    const days = health ? 0 : HIDE_DAYS[reason ?? 'not_now'];
+    toast(reason === 'health' ? 'Zapisane. Objawy zapisz w check-inie; przy niepokojących skontaktuj się z lekarzem.' : days ? `Nie pokażę tej porady przez ${days} dni` : 'Nie pokażę jej dziś ponownie');
+  }
+  const tone = a.importance === 'high' ? 'border-warn/60' : 'border-accent/40';
+  return (
+    <Card className={tone}>
+      <Title right={<button className="min-h-11 text-xs text-muted" onClick={() => setWhy(!why)} aria-expanded={why}>Dlaczego?</button>}>Na dziś</Title>
+      <div className="font-semibold">{a.title}</div>
+      <p className="text-sm mt-1">{a.text}</p>
+      {why && <p className="text-xs text-muted mt-2">Źródło: {a.source}.</p>}
+      {!rejecting ? (
+        <div className="flex gap-2 mt-3">
+          {a.cta ? <Btn className="flex-1" onClick={onAct}>{a.cta.label}</Btn> : a.kind === 'coach' ? <Btn kind="soft" className="flex-1" onClick={() => feedback('accepted')}>OK, robię</Btn> : null}
+          {a.dismissible && <Btn kind="ghost" onClick={() => (a.kind === 'coach' ? setRejecting(true) : feedback('rejected', 'not_now'))}>Nie teraz{a.kind === 'coach' ? '…' : ''}</Btn>}
+        </div>
+      ) : (
+        <div className="mt-3 space-y-2">
+          <div className="text-xs text-muted">Dlaczego? Na tej podstawie rzadziej pokażę podobne porady.</div>
+          <div className="grid grid-cols-2 gap-1.5">{(Object.keys(REASON_LABEL) as RejectReason[]).map((r) => <Btn key={r} kind="soft" className="text-xs min-h-11" onClick={() => (r === 'other' ? setOtherOpen(true) : feedback('rejected', r))}>{REASON_LABEL[r]}</Btn>)}</div>
+          {otherOpen && <div className="flex gap-2"><input className={inputCls + ' flex-1'} placeholder="Krótko, co nie pasuje (opcjonalnie)" value={note} onChange={(e) => setNote(e.target.value)} /><Btn onClick={() => feedback('rejected', 'other')}>OK</Btn></div>}
+          <button className="min-h-11 text-xs text-muted underline" onClick={() => { setRejecting(false); setNote(''); setOtherOpen(false); }}>anuluj</button>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function DayDetails({ data, d, onWater, onPaste, hiddenRecs }: { data: ScreenProps['data']; d: ScreenProps['d']; onWater: (ml: number) => void; onPaste: () => void; hiddenRecs: { rec: { id: string; title: string }; s: Suppression }[] }) {
+  const [showHidden, setShowHidden] = useState(false);
+  const t = d.targets!;
+  async function reset(recId: string) {
+    await db.feedback.add({ id: uid(), createdAt: now(), updatedAt: now(), recId, date: d.today, action: 'reset' });
+    toast('Porada znów będzie pokazywana');
+  }
+  return (
+    <>
+      <Card>
+        <div className="flex items-center justify-between"><div><div className="text-xs text-muted">Woda</div><div className="num text-xl font-semibold">{(d.water / 1000).toFixed(2)} l</div></div><Droplets size={18} className="text-accent" /></div>
+        <div className="flex gap-1.5 mt-2">
+          <button onClick={() => onWater(250)} className="flex-1 min-h-11 rounded-lg bg-card2 text-sm">+250 ml</button>
+          <button onClick={() => onWater(500)} className="flex-1 min-h-11 rounded-lg bg-card2 text-sm">+500 ml</button>
+          <button onClick={() => onWater(-250)} className="min-h-11 px-3 rounded-lg bg-card2 text-sm text-muted" aria-label="Cofnij 250 ml">−</button>
+        </div>
+      </Card>
+      <Card>
+        <div className="space-y-2 text-sm">
+          <div className="flex justify-between"><span className="text-muted flex items-center gap-1.5"><Moon size={14} /> Sen</span><span>{d.morningToday?.sleepMinutes ? `${(d.morningToday.sleepMinutes / 60).toFixed(1)} h${d.morningToday.sleepQuality ? ` · jakość ${d.morningToday.sleepQuality}/5` : ''}` : 'brak danych'}</span></div>
+          {asksKnee(data) && <div className="flex justify-between"><span className="text-muted">Kolano</span><span>{d.morningToday?.kneePain !== undefined ? `${d.morningToday.kneePain}/10` : 'brak danych'} · {data.health?.kneeCleared ? 'po ocenie specjalisty' : 'bez oceny specjalisty'}</span></div>}
+          {t.dayType !== 'flat' && <div className="flex justify-between"><span className="text-muted">Typ dnia</span><span>{t.dayType === 'training' ? 'treningowy' : 'bez treningu'}: {t.kcal} kcal</span></div>}
+        </div>
+      </Card>
+      <button onClick={onPaste} className="w-full flex items-center justify-center gap-2 min-h-12 rounded-2xl border border-line bg-card text-sm"><ClipboardPaste size={18} className="text-accent" /> Wklej dane ze Zdrowia</button>
+      {hiddenRecs.length > 0 && <button className="min-h-11 text-xs text-muted underline w-full text-center" onClick={() => setShowHidden(!showHidden)}>Ukryte porady ({hiddenRecs.length})</button>}
+      {showHidden && hiddenRecs.map(({ rec: h, s }) => (
+        <Card key={h.id}><div className="text-sm font-semibold">{h.title}</div>
+          <div className="text-xs text-muted">{s.reason ? REASON_LABEL[s.reason] : ''}{s.until ? ` · ukryta do ${formatPl(s.until)}` : ''}{s.rejections >= 3 ? ' · odrzucana kilka razy' : ''}</div>
+          <Btn kind="soft" className="w-full mt-2 text-sm" onClick={() => reset(h.id)}>Pokazuj znowu</Btn></Card>
+      ))}
+    </>
+  );
 }

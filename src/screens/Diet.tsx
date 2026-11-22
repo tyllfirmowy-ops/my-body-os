@@ -16,16 +16,14 @@ import type { FoodEntry, FoodProduct } from '../domain/types';
 import { Badge, Bar, Btn, Card, cx, Field, inputCls, NumInput, Sheet, Title, toast } from '../ui/kit';
 import { FoodPicker, addQuickEntry, basisLabel } from './FoodPicker';
 import { dayTargets, ruleWarnings, type DayTargets } from '../domain/targets';
-import { PlanSettingsSheet } from './Energy';
-import { Settings2 } from 'lucide-react';
 
-const MEALS = ['Posiłek 1', 'Posiłek 2', 'Posiłek 3', 'Posiłek 4', 'Przekąska / słodycze'];
+export const MEALS = ['Posiłek 1', 'Posiłek 2', 'Posiłek 3', 'Posiłek 4', 'Przekąska / słodycze'];
 
 export function Diet({ data, d }: ScreenProps) {
   const [date, setDate] = useState(d.today);
   const [addMeal, setAddMeal] = useState<number | null>(null);
   const [edit, setEdit] = useState<FoodEntry | null>(null);
-  const [sheet, setSheet] = useState<'template' | 'shop' | 'sos' | 'product' | 'plan' | 'recipes' | 'suggest' | null>(null);
+  const [sheet, setSheet] = useState<'template' | 'shop' | 'sos' | 'product' | 'recipes' | 'suggest' | null>(null);
   const [editTpl, setEditTpl] = useState<ReturnType<typeof effectiveTemplates>[number] | 'new' | null>(null);
   const products = useMemo(() => new Map(data.foods.map((f) => [f.id, f])), [data.foods]);
   const entries = data.entries.filter((e) => e.date === date);
@@ -61,9 +59,8 @@ export function Diet({ data, d }: ScreenProps) {
     <>
       <header className="flex items-center justify-between pt-2">
         <button aria-label="Poprzedni dzień" className="p-2" onClick={() => setDate(addDays(date, -1))}><ChevronLeft /></button>
-        <div className="text-center"><h1 className="text-xl font-bold">Dieta</h1><div className="text-sm text-muted">{date === d.today ? 'Dziś' : formatPl(date)}</div></div>
-        <div className="flex"><button aria-label="Ustawienia planu" className="p-2" onClick={() => setSheet('plan')}><Settings2 size={20} /></button>
-        <button aria-label="Następny dzień" className="p-2 disabled:opacity-30" disabled={date >= d.today} onClick={() => setDate(addDays(date, 1))}><ChevronRight /></button></div>
+        <div className="text-center"><h1 className="text-xl font-bold">Jedzenie</h1><div className="text-sm text-muted">{date === d.today ? 'Dziś' : formatPl(date)}</div></div>
+        <button aria-label="Następny dzień" className="p-2 disabled:opacity-30" disabled={date >= d.today} onClick={() => setDate(addDays(date, 1))}><ChevronRight /></button>
       </header>
 
       <Card>
@@ -120,7 +117,6 @@ export function Diet({ data, d }: ScreenProps) {
 
       {addMeal !== null && <FoodPicker foods={data.foods} entries={data.entries} onClose={() => setAddMeal(null)} onAdd={async (p, g) => { await addEntry(addMeal, p, g); toast(`Dodano: ${p.name}`); }}
         onQuick={async (name, kcal, protein) => { await addQuickEntry(date, addMeal, name, kcal, protein, uid()); toast('Dodano szacunek'); }} onNew={() => setSheet('product')} />}
-      {sheet === 'plan' && <PlanSettingsSheet plan={basePlan} today={d.today} onClose={() => setSheet(null)} />}
       {edit && <EditEntry entry={edit} product={products.get(edit.productId)} foods={data.foods} onClose={() => setEdit(null)} />}
       <Sheet open={sheet === 'template' && !editTpl} onClose={() => setSheet(null)} title="Szablony dni">
         <p className="text-sm text-muted">Gramatury źródeł białka, tłuszczu i węglowodanów zostaną dopasowane do celu tego dnia ({t.kcal} kcal, B {t.proteinG}, T {t.fatG}, W {t.carbsG}); produkty źle tolerowane zostaną zamienione. Wartości referencyjne: sprawdź etykiety.</p>
