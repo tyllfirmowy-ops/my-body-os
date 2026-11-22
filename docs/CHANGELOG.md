@@ -1,5 +1,5 @@
 # Changelog
-## Niewydane — gałąź feat/w2-progression (W2: progres siłowy + nowa dostępność treningowa)
+## 0.8.0 — 2026-11-22 (prosty trening w trybie skupienia, raport tygodnia, kalorie indywidualne, W2 i nowe planowanie)
 ### Planowanie treningów (korekta założeń)
 - Planer tygodniowy `planWeekly` (domain/schedule.ts): cel domyślnie 3 FBW/tydz. (pon–nd, wliczając wykonane), min. 2 dni odstępu, rotacja A/B, dni niedostępne pomijane, pominięte treningi się nie kumulują. Nie korzysta z kalendarza opieki.
 - Dzień przejścia `Settings.scheduleV2From` (zapisywany przy pierwszym uruchomieniu nowej wersji): dni wcześniejsze liczone dawnym planerem, więc historyczne cele kcal dnia treningowego / bez treningu i bilanse się nie zmieniają; od tego dnia obowiązuje planer tygodniowy. Cele żywieniowe nie zależą od dni opieki.

@@ -1,4 +1,4 @@
-# Testy na prawdziwym iPhonie (wersja 0.7.1)
+# Testy na prawdziwym iPhonie (wersja 0.8.0)
 
 Status wszystkich punktów: **NIEWYKONANE** (wymagają fizycznego iPhone'a; nie da się ich sprawdzić w headless Chrome).
 Wpisuj wynik przy punkcie: `OK`, `BŁĄD: opis` albo `POMINIĘTE: powód`. Przy błędzie zapisz model iPhone'a, wersję iOS i zrzut ekranu.
@@ -6,7 +6,7 @@ Wpisuj wynik przy punkcie: `OK`, `BŁĄD: opis` albo `POMINIĘTE: powód`. Przy 
 Przygotowanie
 - [ ] Zanotuj: model iPhone'a, wersja iOS, wolne miejsce (Ustawienia → Ogólne → iPhone – pamięć).
 - [ ] Aplikacja dodana do ekranu głównego (Safari → Udostępnij → Do ekranu początkowego) i otwierana z ikony, nie z Safari.
-- [ ] Zdrowie → stopka pokazuje „My Body OS 0.7.1”. Jeśli starsza wersja: zamknij aplikację w przełączniku i otwórz ponownie (przy połączeniu z internetem).
+- [ ] Zdrowie → stopka pokazuje „My Body OS 0.8.0”. Jeśli starsza wersja: zamknij aplikację w przełączniku i otwórz ponownie (przy połączeniu z internetem).
 
 ## 1. Pamięć urządzenia (diagnostyka)
 - [ ] Zdrowie → Pamięć urządzenia: wiersz `persisted()` pokazuje „tak”, „nie” albo „brak odpowiedzi”. Zapisz wynik osobno dla aplikacji z ekranu głównego i dla Safari.

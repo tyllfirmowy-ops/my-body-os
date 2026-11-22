@@ -238,7 +238,7 @@ export function Profile({ data, d }: ScreenProps) {
           <div className="flex gap-2 mt-2"><Btn kind="danger" className="flex-1" onClick={confirmImport}>Zastąp dane</Btn><Btn kind="ghost" onClick={() => { setPending(null); setPreview(null); }}>Anuluj</Btn></div></div>}
         <Btn kind="ghost" className="w-full mt-2 text-danger" onClick={() => setSheet('wipe')}><Trash2 size={16} className="inline -mt-0.5" /> Usuń wszystkie dane</Btn>
       </Card>
-      <p className="text-center text-xs text-muted pb-2">My Body OS 0.7.1 · dane lokalne · bez reklam i śledzenia · nie jest wyrobem medycznym</p>
+      <p className="text-center text-xs text-muted pb-2">My Body OS 0.8.0 · dane lokalne · bez reklam i śledzenia · nie jest wyrobem medycznym</p>
 
       {sheet === 'energy' && <EnergySheet data={data} d={d} onClose={() => setSheet(null)} />}
       {sheet === 'sync' && <HealthSyncHelp onClose={() => setSheet(null)} />}
