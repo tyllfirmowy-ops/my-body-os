@@ -1,4 +1,4 @@
-# Testy na prawdziwym iPhonie (wersja 0.6.1)
+# Testy na prawdziwym iPhonie (wersja 0.7.0)
 
 Status wszystkich punktów: **NIEWYKONANE** (wymagają fizycznego iPhone'a; nie da się ich sprawdzić w headless Chrome).
 Wpisuj wynik przy punkcie: `OK`, `BŁĄD: opis` albo `POMINIĘTE: powód`. Przy błędzie zapisz model iPhone'a, wersję iOS i zrzut ekranu.
@@ -6,7 +6,7 @@ Wpisuj wynik przy punkcie: `OK`, `BŁĄD: opis` albo `POMINIĘTE: powód`. Przy 
 Przygotowanie
 - [ ] Zanotuj: model iPhone'a, wersja iOS, wolne miejsce (Ustawienia → Ogólne → iPhone – pamięć).
 - [ ] Aplikacja dodana do ekranu głównego (Safari → Udostępnij → Do ekranu początkowego) i otwierana z ikony, nie z Safari.
-- [ ] Zdrowie → stopka pokazuje „My Body OS 0.6.1”. Jeśli starsza wersja: zamknij aplikację w przełączniku i otwórz ponownie (przy połączeniu z internetem).
+- [ ] Zdrowie → stopka pokazuje „My Body OS 0.7.0”. Jeśli starsza wersja: zamknij aplikację w przełączniku i otwórz ponownie (przy połączeniu z internetem).
 
 ## 1. Pamięć urządzenia (diagnostyka)
 - [ ] Zdrowie → Pamięć urządzenia: wiersz `persisted()` pokazuje „tak”, „nie” albo „brak odpowiedzi”. Zapisz wynik osobno dla aplikacji z ekranu głównego i dla Safari.
@@ -67,6 +67,14 @@ Przygotowanie
 - [ ] „Zapisz i zrób kopię” → check-in zapisany, aplikacja przechodzi do karty kopii zapasowej.
 - [ ] Po potwierdzeniu kopii ramka w check-inie nie pokazuje się przez 7 dni (sprawdzić po tygodniu lub zmieniając datę w telefonie).
 - [ ] Dziennik → stuknij wpis przepisu → zmiana porcji przyciskami −/+ → kcal i makro przeliczone → „Zapisz porcje” → nazwa wpisu z nową liczbą porcji; inne wpisy i dni bez zmian.
+
+## 8a. Nowe w 0.7.0: „Co mam teraz zjeść?”
+- [ ] Dieta → „Co mam teraz zjeść?”: pozostały bilans zgadza się z licznikiem dnia (cel − zjedzone).
+- [ ] 2–3 propozycje z kcal, B/T/W i uzasadnieniem; przy pustym dzienniku ostrzeżenie „Brak wpisów…”.
+- [ ] „Dodaj do: Posiłek N” → wpis(y) w dobrym posiłku, licznik dnia rośnie o kcal propozycji (±2).
+- [ ] Po zjedzeniu prawie całego celu: komunikat „cel praktycznie osiągnięty”, bez propozycji; po przekroczeniu: bez odrabiania.
+- [ ] Propozycje mają sens w praktyce (porcja, skład); zanotuj te, które nie pasują.
+- [ ] Produkt oznaczony jako źle tolerowany nie pojawia się w propozycjach.
 
 ## 9. Krótka kontrola z wcześniejszych wersji
 - [ ] Karta ćwiczenia: animacja płynna, pauza, suwak, 0,5×, fazy. Telefon nie grzeje się wyraźnie po 2 minutach odtwarzania.
