@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Barcode, Search, Star, Zap } from 'lucide-react';
 import { db, now } from '../db/db';
-import { offByBarcode, offSearch } from '../data/offClient';
+import { offByBarcode, offSearch, OffError, OFF_MESSAGES } from '../data/offClient';
+import { dedupeOnline, rankLocal, usageFrom } from '../domain/foodSearch';
 import { scaleNutrients } from '../domain/calc';
 import type { FoodEntry, FoodProduct } from '../domain/types';
 import { Badge, Btn, cx, Field, inputCls, NumInput, Sheet, toast } from '../ui/kit';
 
 export const basisLabel = (b: FoodProduct['basis']) => ({ raw: 'waga surowa', dry: 'waga sucha (przed gotowaniem)', cooked: 'waga po ugotowaniu', drained: 'waga po odsączeniu', as_sold: 'waga produktu' }[b]);
-const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ł/g, 'l');
 
 type Tab = 'local' | 'online' | 'scan' | 'quick';
 
@@ -24,23 +24,19 @@ export function FoodPicker({ foods, entries, onClose, onAdd, onQuick, onNew, tit
   const [quick, setQuick] = useState<{ name: string; kcal?: number; protein?: number }>({ name: '' });
   // białko puste = nieznane (nie 0)
 
-  const recent = useMemo(() => {
-    const m = new Map<string, number>();
-    [...entries].sort((a, b) => b.createdAt - a.createdAt).forEach((e, i) => { if (!m.has(e.productId)) m.set(e.productId, i); });
-    return m;
-  }, [entries]);
-  const list = useMemo(() => {
-    const nq = norm(q.trim());
-    const words = nq.split(/\s+/).filter(Boolean);
-    return foods.filter((f) => words.every((w) => norm(f.name).includes(w)))
-      .sort((a, b) => (Number(!!b.favorite) - Number(!!a.favorite)) || ((recent.get(a.id) ?? 1e9) - (recent.get(b.id) ?? 1e9)) || a.name.localeCompare(b.name, 'pl'))
-      .slice(0, nq ? 60 : 30);
-  }, [foods, q, recent]);
+  const usage = useMemo(() => usageFrom(entries), [entries]);
+  const recent = usage;
+  const list = useMemo(() => rankLocal(foods, q, usage), [foods, q, usage]);
+  const [onlineMsg, setOnlineMsg] = useState<string | null>(null);
 
   async function searchOnline() {
-    if (!q.trim()) return toast('Wpisz nazwę produktu');
-    setBusy(true); setOnline(null);
-    try { setOnline(await offSearch(q.trim())); } catch { toast('Brak połączenia z bazą Open Food Facts'); } finally { setBusy(false); }
+    if (busy) return;
+    setBusy(true); setOnline(null); setOnlineMsg(null);
+    try {
+      const r = await offSearch(q);
+      setOnline(dedupeOnline(foods, r.products));
+      if (r.cached) setOnlineMsg('Wyniki z pamięci podręcznej (do 3 dni).');
+    } catch (e) { setOnlineMsg(OFF_MESSAGES[e instanceof OffError ? e.kind : 'network']); } finally { setBusy(false); }
   }
   async function pick(p: FoodProduct) {
     if (p.id.startsWith('off_') && !foods.some((f) => f.id === p.id)) await db.foods.put(p);
@@ -51,9 +47,9 @@ export function FoodPicker({ foods, entries, onClose, onAdd, onQuick, onNew, tit
     try {
       const local = foods.find((f) => f.barcode === code);
       const p = local ?? (await offByBarcode(code));
-      if (!p) { toast(`Brak produktu ${code} w bazie (lub bez wartości odżywczych). Dodaj go ręcznie z etykiety.`); return; }
+      if (!p) { toast(`Brak produktu ${code} w Open Food Facts (albo dane etykiety są niepełne lub niespójne). Dodaj go ręcznie z etykiety.`); return; }
       await pick(p);
-    } catch { toast('Brak połączenia z bazą Open Food Facts'); } finally { setBusy(false); }
+    } catch (e) { toast(OFF_MESSAGES[e instanceof OffError ? e.kind : 'network']); } finally { setBusy(false); }
   }
 
   if (sel) {
@@ -67,6 +63,8 @@ export function FoodPicker({ foods, entries, onClose, onAdd, onQuick, onNew, tit
           <b>{Math.round(n.kcal)} kcal</b> · B {n.protein.toFixed(1)} · T {n.fat.toFixed(1)} · W {n.carbs.toFixed(1)} · Bł {n.fiber.toFixed(1)}
           {(n.sugar !== undefined || n.satFat !== undefined || n.salt !== undefined) && <div className="text-xs text-muted mt-1">{n.sugar !== undefined && `cukry ${n.sugar.toFixed(1)} g`}{n.satFat !== undefined && ` · nasycone ${n.satFat.toFixed(1)} g`}{n.salt !== undefined && ` · sól ${n.salt.toFixed(2)} g`}</div>}
         </div>}
+        {sel.unknown?.length ? <p className="text-sm text-warn">Brak danych: {sel.unknown.map((k) => ({ protein: 'białko', fat: 'tłuszcz', carbs: 'węglowodany', fiber: 'błonnik' }[k])).join(', ')}. W analizach traktowane jako nieznane, nie jako 0.</p> : null}
+        {sel.labelWarnings?.map((w) => <p key={w} className="text-xs text-warn">Etykieta: {w}. Porównaj z opakowaniem.</p>)}
         {sel.dairy === 'contains' && <p className="text-sm text-warn">Zawiera składniki mleczne (mleko, serwatka, kazeina, laktoza lub ser).</p>}
         {sel.dairy === 'unknown' && <p className="text-sm text-muted">Skład niepewny pod kątem mleka: sprawdź etykietę.</p>}
         {sel.ingredients && <details className="text-xs text-muted"><summary>Skład</summary>{sel.ingredients}</details>}
@@ -91,7 +89,8 @@ export function FoodPicker({ foods, entries, onClose, onAdd, onQuick, onNew, tit
         <div className="grid grid-cols-2 gap-2"><Btn kind="soft" className="text-sm" onClick={() => { setTab('online'); if (q) setTimeout(searchOnline, 0); }}>Szukaj online</Btn><Btn kind="soft" className="text-sm" onClick={() => { onClose(); onNew(); }}>+ Z etykiety</Btn></div>
       </>)}
       {tab === 'online' && (<>
-        <Btn className="w-full" disabled={busy} onClick={searchOnline}>{busy ? 'Szukam…' : 'Szukaj w Open Food Facts'}</Btn>
+        <Btn className="w-full" disabled={busy || q.trim().length < 3} onClick={searchOnline}>{busy ? 'Szukam…' : q.trim().length < 3 ? 'Wpisz min. 3 litery' : 'Szukaj w Open Food Facts'}</Btn>
+        {onlineMsg && <p className="text-sm text-muted">{onlineMsg}</p>}
         {online && <div className="divide-y divide-line">{online.map((f) => <Row key={f.id} f={f} onClick={() => pick(f)} />)}</div>}
         {online && !online.length && <p className="text-sm text-muted">Brak wyników z wartościami odżywczymi. Spróbuj krótszej nazwy lub zeskanuj kod.</p>}
         <p className="text-xs text-muted">Open Food Facts to otwarta baza produktów z etykiet. Dane wpisują użytkownicy: przy ważnych produktach porównaj z opakowaniem. Produkt zapisze się w Twojej bazie i będzie dostępny offline.</p>
@@ -116,7 +115,7 @@ function Row({ f, onClick, recent }: { f: FoodProduct; onClick: () => void; rece
       <span className="text-sm">{f.favorite && <Star size={12} className="inline text-accent mr-1" />}{f.name}
         {recent && !f.favorite && <span className="text-xs text-muted"> · ostatnio</span>}
         {f.tolerance === 'bad' && <Badge tone="danger">źle tolerowany</Badge>}{f.dairy === 'contains' && <Badge tone="warn">mleko</Badge>}
-        {f.reliability === 'estimate' && <span className="text-xs text-muted"> · szac.</span>}</span>
+        {f.reliability === 'estimate' && <span className="text-xs text-muted"> · szac.</span>}{f.unknown?.some((k) => k !== 'fiber') && <Badge tone="warn">niepełne</Badge>}</span>
       <span className="text-xs text-muted num shrink-0 text-right">{f.per100.kcal} kcal<br />B {f.per100.protein}</span>
     </button>
   );

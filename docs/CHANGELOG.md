@@ -1,5 +1,12 @@
 # Changelog
 ## 0.6.0 — 2026-11-22 (ETAP 3, w toku)
+### 3E Open Food Facts i wyszukiwanie
+- `domain/foodSearch.ts`: ranking lokalny (dopasowanie słów bez polskich znaków, początek nazwy, ulubione, częstość i świeżość użycia; dania szacunkowe i produkty z niepełnym makro niżej). Naprawia „kurczak” → kotlet panierowany i „ryż” → białko roślinne.
+- Deduplikacja wyników online: pomija produkty już zapisane (kod lub id) i powtórzenia (kod, potem nazwa).
+- `domain/offCache.ts`: cache w localStorage (wyszukiwania 3 dni, kody 30 dni, brak produktu 1 dzień), maks. 60 wpisów, odporny na uszkodzone wpisy.
+- `data/offClient.ts`: typy błędów (offline bez wysyłania zapytania, limit 429 z blokadą 60 s, timeout, błąd serwera, sieć) z komunikatami po polsku; wyszukiwanie online tylko przyciskiem i od 3 liter (nie przy każdej literze).
+- `offToProduct`: brak kcal = odrzucony; brak białka/tłuszczu/węgli/błonnika = `unknown` (nie 0); walidacja etykiety (`validateNutrients`): wartości niemożliwe odrzucone, podejrzane (kcal ≠ makro, cukry > węgle, nasycone > tłuszcz, brak składu) jako `labelWarnings` w karcie produktu. Ta sama walidacja w ręcznym dodawaniu produktu.
+
 ### 3D Feedback coacha
 - `RecommendationFeedback.reason` (nie teraz, brak czasu, nie pomaga mi, nie pasuje do mojej sytuacji, problem zdrowotny, inny powód + notatka) i akcja `reset` (przywrócenie porady). Stare odrzucenia bez powodu = „nie teraz”.
 - `domain/feedback.ts`: czas ukrycia zależny od powodu (0/3/14/30/14/7 dni), 3 odrzucenia tej samej porady w 30 dni (poza „nie teraz”) → 30 dni; porady zdrowotne (`Recommendation.health`, np. opuszczone treningi z powodu bólu) ukrywane najwyżej do końca dnia. Ostrzeżenia bezpieczeństwa nie przechodzą przez ten mechanizm.

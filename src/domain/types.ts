@@ -109,6 +109,8 @@ export interface FoodProduct {
   custom?: boolean;
   /** makro nieznane w źródle (np. niepełna etykieta OFF): w per100 = 0, ale to NIE jest zero */
   unknown?: MacroKey[];
+  /** ostrzeżenia z walidacji etykiety (np. kcal niezgodne z makro, brak składu) */
+  labelWarnings?: string[];
   updatedAt: number;
 }
 

@@ -46,7 +46,9 @@ describe('Open Food Facts', () => {
     expect(p).toMatchObject({ id: 'off_590123', name: 'Jogurt naturalny (Mleczarnia X)', dairy: 'contains', reliability: 'label', unit: { grams: 150 } });
     expect(p.per100).toMatchObject({ kcal: 61, sugar: 4.6, satFat: 2, salt: 0.1, fiber: 0 });
   });
-  it('brak makro → odrzucony (nie zgadujemy)', () => expect(offToProduct({ product_name: 'X', nutriments: { 'energy-kcal_100g': 100 } })).toBeNull());
+  // 0.6: brak makro = nieznane (model kompletności), brak kcal = odrzucony
+  it('brak makro → oznaczone jako nieznane, nie 0', () => expect(offToProduct({ product_name: 'X', nutriments: { 'energy-kcal_100g': 100 } })!.unknown).toEqual(['protein', 'fat', 'carbs', 'fiber']));
+  it('brak kcal → odrzucony', () => expect(offToProduct({ product_name: 'X', nutriments: { proteins_100g: 1, fat_100g: 1, carbohydrates_100g: 1 } })).toBeNull());
   it('kJ → kcal', () => expect(offToProduct({ product_name: 'X', nutriments: { energy_100g: 418.4, proteins_100g: 1, fat_100g: 1, carbohydrates_100g: 1 } })!.per100.kcal).toBe(100));
   it('mleko ze składu, gdy brak alergenów', () => expect(offToProduct({ product_name: 'Baton', ingredients_text_pl: 'cukier, serwatka w proszku', nutriments: { 'energy-kcal_100g': 400, proteins_100g: 5, fat_100g: 20, carbohydrates_100g: 50 } })!.dairy).toBe('contains'));
   it('porcja w ml/g', () => { expect(parseServingGrams('250 ml')).toBe(250); expect(parseServingGrams('1 szt. (30,5 g)')).toBe(31); });

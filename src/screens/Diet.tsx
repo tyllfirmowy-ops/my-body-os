@@ -8,6 +8,7 @@ import { addDays, formatPl } from '../domain/dates';
 import { scaleNutrients } from '../domain/calc';
 import { candidatesForSwap, swapProduct, type ProductMap } from '../domain/nutrition';
 import { effectiveTemplates, productEntry, shoppingFrom } from '../domain/recipes';
+import { validateNutrients } from '../domain/off';
 import { RecipesSheet, TemplateEditor, safeFit } from './Recipes';
 import type { AppData } from '../db/repo';
 import type { FoodEntry, FoodProduct } from '../domain/types';
@@ -213,7 +214,9 @@ function Shopping({ open, onClose, products, t, templates, data }: { open: boole
 
 function ProductForm({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [f, setF] = useState({ name: '', kcal: undefined as number | undefined, protein: undefined as number | undefined, fat: undefined as number | undefined, carbs: undefined as number | undefined, fiber: 0 as number | undefined, sugar: undefined as number | undefined, satFat: undefined as number | undefined, salt: undefined as number | undefined, barcode: '', basis: 'as_sold' as FoodProduct['basis'], dairy: 'none' as FoodProduct['dairy'], fromLabel: true });
-  const valid = f.name && f.kcal !== undefined && f.protein !== undefined && f.fat !== undefined && f.carbs !== undefined;
+  const filled = f.name && f.kcal !== undefined && f.protein !== undefined && f.fat !== undefined && f.carbs !== undefined;
+  const check = filled ? validateNutrients({ kcal: f.kcal!, protein: f.protein!, fat: f.fat!, carbs: f.carbs!, fiber: f.fiber ?? 0, ...(f.sugar !== undefined ? { sugar: f.sugar } : {}), ...(f.satFat !== undefined ? { satFat: f.satFat } : {}) }) : { errors: [], warnings: [] };
+  const valid = filled && !check.errors.length;
   async function save() {
     if (!valid) return;
     await db.foods.add({ id: uid(), name: f.name, per100: { kcal: f.kcal!, protein: f.protein!, fat: f.fat!, carbs: f.carbs!, fiber: f.fiber ?? 0, ...(f.sugar !== undefined ? { sugar: f.sugar } : {}), ...(f.satFat !== undefined ? { satFat: f.satFat } : {}), ...(f.salt !== undefined ? { salt: f.salt } : {}) }, ...(f.barcode ? { barcode: f.barcode } : {}), basis: f.basis, dairy: f.dairy, tolerance: 'unknown', role: f.protein! * 4 > f.kcal! * 0.3 ? 'protein' : f.fat! * 9 > f.kcal! * 0.5 ? 'fat' : 'carb', source: f.fromLabel ? 'Etykieta produktu (wpis użytkownika)' : 'Szacunek użytkownika', reliability: f.fromLabel ? 'label' : 'estimate', custom: true, updatedAt: now() });
@@ -229,6 +232,7 @@ function ProductForm({ open, onClose }: { open: boolean; onClose: () => void }) 
       <Field label="Waga dotyczy"><select className={inputCls} value={f.basis} onChange={(e) => setF({ ...f, basis: e.target.value as FoodProduct['basis'] })}>{(['as_sold', 'raw', 'dry', 'cooked', 'drained'] as const).map((b) => <option key={b} value={b}>{basisLabel(b)}</option>)}</select></Field>
       <Field label="Składniki mleczne"><select className={inputCls} value={f.dairy} onChange={(e) => setF({ ...f, dairy: e.target.value as FoodProduct['dairy'] })}><option value="none">brak</option><option value="contains">zawiera</option><option value="unknown">nie wiem</option></select></Field>
       <div className="flex gap-2">{[true, false].map((v) => <button key={String(v)} onClick={() => setF({ ...f, fromLabel: v })} className={cx('flex-1 min-h-11 rounded-lg text-sm', f.fromLabel === v ? 'bg-accent text-accent-ink' : 'bg-card2')}>{v ? 'Z etykiety' : 'Szacunek'}</button>)}</div>
+      {[...check.errors, ...check.warnings].map((w) => <p key={w} className={cx('text-xs', check.errors.includes(w) ? 'text-danger' : 'text-warn')}>{check.errors.includes(w) ? 'Błąd' : 'Sprawdź'}: {w}</p>)}
       <Btn className="w-full" disabled={!valid} onClick={save}>Zapisz</Btn>
     </Sheet>
   );
