@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Download, Upload, Trash2, Moon, Sun } from 'lucide-react';
 import type { ScreenProps } from '../App';
 import { db, now, uid } from '../db/db';
-import { exportAll, importAll, encryptBackup, isEncrypted, decryptBackup, wipeAll } from '../db/backup';
+import { exportAll, importAll, encryptBackup, isEncrypted, decryptBackup, wipeAll, inspectBackup, verifyBackupText, storageStatus, requestPersist, type Inspect, type Verify } from '../db/backup';
 import { range, formatPl, diffDays } from '../domain/dates';
 import { withDaughter } from '../domain/schedule';
 import { bmrMifflin, ageOn, tdeeRange, macroKcal } from '../domain/calc';
@@ -18,33 +18,62 @@ export function Profile({ data, d }: ScreenProps) {
   const [pending, setPending] = useState<unknown>(null);
   const [paste, setPaste] = useState('');
   const p = data.profile!;
-  const lastBackup = data.settings?.lastBackupAt;
-  const backupDue = !lastBackup || (now() - lastBackup) / 864e5 > (data.settings?.backupReminderDays ?? 7);
+  const confirmed = data.settings?.lastBackupConfirmedAt;
+  const lastExport = data.settings?.lastExport ?? (data.settings?.lastBackupAt ? { at: data.settings.lastBackupAt, total: 0, bytes: 0, verified: false, encrypted: false } : undefined);
+  const backupDue = !confirmed || (now() - confirmed) / 864e5 > (data.settings?.backupReminderDays ?? 7);
   const bmr = d.bmr;
+  const [prepared, setPrepared] = useState<{ name: string; text: string; v: Verify; saved?: 'shared' | 'downloaded' | 'copied' } | null>(null);
+  const [preview, setPreview] = useState<Inspect | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [storage, setStorage] = useState<{ persisted?: boolean; usage?: number; quota?: number }>({});
+  useEffect(() => { storageStatus().then(setStorage); }, []);
 
-  async function doExport() {
-    const all = await exportAll();
-    const out = pass ? await encryptBackup(all, pass) : all;
-    download(`my-body-os-backup-${d.today}${pass ? '-zaszyfrowany' : ''}.json`, JSON.stringify(out));
-    await db.settings.update('settings', { lastBackupAt: now() });
-    toast('Kopia pobrana. Zapisz ją w Plikach / iCloud.');
+  async function prepareExport() {
+    setBusy(true);
+    try {
+      void requestPersist().then(() => storageStatus().then(setStorage));
+      const all = await exportAll();
+      const text = JSON.stringify(pass ? await encryptBackup(all, pass) : all);
+      const v = await verifyBackupText(text, pass);
+      const name = `my-body-os-kopia-${d.today}${pass ? '-zaszyfrowana' : ''}.json`;
+      setPrepared({ name, text, v });
+      await db.settings.update('settings', { lastExport: { at: now(), total: v.ok ? v.total : 0, bytes: new Blob([text]).size, verified: v.ok, encrypted: !!pass } });
+    } finally { setBusy(false); }
+  }
+  async function saveFile() {
+    if (!prepared) return;
+    const file = new File([prepared.text], prepared.name, { type: 'application/json' });
+    const nav = navigator as Navigator & { canShare?: (d: { files: File[] }) => boolean };
+    if (nav.canShare?.({ files: [file] })) {
+      try { await nav.share({ files: [file], title: prepared.name }); setPrepared({ ...prepared, saved: 'shared' }); return; }
+      catch (e) { if ((e as Error).name === 'AbortError') return toast('Anulowano. Plik nie został zapisany.'); }
+    }
+    download(prepared.name, prepared.text);
+    setPrepared({ ...prepared, saved: 'downloaded' });
+  }
+  async function confirmSaved() {
+    await db.settings.update('settings', { lastBackupConfirmedAt: now() });
+    setPrepared(null); toast('Zapisano potwierdzenie kopii');
   }
   async function prepareImport(text: string) {
     try {
       let json: unknown = JSON.parse(text);
       if (isEncrypted(json)) { if (!pass) return toast('Wpisz hasło kopii w polu powyżej'); json = await decryptBackup(json, pass); }
-      setPending(json);
+      const info = await inspectBackup(json);
+      setPreview(info);
+      setPending(info.ok ? json : null);
     } catch { toast('Nie udało się odczytać kopii (złe hasło lub uszkodzony plik)'); }
   }
   async function confirmImport() {
-    const r = await importAll(pending); setPending(null); setPaste('');
-    toast(r.ok ? 'Dane odtworzone' : r.error);
+    const r = await importAll(pending); setPending(null); setPreview(null); setPaste('');
+    toast(r.ok ? `Dane odtworzone${r.untouched.length ? ` (bez zmian: ${r.untouched.join(', ')})` : ''}` : r.error);
   }
   async function copyBackup() {
-    const all = await exportAll();
-    await copyText(JSON.stringify(pass ? await encryptBackup(all, pass) : all));
-    await db.settings.update('settings', { lastBackupAt: now() });
+    if (!prepared) return;
+    await copyText(prepared.text);
+    setPrepared({ ...prepared, saved: 'copied' });
   }
+  const mb = (b?: number) => (b === undefined ? '?' : b < 1e6 ? `${Math.round(b / 1e3)} kB` : `${(b / 1e6).toFixed(1)} MB`);
 
   return (
     <>
@@ -140,21 +169,39 @@ export function Profile({ data, d }: ScreenProps) {
 
       <Card>
         <Title>Kopia zapasowa</Title>
-        <p className="text-xs text-muted mb-2">Ostatnia: {lastBackup ? new Date(lastBackup).toLocaleString('pl-PL') : 'nigdy'}.</p>
+        <div className="text-xs text-muted mb-2 space-y-0.5">
+          <div>Potwierdzona kopia: {confirmed ? new Date(confirmed).toLocaleString('pl-PL') : 'brak'}</div>
+          <div>Ostatnio wygenerowany plik: {lastExport ? `${new Date(lastExport.at).toLocaleString('pl-PL')}${lastExport.total ? ` · ${lastExport.total} rekordów · ${mb(lastExport.bytes)}` : ''} · ${lastExport.verified ? 'zweryfikowany' : 'bez weryfikacji'}` : 'nigdy'}</div>
+          <div>Pamięć przeglądarki: {storage.usage !== undefined ? `${mb(storage.usage)}${storage.quota ? ` z ${mb(storage.quota)}` : ''}` : 'brak danych'} · trwała: {storage.persisted === undefined ? 'nieznane' : storage.persisted ? 'tak' : 'nie'}</div>
+        </div>
         <Field label="Hasło kopii (opcjonalne, zapamiętaj je)"><input type="password" className={inputCls} value={pass} onChange={(e) => setPass(e.target.value)} autoComplete="new-password" /></Field>
         <div className="grid grid-cols-2 gap-2 mt-3">
-          <Btn onClick={doExport}><Download size={16} className="inline -mt-0.5" /> Eksport</Btn>
+          <Btn onClick={prepareExport} disabled={busy}><Download size={16} className="inline -mt-0.5" /> {busy ? 'Sprawdzam…' : 'Przygotuj kopię'}</Btn>
           <label className="min-h-12 rounded-xl bg-card2 grid place-items-center cursor-pointer"><span><Upload size={16} className="inline -mt-0.5" /> Import</span>
             <input type="file" accept=".json,application/json" className="hidden" onChange={async (e) => { const f = e.target.files?.[0]; if (f) await prepareImport(await f.text()); e.target.value = ''; }} /></label>
         </div>
-        <Btn kind="soft" className="w-full mt-2" onClick={copyBackup}>Kopiuj kopię do schowka (gdy pobieranie nie działa)</Btn>
-        <textarea className={inputCls + ' mt-2 min-h-20 py-2 text-xs'} placeholder="…albo wklej tu tekst kopii" value={paste} onChange={(e) => setPaste(e.target.value)} />
-        {paste && <Btn kind="soft" className="w-full mt-2" onClick={() => prepareImport(paste)}>Wczytaj wklejoną kopię</Btn>}
-        {pending !== null && <div className="mt-3 rounded-xl border border-warn p-3 text-sm">Import zastąpi wszystkie obecne dane w aplikacji.
-          <div className="flex gap-2 mt-2"><Btn kind="danger" className="flex-1" onClick={confirmImport}>Zastąp dane</Btn><Btn kind="ghost" onClick={() => setPending(null)}>Anuluj</Btn></div></div>}
+        {prepared && <div className={cx('mt-3 rounded-xl border p-3 text-sm', prepared.v.ok ? 'border-accent' : 'border-danger')}>
+          {prepared.v.ok
+            ? <div><b>1. Plik gotowy i sprawdzony</b><div className="text-xs text-muted">{prepared.v.total} rekordów · {mb(prepared.v.bytes)} · suma kontrolna i liczby rekordów zgodne z bazą{pass ? ' · odszyfrowanie hasłem działa' : ''}</div></div>
+            : <div className="text-danger"><b>Weryfikacja nieudana:</b> {prepared.v.error}</div>}
+          {prepared.v.ok && <>
+            <Btn className="w-full mt-2" onClick={saveFile}>2. Zapisz w Plikach / iCloud</Btn>
+            <p className="text-xs text-muted mt-1">W arkuszu wybierz „Zapisz w Plikach”, potem iCloud Drive (np. folder My Body OS) i „Zapisz”. Aplikacja nie widzi, czy zapis się udał.</p>
+            <Btn kind="soft" className="w-full mt-2" onClick={copyBackup}>albo skopiuj tekst kopii do schowka</Btn>
+            {prepared.saved && <Btn kind="soft" className="w-full mt-2" onClick={confirmSaved}>3. Potwierdzam: plik jest zapisany</Btn>}
+          </>}
+        </div>}
+        <textarea className={inputCls + ' mt-2 min-h-20 py-2 text-xs'} placeholder="…albo wklej tu tekst kopii do importu" value={paste} onChange={(e) => setPaste(e.target.value)} />
+        {paste && <Btn kind="soft" className="w-full mt-2" onClick={() => prepareImport(paste)}>Sprawdź wklejoną kopię</Btn>}
+        {preview && !preview.ok && <div className="mt-3 rounded-xl border border-danger p-3 text-sm text-danger">{preview.error} Obecne dane bez zmian.</div>}
+        {preview?.ok && pending !== null && <div className="mt-3 rounded-xl border border-warn p-3 text-sm">
+          <div>Kopia z {new Date(preview.exportedAt).toLocaleString('pl-PL')}{preview.app ? ` (wersja ${preview.app})` : ''}: {preview.total} rekordów.</div>
+          <div className="text-xs text-muted">Integralność: {preview.integrity === 'verified' ? 'suma kontrolna zgodna' : 'starsza kopia bez sumy kontrolnej (sprawdzono format i rekordy)'}{preview.missing.length ? ` · brak tabel w kopii (zostaną bez zmian): ${preview.missing.join(', ')}` : ''}</div>
+          <div className="mt-1">Import zastąpi obecne dane tabelami z kopii. Przy błędzie nic nie zostanie zmienione.</div>
+          <div className="flex gap-2 mt-2"><Btn kind="danger" className="flex-1" onClick={confirmImport}>Zastąp dane</Btn><Btn kind="ghost" onClick={() => { setPending(null); setPreview(null); }}>Anuluj</Btn></div></div>}
         <Btn kind="ghost" className="w-full mt-2 text-danger" onClick={() => setSheet('wipe')}><Trash2 size={16} className="inline -mt-0.5" /> Usuń wszystkie dane</Btn>
       </Card>
-      <p className="text-center text-xs text-muted pb-2">My Body OS 0.5 · dane lokalne · bez reklam i śledzenia · nie jest wyrobem medycznym</p>
+      <p className="text-center text-xs text-muted pb-2">My Body OS 0.6 · dane lokalne · bez reklam i śledzenia · nie jest wyrobem medycznym</p>
 
       {sheet === 'energy' && <EnergySheet data={data} d={d} onClose={() => setSheet(null)} />}
       {sheet === 'sync' && <HealthSyncHelp onClose={() => setSheet(null)} />}

@@ -164,7 +164,11 @@ export interface Settings {
   id: 'settings';
   theme: 'dark' | 'light';
   onboarded: boolean;
+  /** legacy (≤0.5): moment wygenerowania pliku, nie potwierdzenie zapisu */
   lastBackupAt?: number;
+  lastExport?: { at: number; total: number; bytes: number; verified: boolean; encrypted: boolean };
+  /** użytkownik potwierdził, że plik jest zapisany w Plikach/iCloud */
+  lastBackupConfirmedAt?: number;
   backupReminderDays: number;
   aiIncludeHealth: boolean;
 }

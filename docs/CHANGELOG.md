@@ -1,4 +1,14 @@
 # Changelog
+## 0.6.0 — 2026-11-22 (ETAP 3, w toku)
+### 3A Bezpieczeństwo danych
+- Format kopii v2: liczby rekordów na tabelę, suma SHA-256 tabel, wersja schematu Dexie i aplikacji. Kopie v1 nadal się wczytują (bez sumy kontrolnej; sprawdzany format i rekordy).
+- `inspectBackup`: podgląd przed importem (data, liczba rekordów, integralność, brakujące tabele). Odrzuca plik ucięty, zmieniony, z nieznaną tabelą lub z nowszego schematu.
+- Import w jednej transakcji: błąd = rollback, obecne dane bez zmian. Brak miejsca (QuotaExceededError) ma osobny komunikat. Tabele nieobecne w kopii nie są już czyszczone (wcześniej import kopii częściowej kasował resztę).
+- Eksport w transakcji tylko do odczytu (spójny stan), po wygenerowaniu automatyczna weryfikacja pliku (odczyt, odszyfrowanie hasłem, suma, porównanie liczby rekordów z bazą).
+- Zapis w dwóch krokach: „Przygotuj kopię” → „Zapisz w Plikach / iCloud” (arkusz udostępniania iOS, w innych przeglądarkach pobranie) → „Potwierdzam: plik jest zapisany”. Przypomnienie o kopii liczy się od potwierdzenia, nie od wygenerowania.
+- Status pamięci: `navigator.storage.estimate()` i `persist()` (prośba o trwałe przechowywanie przy pierwszej kopii).
+- Testy: pełny cykl wszystkich 17 tabel (zwykła i zaszyfrowana), rozjazd z bazą, plik zmieniony/ucięty, rollback w środku importu, tabele nieobecne, baza Dexie v1 → upgrade → kopia → import.
+
 ## 0.5.0 — 2026-11-22 (ETAP 2: instruktaż treningowy i zamiana ćwiczeń)
 - Nowy silnik animacji `domain/rig.ts`: szkielet 2D ze stałymi długościami segmentów, kinematyka prosta od biodra i odwrotna (2 kości) dla kończyn, klatki kluczowe z fazami (start / ekscentryczna / dół / koncentryczna / góra), oddech i opis w każdej fazie, płynne przejścia.
 - `data/rigs.ts`: wzorce 13 ćwiczeń FBW A/B. Trzy referencyjne (RDL z hantlami, siad na wysoką ławkę, wyciskanie hantli na skosie) sprawdzone z opisami techniki z materiałów szkoleniowych (NASM, NSCA/Human Kinetics, EliteFTS, uczelniane programy S&C). Pozostałe schematyczne.
