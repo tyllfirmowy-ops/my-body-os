@@ -1,10 +1,10 @@
 """Uruchom: npm run build:single && python3 e2e/run.py [nazwa_scenariusza ...]"""
 import json, sys, time, traceback
 from common import serve, browser, new_page
-import scenarios, audit
+import scenarios, audit, weekly
 
 def main(names):
-    todo = [s for s in scenarios.ALL + audit.ALL if not names or s.__name__ in names]
+    todo = [s for s in scenarios.ALL + audit.ALL + weekly.ALL if not names or s.__name__ in names]
     results, failed = {}, 0
     with serve() as url, browser() as b:
         for s in todo:

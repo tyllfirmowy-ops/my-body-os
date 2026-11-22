@@ -242,6 +242,12 @@ export interface Settings {
   trainingWindow?: { from: string; to: string };
   /** dni oznaczone jako niedostępne / przełożony trening */
   trainingSkip?: string[];
+  /** raport tygodnia odłożony „na jutro” (data dnia odłożenia) */
+  reportSnoozedOn?: string;
+  /** cel treningów na jeden tydzień (np. lżejszy tydzień z raportu) */
+  perWeekOverride?: { weekStart: string; n: number };
+  /** użytkownik nie korzysta z kalendarza opieki nad dzieckiem */
+  custodyOff?: boolean;
   /** od tego dnia plan treningów liczy planer tygodniowy (bez kalendarza opieki); wcześniejsze dni bez zmian */
   scheduleV2From?: string;
   /** najmniejsze dostępne skoki obciążenia w jednostce użytkownika */

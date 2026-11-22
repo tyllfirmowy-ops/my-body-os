@@ -10,6 +10,8 @@ import { ALL_EXERCISES } from '../data/exercises';
 import type { BodyMeasurement } from '../domain/types';
 import { Btn, Card, copyText, cx, download, Field, NumInput, Sheet, Stat, Title, toast, Toggle } from '../ui/kit';
 import { Bars, TrendChart } from '../ui/Chart';
+import { WeeklyReportSheet } from './WeeklyReport';
+import { checkinEffects, reportDue } from '../domain/weeklyCheckin';
 
 const PERIODS = [7, 14, 28, 90] as const;
 
@@ -44,6 +46,7 @@ export function Progress({ data, d }: ScreenProps) {
   return (
     <>
       <header className="pt-2 flex items-end justify-between"><h1 className="text-2xl font-bold">Postępy</h1><Btn kind="soft" className="text-sm" onClick={() => setMeasure(true)}>+ Pomiar</Btn></header>
+      <WeeklyReportEntry data={data} d={d} />
       <div className="flex gap-1 rounded-xl bg-card2 p-1">
         {PERIODS.map((p) => <button key={p} onClick={() => setPeriod(p)} className={cx('flex-1 min-h-9 rounded-lg text-sm', period === p ? 'bg-card font-semibold' : 'text-muted')}>{p} dni</button>)}
       </div>
@@ -194,6 +197,21 @@ function Patterns({ d }: { d: ScreenProps['d'] }) {
           </div>
         );
       })}
+    </Card>
+  );
+}
+
+/** Raport tygodnia: stan ostatniego tygodnia i wypełnienie/edycja w dowolnej chwili. */
+function WeeklyReportEntry({ data, d }: { data: ScreenProps['data']; d: ScreenProps['d'] }) {
+  const [open, setOpen] = useState(false);
+  const week = reportDue(new Date(), data.weeklyCheckins ?? []).weekStart;
+  const rec = (data.weeklyCheckins ?? []).find((c) => c.id === week);
+  return (
+    <Card>
+      <Title right={<button className="min-h-11 text-sm text-accent" onClick={() => setOpen(true)}>{rec ? 'zmień' : 'wypełnij'}</button>}>Raport tygodnia {formatPl(week)}–{formatPl(addDays(week, 6))}</Title>
+      {rec ? <ul className="text-sm list-disc pl-5 space-y-1">{checkinEffects(rec).lines.map((l) => <li key={l}>{l}</li>)}</ul>
+        : <p className="text-sm text-muted">Jeszcze bez raportu. 4 pytania, ok. 30 s; odpowiedzi wpływają na plan.</p>}
+      {open && <WeeklyReportSheet data={data} d={d} weekStart={week} onClose={() => setOpen(false)} />}
     </Card>
   );
 }

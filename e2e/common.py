@@ -37,7 +37,7 @@ def new_page(b, **kw):
 def demo(pg, url):
     pg.goto(url); pg.get_by_role('button', name='Profil demo').wait_for()
     pg.get_by_role('button', name='Profil demo').click(); pg.wait_for_timeout(300)
-    pg.get_by_role('button', name='Nie').click(); pg.get_by_role('button', name='Zgadza się').click(); pg.get_by_role('button', name='Pomiń na teraz').click()
+    pg.get_by_role('button', name='Nie', exact=True).click(); pg.get_by_role('button', name='Zgadza się').click(); pg.get_by_role('button', name='Pomiń na teraz').click()
     pg.wait_for_timeout(500)
 
 def tab(pg, name):

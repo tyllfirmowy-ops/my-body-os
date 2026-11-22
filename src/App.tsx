@@ -46,7 +46,7 @@ export default function App() {
 
   if (err) return <div className="p-6">Nie można otworzyć lokalnej bazy danych: {err}. Sprawdź, czy przeglądarka nie jest w trybie prywatnym.</div>;
   if (!ready || !data || !d) return <div className="min-h-dvh grid place-items-center text-muted">Ładowanie…</div>;
-  if (!data.settings?.onboarded || !data.profile || !data.custody) return <><Onboarding data={data} /><ToastHost /></>;
+  if (!data.settings?.onboarded || !data.profile || (!data.custody && !data.settings?.custodyOff)) return <><Onboarding data={data} /><ToastHost /></>;
 
   const props: ScreenProps = { data, d, go: setTab };
   return (

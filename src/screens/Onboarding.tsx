@@ -130,17 +130,18 @@ export function Onboarding({ data }: { data: AppData }) {
       )}
       {step === 'custody' && (
         <Card className="space-y-4">
-          <div><div className="font-semibold">Kalendarz opieki 2-2-3</div><div className="text-sm text-muted">Dwa pytania, potem sprawdź podgląd.</div></div>
+          <div><div className="font-semibold">Kalendarz opieki nad dzieckiem 2-2-3 (opcjonalnie)</div><div className="text-sm text-muted">Tylko jeśli masz stały grafik opieki. Nie wpływa na treningi ani kalorie, pokazuje się na ekranie Dzisiaj.</div></div>
+          <Btn kind="soft" className="w-full" onClick={async () => { await db.settings.update('settings', { custodyOff: true }); setStep('measure'); }}>Nie dotyczy mnie</Btn>
           <Field label="Data odniesienia"><input type="date" className={inputCls} value={refDate} onChange={(e) => setRefDate(e.target.value || today())} /></Field>
           <div>
-            <div className="text-sm text-muted mb-1">Czy {formatPl(refDate)} córka jest u Ciebie?</div>
+            <div className="text-sm text-muted mb-1">Czy {formatPl(refDate)} dziecko jest u Ciebie?</div>
             <div className="grid grid-cols-2 gap-2">
               <Btn kind={withD === true ? 'primary' : 'soft'} onClick={() => setWithD(true)}>Tak</Btn>
               <Btn kind={withD === false ? 'primary' : 'soft'} onClick={() => setWithD(false)}>Nie</Btn>
             </div>
           </div>
           {cycleStart && (<>
-            <div className="text-sm text-muted">Podgląd 14 dni (kolor = córka u Ciebie). Jeśli faza się nie zgadza, zmień odpowiedź lub datę.</div>
+            <div className="text-sm text-muted">Podgląd 14 dni (kolor = dziecko u Ciebie). Jeśli faza się nie zgadza, zmień odpowiedź lub datę.</div>
             <div className="grid grid-cols-7 gap-1 text-center text-xs">
               {range(mondayOf(refDate), 14).map((dt) => {
                 const on = PATTERN_223[cycleIndex(cycleStart, dt)] === 1;

@@ -1,3 +1,4 @@
+import { activeCheckin, checkinEffects } from '../domain/weeklyCheckin';
 import { useMemo, useState } from 'react';
 import { db, now, uid } from '../db/db';
 import type { AppData } from '../db/repo';
@@ -25,6 +26,7 @@ export function MealSuggestSheet({ data, date, t, mealsPerDay, onClose }: { data
     favorites: data.foods.filter((f) => f.favorite), usage: usageFrom(data.entries), rem, t,
     todayProductIds: new Set(dayEntries.map((e) => e.productId)), dairyFree: !!data.health?.dairyAvoid,
     library: RECIPE_LIBRARY, slot: date === today() ? slotForHour(new Date().getHours() + new Date().getMinutes() / 60) : undefined, hidden: data.settings?.suggestHidden,
+    preferQuick: checkinEffects(activeCheckin(data.weeklyCheckins ?? [], today())).simplerMeals,
   });
   const hiddenCount = data.settings?.suggestHidden?.length ?? 0;
   async function hide(s: MealSuggestion) {

@@ -221,7 +221,7 @@ def onboarding_health_survey(pg, url):
     for i in range(3): cards.nth(i).get_by_role('button', name='Tak').click()
     check(pg.get_by_text('zamienniki bez mleka').count() > 0, 'brak wyjaśnienia po wyborze')
     pg.get_by_role('button', name='Dalej').click(); pg.wait_for_timeout(300)
-    pg.get_by_role('button', name='Nie').click(); pg.get_by_role('button', name='Zgadza się').click(); pg.get_by_role('button', name='Pomiń na teraz').click(); pg.wait_for_timeout(600)
+    pg.get_by_role('button', name='Nie', exact=True).click(); pg.get_by_role('button', name='Zgadza się').click(); pg.get_by_role('button', name='Pomiń na teraz').click(); pg.wait_for_timeout(600)
     tab(pg, 'Zdrowie')
     toggles = pg.locator('[role=switch]')
     states = {pg.locator('[role=switch]').nth(i).inner_text()[:40]: pg.locator('[role=switch]').nth(i).get_attribute('aria-checked') for i in range(toggles.count())}

@@ -10,8 +10,9 @@ import { actualFor, historyFor, kneeBlocked, lastSetsFor, setsForSlot, swapExerc
 import { rigFor } from '../data/rigs';
 import { COOLDOWN, WARMUP, type PrepItem } from '../data/warmup';
 import { weeklyReview } from '../domain/weeklyReview';
+import { activeCheckin, checkinEffects } from '../domain/weeklyCheckin';
 import { RigPlayer } from '../ui/RigView';
-import { addDays, formatPl, range } from '../domain/dates';
+import { addDays, formatPl, mondayOf, range } from '../domain/dates';
 import { weekSummary } from '../domain/schedule';
 import { DEFAULT_STEPS, fmtWeight, fromDisplay, loadStepKg, plannedSetsFor, suggestProgression, toDisplay, type LoadEquip, type Suggestion, type WeightUnit } from '../domain/progression';
 import type { WorkoutSession, WorkoutSet } from '../domain/types';
@@ -22,7 +23,8 @@ export function Training({ data, d }: ScreenProps) {
   const [card, setCard] = useState<ExerciseCard | null>(null);
   const [active, setActive] = useState<string | null>(d.inProgress?.id ?? null);
   const session = data.sessions.find((s) => s.id === active && s.status === 'in_progress');
-  const perWeek = data.settings?.trainingsPerWeek ?? 3;
+  const ov = data.settings?.perWeekOverride;
+  const perWeek = ov && ov.weekStart === mondayOf(d.today) ? ov.n : data.settings?.trainingsPerWeek ?? 3;
   const sum = weekSummary(data.sessions, d.today, perWeek);
   const skip = new Set(data.settings?.trainingSkip ?? []);
   const win = data.settings?.trainingWindow ?? { from: '09:00', to: '15:00' };
@@ -157,7 +159,8 @@ const unitOf = (data: AppData): WeightUnit => data.settings?.weightUnit ?? 'kg';
 function progressFor(data: AppData, d: Derived, ex: ExerciseCard, te: { sets: number; repMin: number; repMax: number }, plannedSets: number, excludeSession?: string): Suggestion {
   const kneeBlock = kneeBlocked(d.safety.level, ex.knee);
   const kneePain = d.morningToday?.kneePain ?? 0;
-  const noIncrease = d.readiness.level === 'B' ? 'Gorszy dzień (plan B)' : ex.knee !== 'none' && kneePain >= 3 ? `Ból kolana ${kneePain}/10 w check-inie` : undefined;
+  const kneeWeek = ex.knee !== 'none' && checkinEffects(activeCheckin(data.weeklyCheckins ?? [], d.today)).kneeCaution;
+  const noIncrease = d.readiness.level === 'B' ? 'Gorszy dzień (plan B)' : ex.knee !== 'none' && kneePain >= 3 ? `Ból kolana ${kneePain}/10 w check-inie` : kneeWeek ? 'Kolano bolało w tym tygodniu (raport)' : undefined;
   return suggestProgression({
     history: historyFor(data.sessions, data.sets, ex.id, excludeSession), today: d.today, plannedSets, repMin: te.repMin, repMax: te.repMax,
     step: loadStepKg(ex, unitOf(data), data.settings?.loadSteps), safetyBlock: kneeBlock,

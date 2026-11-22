@@ -1,3 +1,4 @@
+import { activeCheckin, checkinEffects, type WeeklyCheckin } from '../domain/weeklyCheckin';
 import { z } from 'zod';
 import { db, now, uid } from './db';
 import { SEED_FOODS } from '../data/foods';
@@ -20,17 +21,17 @@ export interface AppData {
   profile?: UserProfile; health?: HealthProfile; plans: PlanVersion[]; morning: MorningCheckIn[]; evening: EveningCheckIn[];
   measurements: BodyMeasurement[]; foods: FoodProduct[]; entries: FoodEntry[]; water: WaterLog[]; sessions: WorkoutSession[]; sets: WorkoutSet[];
   custody?: CustodyConfig; overrides: CalendarOverride[]; symptoms: SymptomLog[]; labs: LabResult[]; feedback: RecommendationFeedback[]; settings?: Settings;
-  recipes: Recipe[]; mealTemplates: DayTemplateRec[]; workoutTemplates: WorkoutTemplateRec[];
+  recipes: Recipe[]; mealTemplates: DayTemplateRec[]; workoutTemplates: WorkoutTemplateRec[]; weeklyCheckins: WeeklyCheckin[];
 }
 
 export async function loadAll(): Promise<AppData> {
-  const [profile, health, plans, morning, evening, measurements, foods, entries, water, sessions, sets, custody, overrides, symptoms, labs, feedback, settings, recipes, mealTemplates, workoutTemplates] = await Promise.all([
+  const [profile, health, plans, morning, evening, measurements, foods, entries, water, sessions, sets, custody, overrides, symptoms, labs, feedback, settings, recipes, mealTemplates, workoutTemplates, weeklyCheckins] = await Promise.all([
     db.profile.get('me'), db.health.get('me'), db.plans.orderBy('validFrom').toArray(), db.morning.toArray(), db.evening.toArray(),
     db.measurements.orderBy('date').toArray(), db.foods.toArray(), db.entries.toArray(), db.water.toArray(), db.sessions.orderBy('date').toArray(),
     db.sets.toArray(), db.custody.get('custody'), db.overrides.toArray(), db.symptoms.toArray(), db.labs.toArray(), db.feedback.toArray(), db.settings.get('settings'),
-    db.recipes.toArray(), db.mealTemplates.toArray(), db.workoutTemplates.toArray(),
+    db.recipes.toArray(), db.mealTemplates.toArray(), db.workoutTemplates.toArray(), db.weeklyCheckins.toArray(),
   ]);
-  return { profile, health, plans, morning, evening, measurements, foods, entries, water, sessions, sets, custody, overrides, symptoms, labs, feedback, settings, recipes, mealTemplates, workoutTemplates };
+  return { profile, health, plans, morning, evening, measurements, foods, entries, water, sessions, sets, custody, overrides, symptoms, labs, feedback, settings, recipes, mealTemplates, workoutTemplates, weeklyCheckins };
 }
 
 export async function seedIfEmpty() {
@@ -118,7 +119,10 @@ export function snapshots(d: AppData, from: LocalDate, to: LocalDate, planned: S
 /** Planer obowiązujący dla daty: przed `scheduleV2From` dawny (zgodność historycznych bilansów), od niej tygodniowy. */
 export function scheduleSwitch(d: AppData, today: LocalDate): LocalDate { return d.settings?.scheduleV2From ?? today; }
 const refsOf = (d: AppData, before?: LocalDate) => d.sessions.filter((s) => !before || s.date < before).map((s) => ({ date: s.date, templateId: s.templateId, status: s.status }));
-export const weeklyOpts = (d: AppData) => ({ perWeek: d.settings?.trainingsPerWeek ?? 3, skip: d.settings?.trainingSkip ?? [] });
+export const weeklyOpts = (d: AppData) => {
+  const o = d.settings?.perWeekOverride;
+  return { perWeek: d.settings?.trainingsPerWeek ?? 3, skip: d.settings?.trainingSkip ?? [], perWeekFor: o ? (ws: LocalDate) => (ws === o.weekStart ? o.n : undefined) : undefined };
+};
 
 /** Historyczne "plany" do rozliczeń: dzień był zaplanowany, jeśli plan liczony od tego dnia wskazywał go jako pierwszy. */
 export function historicalPlanned(d: AppData, from: LocalDate, to: LocalDate, today: LocalDate = todayFn()): Set<LocalDate> {
@@ -162,6 +166,7 @@ export function derive(d: AppData, today: LocalDate = todayFn()) {
   const adapt = plan ? evaluateAdaptation({
     today, planStart: start, lastPlanChange: lastChange, kcalTarget: plan.kcal, weights, waists: waistSeries(d), intakeDays,
     healthFlag: safety.level === 'urgent' || !!morningToday?.symptoms.includes('illness'),
+    strongHungerOrWeakness: checkinEffects(activeCheckin(d.weeklyCheckins ?? [], today)).strongHunger,
   }) : undefined;
   const lastActivity = [...d.morning.map((m) => m.date), ...d.evening.map((e) => e.date), ...d.entries.map((e) => e.date)].sort().at(-1);
   const bmr = d.profile ? bmrMifflin({ weightKg: weights.at(-1)?.value ?? d.profile.declaredWeightKg, heightCm: d.profile.heightCm, age: ageOn(d.profile, today), sex: d.profile.sex }) : null;

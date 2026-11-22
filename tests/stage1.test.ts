@@ -91,7 +91,7 @@ describe('szybki wpis: nieznane ≠ 0', () => {
     await v1.table('morning').add({ date: '2026-11-20', weightKg: 110, symptoms: [], createdAt: 0, updatedAt: 0 });
     v1.close();
     const db2 = new BodyDB(name); await db2.open();
-    expect(db2.verno).toBe(4);
+    expect(db2.verno).toBe(5);
     expect((await db2.entries.get('q'))!.unknown).toEqual(['protein', 'fat', 'carbs', 'fiber']);
     expect((await db2.entries.get('a'))!.unknown).toBeUndefined();
     expect((await db2.morning.get('2026-11-20'))!.weightKg).toBe(110);

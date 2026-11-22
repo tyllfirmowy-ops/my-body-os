@@ -9,6 +9,15 @@
 - EVIDENCE.md: ACSM 2026 (PMID 41843416), WHO 2021, Bruggisser 2023 (pora treningu), heurystyki planowania.
 - Testy: tests/w2b.test.ts (12), E2E `training_availability`.
 
+### Raport tygodnia i drugi użytkownik
+- Raport tygodnia (4 pytania, ok. 30 s): samopoczucie, dieta + głód, kolano (tylko gdy zgłoszone w ankiecie zdrowotnej), co zmienić; opcjonalna notatka pokazywana za tydzień. Dane, które aplikacja zna (treningi, waga, kalorie, sen), wyświetlane bez pytania.
+- Każda odpowiedź ma skutek (`domain/weeklyCheckin.ts`, `checkinEffects`): ciężka dieta z głodem → wejście `strongHungerOrWeakness` silnika kalorii (bez obniżki, możliwa propozycja podniesienia do akceptacji); słabe samopoczucie / „mniej treningów” → propozycja celu 2 treningi na najbliższy tydzień (`Settings.perWeekOverride`, `planWeekly.perWeekFor`); kolano „wyraźnie” → bez dokładania ciężaru w ćwiczeniach na kolano przez tydzień; „prostsze posiłki” / ciężka dieta → podpowiedzi posiłków najpierw szybkie (`preferQuick`). Brak raportu = brak skutków.
+- Przypomnienie w aplikacji: niedziela od 20:00 karta na ekranie Dzisiaj; jeśli niewypełniony, od poniedziałku 12:00 raz dziennie („Jutro” odkłada do następnego dnia), aż do wypełnienia albo kolejnej niedzieli 20:00. Nowy użytkownik bez raportu za tydzień sprzed założenia konta. Przypomnienie systemowe: plik kalendarza (.ics, co niedzielę 20:30); bez serwera PWA nie wyśle powiadomienia o godzinie.
+- Raport w Postępach: skutki ostatniego raportu, wypełnienie i zmiana w dowolnej chwili.
+- Dexie v5: tabela `weeklyCheckins` (nowa, istniejące dane bez zmian); kopia zapasowa ją obejmuje, starsze kopie importują się bez zmian.
+- Drugi użytkownik (np. brat na swoim telefonie): ten sam adres, osobne dane w jego przeglądarce. Kalendarz opieki w zakładaniu konta opcjonalny („Nie dotyczy mnie”, `Settings.custodyOff`), teksty bez „córki”; pytanie o kolano tylko przy zgłoszonym problemie; formy czasowników wg płci z profilu.
+- Testy: tests/weekly.test.ts (13); E2E `weekly_report`, `weekly_snooze`, `second_user_clean`.
+
 ### Prosty trening w trybie skupienia (decyzja: mniej progresji w treningu)
 - Trening jako osobny ekran bez dolnej nawigacji: duży „Start” → Rozgrzewka → ćwiczenia → Rozciąganie (nieobowiązkowe) → „Zakończ trening”. Pasek etapów z ✓, licznik „x/7 ✓”, „Dalej: <następne>”, „Wstecz”, „Pomiń ćwiczenie” z etykietą.
 - Rozgrzewka (ok. 7–8 min) i rozciąganie (ok. 3 min) z opisem i „czuciem”, odhaczane (zapis w `WorkoutSession.prep`, przetrwa restart), wideo przez wyszukiwanie YouTube; bez nowych animacji. Dane: src/data/warmup.ts.

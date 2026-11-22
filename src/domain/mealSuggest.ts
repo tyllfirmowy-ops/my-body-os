@@ -75,9 +75,11 @@ export interface SuggestInput {
   slot?: MealSlot;
   /** propozycje ukryte przez użytkownika („Nie proponuj”) */
   hidden?: string[];
+  /** z raportu tygodnia: najpierw szybkie przepisy */
+  preferQuick?: boolean;
 }
 
-interface Raw { id: string; title: string; meal?: MealSlot; lib?: boolean; libChanges?: string[]; base: Nutrients; unknownKcal: Partial<Record<MacroKey, number>>; items: RecipeItem[]; missing: number; make: (f: number) => { source: SuggestionSource; portionLabel: string; factor: number }; usageKey: string[]; productIds: string[] }
+interface Raw { id: string; title: string; meal?: MealSlot; minutes?: number; lib?: boolean; libChanges?: string[]; base: Nutrients; unknownKcal: Partial<Record<MacroKey, number>>; items: RecipeItem[]; missing: number; make: (f: number) => { source: SuggestionSource; portionLabel: string; factor: number }; usageKey: string[]; productIds: string[] }
 
 /** Skala porcji do budżetu kcal, zaokrąglona do kroku i ograniczona. */
 function fitFactor(baseKcal: number, kcal: number, step: number, min: number, max: number): number {
@@ -97,7 +99,7 @@ export function suggestMeals(i: SuggestInput, limit = 3): MealSuggestion[] {
     const tot = recipeTotals(products, r.items, r.servings);
     const per = tot.perServing;
     const s = Math.max(1, r.servings);
-    raws.push({ id: `r:${r.id}`, title: r.name, meal: r.meal, lib, libChanges: changes, base: per, unknownKcal: Object.fromEntries(Object.entries(tot.unknownKcal).map(([k, v]) => [k, (v ?? 0) / s])), items: r.items, missing: tot.missing.length,
+    raws.push({ id: `r:${r.id}`, title: r.name, meal: r.meal, minutes: r.minutes, lib, libChanges: changes, base: per, unknownKcal: Object.fromEntries(Object.entries(tot.unknownKcal).map(([k, v]) => [k, (v ?? 0) / s])), items: r.items, missing: tot.missing.length,
       make: (f) => ({ source: { kind: 'recipe', recipe: r, portions: f }, portionLabel: `${f} porc.`, factor: f }), usageKey: [`recipe:${r.id}`], productIds: r.items.map((x) => x.productId) });
   }
   const seenMeals = new Set<string>();
@@ -150,6 +152,7 @@ export function suggestMeals(i: SuggestInput, limit = 3): MealSuggestion[] {
     if (rem.fat >= 0 && n.fat > Math.max(10, rem.fat) * 1.15) { score -= 15; warnings.push(`Tłuszcz ${Math.round(n.fat)} g przy pozostałych ${Math.max(0, Math.round(rem.fat))} g.`); }
     if (n.carbs > Math.max(15, rem.carbs) * 1.15) { score -= 12; warnings.push(`Węglowodany ${Math.round(n.carbs)} g przy pozostałych ${Math.max(0, Math.round(rem.carbs))} g.`); }
     if (i.t.carbsPerMealMaxG && n.carbs > i.t.carbsPerMealMaxG) { score -= 15; warnings.push(`Więcej niż ${i.t.carbsPerMealMaxG} g węglowodanów na posiłek (ustawienie insulinooporności).`); }
+    if (i.preferQuick && raw.minutes !== undefined) { if (raw.minutes <= 15) { score += 10; reasons.push(`Szybkie: ok. ${raw.minutes} min.`); } else if (raw.minutes > 25) score -= 8; }
     if (i.t.dayType === 'training' && rem.carbs > 60 && n.carbs >= 40) { score += 6; reasons.push('Dzień treningowy: posiłek z węglowodanami.'); }
     if (rem.fiber > 5 && n.fiber >= 6 && coverage.fiber >= COVERAGE_MIN) { score += 6; reasons.push(`Błonnik ${Math.round(n.fiber)} g (zostało ${Math.round(rem.fiber)} g).`); }
     // znane, lubiane, ale bez powtarzania tego samego dnia

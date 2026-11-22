@@ -15,6 +15,8 @@ import { MorningSheet, EveningSheet } from './CheckIns';
 
 export function templateFor(date: string, user: DayTemplateRec[] = []) { return effectiveTemplates(DAY_TEMPLATES, user)[((diffDays('2026-01-05', date) % 3) + 3) % 3]; }
 
+import { WeeklyReportCard } from './WeeklyReport';
+
 export function Today({ data, d, go }: ScreenProps) {
   const [mOpen, setMOpen] = useState(false);
   const [eOpen, setEOpen] = useState(false);
@@ -80,7 +82,7 @@ export function Today({ data, d, go }: ScreenProps) {
       <header className="flex items-end justify-between pt-2">
         <div><div className="text-sm text-muted">{formatPl(d.today)}</div><h1 className="text-2xl font-bold">Cześć{data.profile?.name ? `, ${data.profile.name}` : ''}</h1></div>
         <div className="flex gap-1.5">
-          {d.withDaughterToday && <Badge tone="accent"><Baby size={13} /> dzień z córką</Badge>}
+          {d.withDaughterToday && <Badge tone="accent"><Baby size={13} /> dzień z dzieckiem</Badge>}
           <Badge tone={lvl === 'A' ? 'accent' : 'warn'}>Plan {lvl}</Badge>
         </div>
       </header>
@@ -92,6 +94,8 @@ export function Today({ data, d, go }: ScreenProps) {
           {a.level === 'urgent' && <a href="tel:112" className="mt-3 inline-flex min-h-12 items-center rounded-xl bg-danger px-4 font-semibold text-white">Zadzwoń 112</a>}{a.level === "urgent" && <span className="ml-3 text-sm">numer alarmowy: <b>112</b></span>}
         </div>
       ))}
+
+      <WeeklyReportCard data={data} d={d} />
 
       {d.returnMode && !d.morningToday && (
         <Card className="border-accent">

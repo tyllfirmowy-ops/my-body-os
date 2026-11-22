@@ -77,6 +77,8 @@ export interface WeeklyOpts {
   minGapDays?: number;
   /** dni oznaczone przez użytkownika jako niedostępne / przełożone */
   skip?: Set<LocalDate> | LocalDate[];
+  /** cel dla konkretnego tygodnia (np. lżejszy tydzień); undefined = perWeek */
+  perWeekFor?: (weekStart: LocalDate) => number | undefined;
 }
 
 /**
@@ -101,7 +103,7 @@ export function planWeekly(o: WeeklyOpts): PlannedWorkout[] {
     if (skip.has(d)) continue;
     if (lastDate && diffDays(lastDate, d) < gap) continue;
     const wk = mondayOf(d);
-    if ((perWk.get(wk) ?? 0) >= perWeek) continue;
+    if ((perWk.get(wk) ?? 0) >= (o.perWeekFor?.(wk) ?? perWeek)) continue;
     plan.push({ date: d, templateId: nextType });
     perWk.set(wk, (perWk.get(wk) ?? 0) + 1);
     lastDate = d;
