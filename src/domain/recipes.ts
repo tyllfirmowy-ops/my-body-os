@@ -70,7 +70,7 @@ export function recipeEntry(r: Recipe, products: ProductMap, portions: number, d
   // brak produktu w bazie: nie znamy niczego o tej części, więc cały wpis traktujemy jako niepełny
   const unknown = tot.missing.length ? [...MACROS] : undefined;
   return {
-    id, createdAt: t, updatedAt: t, date, meal, productId: `recipe:${r.id}`, recipeId: r.id,
+    id, createdAt: t, updatedAt: t, date, meal, productId: `recipe:${r.id}`, recipeId: r.id, portions,
     grams: Math.round(tot.grams * f), snapshot: { ...snap, name: `${r.name} (${portions} porc.)` },
     ...(Object.keys(unknownKcal).length ? { unknownKcal } : {}), ...(unknown ? { unknown } : {}), source: 'manual',
   };
@@ -127,4 +127,32 @@ export function shoppingFrom(products: ProductMap, groups: { items: RecipeItem[]
     const p = products.get(productId);
     return p ? [{ productId, name: p.name, grams: Math.round(grams), basis: p.basis }] : [];
   }).sort((a, b) => a.name.localeCompare(b.name, 'pl'));
+}
+
+export const PORTION_LIMITS = [0.25, 20] as const;
+/** Porcje wpisu przepisu: pole portions, a dla wpisów sprzed 0.6.1 liczba z nazwy „(x porc.)”. */
+export function entryPortions(e: FoodEntry): number | undefined {
+  if (!e.recipeId) return undefined;
+  if (e.portions && e.portions > 0) return e.portions;
+  const m = e.snapshot.name.match(/\(([\d.,]+) porc\.\)\s*$/);
+  const v = m ? Number(m[1].replace(',', '.')) : NaN;
+  return Number.isFinite(v) && v > 0 ? v : undefined;
+}
+
+/**
+ * Zmiana porcji wpisu przepisu w dzienniku: proporcjonalnie z WŁASNEGO snapshotu wpisu
+ * (nie z obecnej wersji przepisu, który mógł się zmienić). Inne wpisy i przepis bez zmian.
+ */
+export function rescaleRecipeEntry(e: FoodEntry, portions: number, t: number): FoodEntry {
+  const old = entryPortions(e);
+  if (old === undefined) throw new Error('To nie jest wpis przepisu z porcjami');
+  if (!(portions >= PORTION_LIMITS[0] && portions <= PORTION_LIMITS[1])) throw new Error('Porcje poza zakresem 0,25–20');
+  const f = portions / old;
+  const sn = e.snapshot;
+  const r1 = (x: number) => Math.round(x * 10) / 10;
+  const scaled = { kcal: Math.round(sn.kcal * f), protein: r1(sn.protein * f), fat: r1(sn.fat * f), carbs: r1(sn.carbs * f), fiber: r1(sn.fiber * f),
+    ...(sn.sugar !== undefined ? { sugar: r1(sn.sugar * f) } : {}), ...(sn.satFat !== undefined ? { satFat: r1(sn.satFat * f) } : {}), ...(sn.salt !== undefined ? { salt: r1(sn.salt * f) } : {}) };
+  const base = sn.name.replace(/\s*\([\d.,]+ porc\.\)\s*$/, '');
+  const unknownKcal = e.unknownKcal ? Object.fromEntries(Object.entries(e.unknownKcal).map(([k, v]) => [k, (v ?? 0) * f])) : undefined;
+  return { ...e, portions, grams: Math.round(e.grams * f), snapshot: { ...sn, ...scaled, name: `${base} (${portions} porc.)` }, ...(unknownKcal ? { unknownKcal } : {}), updatedAt: t };
 }

@@ -125,6 +125,8 @@ export interface FoodEntry extends Meta {
   /** część kcal wpisu z nieznanym makro (np. przepis z jednym składnikiem bez pełnej etykiety) */
   unknownKcal?: Partial<Record<MacroKey, number>>;
   recipeId?: string;
+  /** liczba porcji przepisu w tym wpisie (≤0.6.0: odczytywana z nazwy) */
+  portions?: number;
 }
 
 export interface RecipeItem { productId: string; grams: number }
@@ -207,6 +209,8 @@ export interface Settings {
   lastBackupConfirmedAt?: number;
   /** aktywny wariant planu dla slotu A/B (brak = domyślny lub edytowany 'A'/'B') */
   activeWorkouts?: { A?: string; B?: string };
+  /** klucz cyklu przypomnienia o kopii odłożonego w porannym check-inie */
+  backupReminderDismissed?: string;
   backupReminderDays: number;
   aiIncludeHealth: boolean;
 }

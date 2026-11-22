@@ -14,8 +14,8 @@ export function useLive<T>(fn: () => Promise<T>, deps: unknown[] = []): T | unde
 
 export const cx = (...c: (string | false | null | undefined)[]) => c.filter(Boolean).join(' ');
 
-export function Card({ children, className, onClick }: { children: ReactNode; className?: string; onClick?: () => void }) {
-  return <div onClick={onClick} className={cx('rounded-2xl bg-card border border-line p-4 rise', onClick && 'active:scale-[0.99] transition cursor-pointer', className)}>{children}</div>;
+export function Card({ children, className, onClick, id }: { children: ReactNode; className?: string; onClick?: () => void; id?: string }) {
+  return <div id={id} onClick={onClick} className={cx('rounded-2xl bg-card border border-line p-4 rise', onClick && 'active:scale-[0.99] transition cursor-pointer', className)}>{children}</div>;
 }
 export function Title({ children, right }: { children: ReactNode; right?: ReactNode }) {
   return <div className="flex items-center justify-between mb-2"><h2 className="text-xs font-semibold uppercase tracking-wider text-muted">{children}</h2>{right}</div>;

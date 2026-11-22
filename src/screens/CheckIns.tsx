@@ -4,12 +4,14 @@ import { addDays } from '../domain/dates';
 import { sleepMinutes } from '../domain/dates';
 import { SYMPTOM_LABELS } from '../domain/safety';
 import { MISS_LABEL } from '../domain/coaching';
+import { backupReminder } from '../domain/storageDiag';
 import type { EveningCheckIn, MissReason, MorningCheckIn, SymptomFlag } from '../domain/types';
 import type { AppData, Derived } from '../db/repo';
 import type { HealthSync } from '../domain/sync';
 import { Btn, cx, Field, inputCls, NumInput, Scale, Sheet, toast, Toggle } from '../ui/kit';
 
-export function MorningSheet({ open, onClose, data, d }: { open: boolean; onClose: () => void; data: AppData; d: Derived }) {
+export function MorningSheet({ open, onClose, data, d, onBackup }: { open: boolean; onClose: () => void; data: AppData; d: Derived; onBackup?: () => void }) {
+  const reminder = backupReminder({ confirmedAt: data.settings?.lastBackupConfirmedAt, dismissedKey: data.settings?.backupReminderDismissed, now: now(), everyDays: data.settings?.backupReminderDays ?? 7 });
   const prev = data.morning.find((m) => m.date === addDays(d.today, -1));
   const cur = d.morningToday;
   const [f, setF] = useState<Partial<MorningCheckIn>>(() => cur ?? { bedTime: prev?.bedTime, wakeTime: prev?.wakeTime, symptoms: [] });
@@ -19,11 +21,16 @@ export function MorningSheet({ open, onClose, data, d }: { open: boolean; onClos
   const set = (p: Partial<MorningCheckIn>) => setF((x) => ({ ...x, ...p }));
   const toggleSym = (s: SymptomFlag) => set({ symptoms: f.symptoms?.includes(s) ? f.symptoms.filter((x) => x !== s) : [...(f.symptoms ?? []), s] });
 
-  async function save() {
+  async function save(thenBackup = false) {
     const t = now();
     await db.morning.put({ ...f, date: d.today, symptoms: f.symptoms ?? [], sleepMinutes: sleep ?? f.sleepMinutes, createdAt: cur?.createdAt ?? t, updatedAt: t } as MorningCheckIn);
     if (daughter !== d.withDaughterToday) await db.overrides.put({ date: d.today, withDaughter: daughter, updatedAt: t });
     toast('Check-in zapisany'); onClose();
+    if (thenBackup) onBackup?.();
+  }
+  async function snooze() {
+    if (reminder.key) await db.settings.update('settings', { backupReminderDismissed: reminder.key });
+    toast('Przypomnę w kolejnym tygodniu');
   }
   return (
     <Sheet open={open} onClose={onClose} title="Poranny check-in">
@@ -54,7 +61,11 @@ export function MorningSheet({ open, onClose, data, d }: { open: boolean; onClos
           ))}
         </div>
       )}
-      <Btn className="w-full" onClick={save}>Zapisz</Btn>
+      {reminder.due && <div className="rounded-xl border border-warn p-3 text-sm space-y-2">
+        <div><b>Kopia zapasowa</b>: {reminder.days !== undefined ? `ostatnia potwierdzona ${reminder.days} dni temu.` : 'brak potwierdzonej kopii.'} Dane są tylko na tym telefonie.</div>
+        <div className="flex gap-2"><Btn kind="soft" className="flex-1 text-sm" onClick={() => save(true)}>Zapisz i zrób kopię</Btn><Btn kind="ghost" className="text-sm" onClick={snooze}>Za tydzień</Btn></div>
+      </div>}
+      <Btn className="w-full" onClick={() => save()}>Zapisz</Btn>
     </Sheet>
   );
 }

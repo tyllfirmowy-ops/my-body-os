@@ -116,4 +116,49 @@ def food_search(pg, url, ctx):
     ctx.set_offline(False)
     return top
 
-ALL = [exercise_card_and_swap, backup_roundtrip, recipe_flow, workout_plan_flow, coach_feedback, food_search]
+def storage_diagnostics(pg, url):
+    demo(pg, url); tab(pg, 'Zdrowie')
+    check(pg.get_by_text('Pamięć urządzenia').count() > 0, 'brak karty diagnostyki')
+    pg.get_by_role('button', name='Test zapisu').click(); pg.get_by_text(re.compile('Test zapisu udany')).wait_for(timeout=3000)
+    return {'persisted_line': pg.get_by_text('persisted():').inner_text()}
+
+CLEAR_DISMISS = "async () => { const r = indexedDB.open('my-body-os'); await new Promise(ok => r.onsuccess = ok); const db = r.result; const tx = db.transaction('settings', 'readwrite'); const st = tx.objectStore('settings'); const g = st.get('settings'); await new Promise(ok => g.onsuccess = ok); const s = g.result; delete s.backupReminderDismissed; st.put(s); await new Promise(ok => tx.oncomplete = ok); db.close(); }"
+
+def morning_backup_reminder(pg, url):
+    demo(pg, url)
+    pg.get_by_text('Poranny check-in').first.click(); pg.wait_for_timeout(300)
+    check(dialog(pg).get_by_text('brak potwierdzonej kopii').count() > 0, 'brak przypomnienia o kopii bez potwierdzonej kopii')
+    dialog(pg).get_by_role('button', name='Za tydzień').click(); pg.wait_for_timeout(300)
+    check(dialog(pg).get_by_text('brak potwierdzonej kopii').count() == 0, 'przypomnienie nie znika po „Za tydzień”')
+    close_dialog(pg); pg.reload(); pg.wait_for_timeout(800)
+    pg.get_by_text('Poranny check-in').first.click(); pg.wait_for_timeout(300)
+    check(dialog(pg).get_by_text('brak potwierdzonej kopii').count() == 0, 'przypomnienie wraca po odświeżeniu')
+    close_dialog(pg)
+    pg.evaluate(CLEAR_DISMISS); pg.reload(); pg.wait_for_timeout(800)
+    pg.get_by_text('Poranny check-in').first.click(); pg.wait_for_timeout(300)
+    dialog(pg).get_by_role('button', name='Zapisz i zrób kopię').click(); pg.wait_for_timeout(700)
+    check(pg.get_by_role('button', name='Przygotuj kopię').is_visible(), 'nie przeniesiono do karty kopii')
+    return {'ok': True}
+
+def recipe_portions_in_diary(pg, url):
+    demo(pg, url); tab(pg, 'Dieta')
+    pg.get_by_role('button', name='Przepisy').click(); pg.get_by_role('button', name='Nowy przepis').click()
+    pg.get_by_placeholder('np. Kurczak curry meal prep').fill('E2E porcje')
+    pg.get_by_role('button', name='Dodaj składnik').click(); pg.wait_for_timeout(150)
+    pg.get_by_placeholder('Szukaj w bazie (np. kurczak, ryż)…').fill('ryż biały suchy'); pg.wait_for_timeout(150)
+    dialog(pg).locator('button.w-full.flex').first.click(); pg.wait_for_timeout(150)
+    dialog(pg).locator('input[inputmode=decimal]').first.fill('100'); dialog(pg).get_by_role('button', name='Dodaj', exact=True).click(); pg.wait_for_timeout(150)
+    dialog(pg).get_by_role('button', name='Dodaj 1 porc. do dziennika').click(); pg.wait_for_timeout(400)
+    pg.get_by_text('E2E porcje (1 porc.)').first.click(); pg.wait_for_timeout(300)
+    kcal = lambda: int(dialog(pg).get_by_text(re.compile(r'^\d+ kcal ·')).inner_text().split(' ')[0])
+    k0 = kcal()
+    for _ in range(4): dialog(pg).get_by_role('button', name='Więcej porcji').click()
+    k1 = kcal()
+    check(abs(k1 - 2 * k0) <= 1, f'2 porcje ≠ 2× kcal ({k0} → {k1})')
+    dialog(pg).get_by_role('button', name='Zapisz porcje').click(); pg.wait_for_timeout(400)
+    check(pg.get_by_text('E2E porcje (2 porc.)').count() > 0, 'wpis nie zmienił porcji')
+    pg.reload(); pg.wait_for_timeout(800); tab(pg, 'Dieta')
+    check(pg.get_by_text('E2E porcje (2 porc.)').count() > 0, 'zmiana porcji nie przetrwała odświeżenia')
+    return {'kcal_1_porc': k0, 'kcal_2_porc': k1}
+
+ALL = [exercise_card_and_swap, backup_roundtrip, recipe_flow, workout_plan_flow, coach_feedback, food_search, storage_diagnostics, morning_backup_reminder, recipe_portions_in_diary]

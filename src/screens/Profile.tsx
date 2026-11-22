@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Download, Upload, Trash2, Moon, Sun } from 'lucide-react';
 import type { ScreenProps } from '../App';
 import { db, now, uid } from '../db/db';
+import { classifyStorageError, clearStorageErrors, diagnose, logStorageError, readStorageErrors, type StorageInfo } from '../domain/storageDiag';
 import { exportAll, importAll, encryptBackup, isEncrypted, decryptBackup, wipeAll, inspectBackup, verifyBackupText, storageStatus, requestPersist, type Inspect, type Verify } from '../db/backup';
 import { range, formatPl, diffDays } from '../domain/dates';
 import { withDaughter } from '../domain/schedule';
@@ -26,7 +27,29 @@ export function Profile({ data, d }: ScreenProps) {
   const [preview, setPreview] = useState<Inspect | null>(null);
   const [busy, setBusy] = useState(false);
   const [storage, setStorage] = useState<{ persisted?: boolean; usage?: number; quota?: number }>({});
+  const [writeTest, setWriteTest] = useState<StorageInfo['writeTest']>();
+  const [errLog, setErrLog] = useState(() => readStorageErrors(localStorage));
   useEffect(() => { storageStatus().then(setStorage); }, []);
+  useEffect(() => {
+    if (sessionStorage.getItem('scrollTo') === 'backup') { sessionStorage.removeItem('scrollTo'); setTimeout(() => document.getElementById('backup')?.scrollIntoView({ behavior: 'smooth' }), 100); }
+  }, []);
+  const standalone = typeof matchMedia !== 'undefined' && (matchMedia('(display-mode: standalone)').matches || (navigator as Navigator & { standalone?: boolean }).standalone === true);
+  const diag = diagnose({ supported: typeof indexedDB !== 'undefined', ...storage, standalone, errors: errLog, writeTest }, now());
+  async function runWriteTest() {
+    const t0 = performance.now();
+    try {
+      await db.transaction('rw', db.settings, async () => { const s = await db.settings.get('settings'); if (s) await db.settings.put(s); });
+      setWriteTest({ ok: true, ms: Math.round(performance.now() - t0) });
+    } catch (e) {
+      const c = classifyStorageError(e);
+      if (c) { logStorageError(localStorage, c, now()); setErrLog(readStorageErrors(localStorage)); }
+      setWriteTest({ ok: false, error: c?.name ?? (e as Error)?.name ?? 'błąd' });
+    }
+  }
+  async function askPersist() {
+    const r = await requestPersist(); setStorage(await storageStatus());
+    toast(r === true ? 'Pamięć oznaczona jako trwała' : r === false ? 'Przeglądarka odmówiła (na iOS zwykle pomaga dodanie do ekranu głównego)' : 'Przeglądarka nie obsługuje tej funkcji');
+  }
 
   async function prepareExport() {
     setBusy(true);
@@ -168,11 +191,25 @@ export function Profile({ data, d }: ScreenProps) {
       </Card>
 
       <Card>
+        <Title>Pamięć urządzenia</Title>
+        <div className="text-xs text-muted space-y-0.5 num">
+          <div>persisted(): {storage.persisted === undefined ? 'brak odpowiedzi' : storage.persisted ? 'tak (trwała)' : 'nie'} · tryb: {standalone ? 'aplikacja z ekranu głównego' : 'przeglądarka'}</div>
+          <div>Zajęte: {storage.usage !== undefined ? mb(storage.usage) : 'brak danych'}{storage.quota ? ` z limitu ${mb(storage.quota)} (${Math.round((100 * (storage.usage ?? 0)) / storage.quota)}%)` : ''}</div>
+          <div>Błędy zapisu: {errLog.length ? `${errLog.length}, ostatni ${new Date(errLog[0].t).toLocaleString('pl-PL')} (${errLog[0].name})` : 'brak'}</div>
+        </div>
+        <div className="mt-2 space-y-1">{diag.items.map((i) => <p key={i.text} className={cx('text-xs', i.level === 'danger' ? 'text-danger' : i.level === 'warn' ? 'text-warn' : i.level === 'ok' ? 'text-accent' : 'text-muted')}>{i.text}</p>)}</div>
+        <div className="grid grid-cols-2 gap-2 mt-2">
+          <Btn kind="soft" className="text-sm" onClick={runWriteTest}>Test zapisu</Btn>
+          <Btn kind="soft" className="text-sm" onClick={askPersist} disabled={storage.persisted === true}>Poproś o trwałą pamięć</Btn>
+        </div>
+        {errLog.length > 0 && <Btn kind="ghost" className="w-full mt-1 text-xs" onClick={() => { clearStorageErrors(localStorage); setErrLog([]); }}>Wyczyść rejestr błędów</Btn>}
+      </Card>
+
+      <Card id="backup">
         <Title>Kopia zapasowa</Title>
         <div className="text-xs text-muted mb-2 space-y-0.5">
           <div>Potwierdzona kopia: {confirmed ? new Date(confirmed).toLocaleString('pl-PL') : 'brak'}</div>
           <div>Ostatnio wygenerowany plik: {lastExport ? `${new Date(lastExport.at).toLocaleString('pl-PL')}${lastExport.total ? ` · ${lastExport.total} rekordów · ${mb(lastExport.bytes)}` : ''} · ${lastExport.verified ? 'zweryfikowany' : 'bez weryfikacji'}` : 'nigdy'}</div>
-          <div>Pamięć przeglądarki: {storage.usage !== undefined ? `${mb(storage.usage)}${storage.quota ? ` z ${mb(storage.quota)}` : ''}` : 'brak danych'} · trwała: {storage.persisted === undefined ? 'nieznane' : storage.persisted ? 'tak' : 'nie'}</div>
         </div>
         <Field label="Hasło kopii (opcjonalne, zapamiętaj je)"><input type="password" className={inputCls} value={pass} onChange={(e) => setPass(e.target.value)} autoComplete="new-password" /></Field>
         <div className="grid grid-cols-2 gap-2 mt-3">
@@ -201,7 +238,7 @@ export function Profile({ data, d }: ScreenProps) {
           <div className="flex gap-2 mt-2"><Btn kind="danger" className="flex-1" onClick={confirmImport}>Zastąp dane</Btn><Btn kind="ghost" onClick={() => { setPending(null); setPreview(null); }}>Anuluj</Btn></div></div>}
         <Btn kind="ghost" className="w-full mt-2 text-danger" onClick={() => setSheet('wipe')}><Trash2 size={16} className="inline -mt-0.5" /> Usuń wszystkie dane</Btn>
       </Card>
-      <p className="text-center text-xs text-muted pb-2">My Body OS 0.6 · dane lokalne · bez reklam i śledzenia · nie jest wyrobem medycznym</p>
+      <p className="text-center text-xs text-muted pb-2">My Body OS 0.6.1 · dane lokalne · bez reklam i śledzenia · nie jest wyrobem medycznym</p>
 
       {sheet === 'energy' && <EnergySheet data={data} d={d} onClose={() => setSheet(null)} />}
       {sheet === 'sync' && <HealthSyncHelp onClose={() => setSheet(null)} />}

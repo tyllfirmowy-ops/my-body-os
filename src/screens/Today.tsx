@@ -186,7 +186,7 @@ export function Today({ data, d, go }: ScreenProps) {
         <div className="flex items-center gap-3"><Sunset className={hour >= 18 ? 'text-accent' : 'text-muted'} /><div><div className="font-semibold">Wieczorny check-in {d.eveningToday && '✓'}</div><div className="text-sm text-muted">Kroki, głód, objawy · ~60 s</div></div></div>
       </Card>
 
-      {mOpen && <MorningSheet open onClose={() => setMOpen(false)} data={data} d={d} />}
+      {mOpen && <MorningSheet open onClose={() => setMOpen(false)} data={data} d={d} onBackup={() => { sessionStorage.setItem('scrollTo', 'backup'); go('profile'); }} />}
       {eOpen && <EveningSheet open onClose={() => { setEOpen(false); setPrefill(undefined); }} d={d} prefill={prefill} />}
     </>
   );

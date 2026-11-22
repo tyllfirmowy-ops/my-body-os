@@ -19,3 +19,5 @@ v0.6 Kopie zapasowe (`db/backup.ts`):
 v0.6 Przepisy i szablony: `domain/recipes.ts` (czyste funkcje, testy w tests/stage3b.test.ts); UI w `screens/Recipes.tsx` (RecipesSheet, RecipeEditor, TemplateEditor). Szablony efektywne = domyślne z `data/foods.ts` nadpisane rekordami z `mealTemplates`. Dopasowanie do celu dnia nadal przez `fitDayToTargets` (bez zmian logiki ETAPU 1).
 
 v0.6 Plany treningowe: `domain/workoutEdit.ts` + `screens/WorkoutEditor.tsx`. Harmonogram nadal planuje tylko sloty A/B (`domain/schedule.ts` bez zmian), treść slotu pochodzi z aktywnego wariantu. Sesja trzyma snapshot planu.
+
+v0.6.1: `domain/storageDiag.ts` (klasyfikacja błędów bazy, rejestr w localStorage, `diagnose`, `backupReminder`); globalny odbiornik błędów w `main.tsx`; `rescaleRecipeEntry`/`entryPortions` w `domain/recipes.ts`.

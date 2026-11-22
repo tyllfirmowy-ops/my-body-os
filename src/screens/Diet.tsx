@@ -7,7 +7,7 @@ import { DAY_TEMPLATES, EMERGENCY_MEALS, type DayTemplate } from '../data/foods'
 import { addDays, formatPl } from '../domain/dates';
 import { scaleNutrients } from '../domain/calc';
 import { candidatesForSwap, swapProduct, type ProductMap } from '../domain/nutrition';
-import { effectiveTemplates, productEntry, shoppingFrom } from '../domain/recipes';
+import { effectiveTemplates, entryPortions, PORTION_LIMITS, productEntry, rescaleRecipeEntry, shoppingFrom } from '../domain/recipes';
 import { validateNutrients } from '../domain/off';
 import { RecipesSheet, TemplateEditor, safeFit } from './Recipes';
 import type { AppData } from '../db/repo';
@@ -156,6 +156,14 @@ function QuickBtn({ icon, label, onClick }: { icon: React.ReactNode; label: stri
 function EditEntry({ entry, product, foods, onClose }: { entry: FoodEntry; product?: FoodProduct; foods: FoodProduct[]; onClose: () => void }) {
   const [g, setG] = useState<number | undefined>(entry.grams);
   const [swap, setSwap] = useState(false);
+  const oldPortions = entryPortions(entry);
+  const [portions, setPortions] = useState(oldPortions ?? 1);
+  const preview = oldPortions !== undefined ? rescaleRecipeEntry(entry, portions, 0) : null;
+  async function savePortions() {
+    if (oldPortions === undefined || portions === oldPortions) return onClose();
+    const next = rescaleRecipeEntry(entry, portions, now());
+    await db.entries.put(next); toast(`Porcje: ${oldPortions} → ${portions}`); onClose();
+  }
   async function save() {
     if (!product || !g) return;
     await db.entries.update(entry.id, { grams: g, snapshot: { ...scaleNutrients(product.per100, g), name: product.name }, updatedAt: now() }); onClose();
@@ -173,7 +181,18 @@ function EditEntry({ entry, product, foods, onClose }: { entry: FoodEntry; produ
   }
   return (
     <Sheet open onClose={onClose} title={entry.snapshot.name}>
-      {!product ? <p className="text-sm text-muted">{entry.recipeId ? `Przepis: ${Math.round(entry.snapshot.kcal)} kcal, B ${Math.round(entry.snapshot.protein)} g. Wartości zapisane w chwili wpisu; aby zmienić porcję, usuń wpis i dodaj ponownie z przepisu.` : `Szybki wpis: ${Math.round(entry.snapshot.kcal)} kcal, ${Math.round(entry.snapshot.protein)} g białka (szacunek).`}</p> : <>
+      {!product && preview ? <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <span className="text-sm flex-1">Porcje przepisu</span>
+          <button aria-label="Mniej porcji" className="w-10 h-10 rounded-lg bg-card2" onClick={() => setPortions(Math.max(PORTION_LIMITS[0], portions - 0.25))}>−</button>
+          <span className="num font-semibold w-12 text-center">{portions}</span>
+          <button aria-label="Więcej porcji" className="w-10 h-10 rounded-lg bg-card2" onClick={() => setPortions(Math.min(PORTION_LIMITS[1], portions + 0.25))}>+</button>
+        </div>
+        <div className="rounded-xl bg-card2 p-3 text-sm num">{Math.round(preview.snapshot.kcal)} kcal · B {Math.round(preview.snapshot.protein)} · T {Math.round(preview.snapshot.fat)} · W {Math.round(preview.snapshot.carbs)} · Bł {Math.round(preview.snapshot.fiber)} · {preview.grams} g</div>
+        <p className="text-xs text-muted">Przeliczenie z wartości zapisanych w tym wpisie, nie z obecnej wersji przepisu. Inne dni i wpisy się nie zmieniają.</p>
+        <Btn className="w-full" onClick={savePortions}>Zapisz porcje</Btn>
+      </div>
+      : !product ? <p className="text-sm text-muted">{entry.recipeId ? `Przepis: ${Math.round(entry.snapshot.kcal)} kcal, B ${Math.round(entry.snapshot.protein)} g (brak informacji o porcjach w tym wpisie).` : `Szybki wpis: ${Math.round(entry.snapshot.kcal)} kcal, ${Math.round(entry.snapshot.protein)} g białka (szacunek).`}</p> : <>
       <Field label="Gramatura (g)"><NumInput value={g} onChange={setG} /></Field>
       <div className="flex gap-2">
         <Btn kind="soft" className="flex-1 text-sm" onClick={() => toggle('favorite')}><Star size={14} className="inline" /> {product?.favorite ? 'Usuń z ulubionych' : 'Ulubiony'}</Btn>

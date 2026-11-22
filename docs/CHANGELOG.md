@@ -1,4 +1,12 @@
 # Changelog
+## 0.6.1 — 2026-11-22 (bez serwera)
+Numer 0.6.1 zamiast proponowanego 0.5.1: 0.6.0 jest już wydane, 0.5.1 cofnęłoby numerację.
+- Diagnostyka pamięci (Zdrowie → Pamięć urządzenia): wynik `persisted()`, przycisk `persist()`, zajętość i limit z `estimate()`, tryb (ekran główny / przeglądarka), test zapisu w transakcji, rejestr błędów zapisu bazy (tylko nazwa błędu i czas, maks. 20, w localStorage) z oceną i zaleceniami (`domain/storageDiag.ts`). Błędy zapisu łapane globalnie (`unhandledrejection`), przy braku miejsca komunikat. Rozbudowuje istniejący wiersz pamięci z 0.6.0 (przeniesiony z karty kopii).
+- Poranny check-in: jedno przypomnienie o kopii na każdy 7-dniowy cykl liczony od potwierdzenia zapisu (`backupReminderDays`, domyślnie 7); „Za tydzień” odkłada do następnego cyklu; „Zapisz i zrób kopię” zapisuje check-in i przechodzi do karty kopii. Bez potwierdzonej kopii: od razu i co 7 dni po odłożeniu. Samo wygenerowanie pliku nie liczy się jako kopia. Baner w Profilu bez zmian.
+- Dziennik: zmiana porcji wpisu przepisu (0,25–20) z przeliczeniem kcal, B/T/W, błonnika, gramów i części z nieznanym makro z własnego snapshotu wpisu (nie z obecnej wersji przepisu). Pozostałe wpisy, przepis i historia bez zmian. `FoodEntry.portions` (nowe wpisy); starsze wpisy: porcje odczytywane z nazwy „(x porc.)”.
+- docs/IPHONE_TEST_CHECKLIST.md: checklista testów na iPhonie (pamięć, backup, restore, PWA, offline, skaner, Skrót Apple Zdrowie, nowości 0.6.1).
+- Testy: 14 nowych (tests/v061.test.ts), E2E +3 scenariusze (9 łącznie).
+
 ## 0.6.0 — 2026-11-22 (ETAP 3)
 ### 3F Wydajność i porządki
 - Pomiary (Chrome, widok iPhone, build produkcyjny): bundel JS 711 kB (221 kB gzip): react-dom 29,5%, Dexie 14%, Zod 13%, kod aplikacji ~43%. Start 0,2 s (CPU 1×) / 0,6–0,8 s (CPU 4×); przejścia zakładek 26–75 ms; reakcja wyszukiwarki ~30 ms; animacja 60 fps bez klatek > 33 ms.

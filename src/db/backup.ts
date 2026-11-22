@@ -3,7 +3,7 @@ import { db, migrateEntryV2, TABLES, CURRENT_SCHEMA, type BodyDB, type TableName
 
 export const BACKUP_FORMAT = 'my-body-os-backup';
 export const BACKUP_VERSION = 2;
-export const APP_VERSION = '0.6.0';
+export const APP_VERSION = '0.6.1';
 
 const Backup = z.object({
   format: z.literal(BACKUP_FORMAT),

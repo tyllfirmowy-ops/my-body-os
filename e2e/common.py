@@ -12,8 +12,9 @@ def chrome_path():
 
 @contextlib.contextmanager
 def serve(dist='dist-single', port=0):
-    handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory=os.path.join(ROOT, dist))
-    handler.log_message = lambda *a: None
+    class Quiet(http.server.SimpleHTTPRequestHandler):
+        def log_message(self, *a): pass
+    handler = functools.partial(Quiet, directory=os.path.join(ROOT, dist))
     with socketserver.TCPServer(('127.0.0.1', port), handler) as httpd:
         threading.Thread(target=httpd.serve_forever, daemon=True).start()
         yield f'http://127.0.0.1:{httpd.server_address[1]}/index.html'

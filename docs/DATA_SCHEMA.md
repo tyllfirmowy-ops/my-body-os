@@ -13,3 +13,4 @@ v0.6 (3B): Dexie version(3): recipes ('id, name') – Recipe { name, servings, i
 v0.6 (3C): Dexie version(4): workoutTemplates ('id, slot') – WorkoutTemplateRec { slot 'A'|'B', name, items: PlanItem[] }. WorkoutSession.plan?: PlanItem[] i planName? (snapshot z chwili startu). Settings.activeWorkouts?: { A?, B? }. Serie dalej per exerciseId (progresja per ćwiczenie), sloty = exerciseId z planu.
 v0.6 (3D): RecommendationFeedback.action += 'reset'; reason?: 'not_now'|'no_time'|'not_helpful'|'not_fit'|'health'|'other'; note?. Bez zmiany schematu Dexie.
 v0.6 (3E): FoodProduct.labelWarnings?: string[]. Cache OFF w localStorage (klucze off-cache:*), nie w IndexedDB i nie w kopii zapasowej.
+v0.6.1: FoodEntry.portions?: number; Settings.backupReminderDismissed?: string (klucz odłożonego cyklu). Rejestr błędów zapisu w localStorage `storage-errors` (nie w IndexedDB, nie w kopii). Bez zmiany schematu Dexie (nadal v4); kopie i dane z 0.6.0 i starszych bez migracji.
