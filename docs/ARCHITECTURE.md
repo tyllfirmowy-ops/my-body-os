@@ -25,3 +25,4 @@ v0.6.1: `domain/storageDiag.ts` (klasyfikacja błędów bazy, rejestr w localSto
 W1 (gałąź): `domain/mealSuggest.ts` (remainingFor, suggestMeals, entriesFor, nextMealNumber) + `screens/MealSuggest.tsx`. Bez własnego liczenia wartości: `recipeTotals`/`scaleNutrients`; wpisy przez `recipeEntry`/`productEntry`.
 
 W2 (gałąź): `suggestProgression` w domain/progression.ts (+ jednostki, `loadStepKg`, `roundToStep`), `historyFor` w domain/workout.ts; w Training.tsx jedno źródło sugestii `progressFor` dla podglądu planu i sesji; decyzje w sesji.
+Planowanie (gałąź W2): `planWeekly`/`weekSummary` (domain/schedule.ts); `historicalPlanned` wybiera planer wg `scheduleV2From` (dawny `planWorkouts` z kalendarzem opieki tylko dla dni przed przejściem). `derive().upcoming` z planera tygodniowego.

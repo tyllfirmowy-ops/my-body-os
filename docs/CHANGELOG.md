@@ -1,5 +1,15 @@
 # Changelog
-## Niewydane — gałąź feat/w2-progression (Adaptive Coach, Wdrożenie 2: progres siłowy)
+## Niewydane — gałąź feat/w2-progression (W2: progres siłowy + nowa dostępność treningowa)
+### Planowanie treningów (korekta założeń)
+- Planer tygodniowy `planWeekly` (domain/schedule.ts): cel domyślnie 3 FBW/tydz. (pon–nd, wliczając wykonane), min. 2 dni odstępu, rotacja A/B, dni niedostępne pomijane, pominięte treningi się nie kumulują. Nie korzysta z kalendarza opieki.
+- Dzień przejścia `Settings.scheduleV2From` (zapisywany przy pierwszym uruchomieniu nowej wersji): dni wcześniejsze liczone dawnym planerem, więc historyczne cele kcal dnia treningowego / bez treningu i bilanse się nie zmieniają; od tego dnia obowiązuje planer tygodniowy. Cele żywieniowe nie zależą od dni opieki.
+- Trening: „Przełóż” dla dzisiejszego treningu, stuknięcie dnia w pasku 14 dni oznacza go jako niedostępny (plan sam się przesuwa), „Dostępność” (2–4 treningi/tydz., preferowane okno, domyślnie 9:00–15:00, informacyjnie), licznik „ten tydzień: x/3”. Bez oznaczeń dni opieki i blokady startu w te dni.
+- Coaching: opuszczony zaplanowany trening liczy się niezależnie od opieki; porada „przełóż / 2 treningi to też dobry wynik”; bez nadrabiania.
+- W2: przy ćwiczeniach obciążających kolano bez oceny specjalisty zwiększenie tylko, gdy ból był zaznaczony (brak wpisu ≠ bezpiecznie); propozycja startowa do zatwierdzenia jednym dotknięciem.
+- EVIDENCE.md: ACSM 2026 (PMID 41843416), WHO 2021, Bruggisser 2023 (pora treningu), heurystyki planowania.
+- Testy: tests/w2b.test.ts (12), E2E `training_availability`.
+
+### Progres siłowy
 - `suggestProgression` (domain/progression.ts) zastępuje logikę `suggestNext` (zostaje jako nakładka zgodności): podwójna progresja z historią 3 ostatnich treningów danego ćwiczenia. Kolejność: blokada bezpieczeństwa → kolano bez oceny (bez obciążenia) → brak historii → ból ≥ 4 (−10%) → przerwa (14/28/56 dni) → ból 3 / słabsza technika (bez zwiększania) → spadek wydolności (2× poniżej zakresu: −10%; −20% powtórzeń: bez zwiększania) → górny zakres (zwiększenie tylko po 2 treningach albo z RIR ≥ 2 w każdej serii; RIR 0 blokuje; plan B lub ból kolana ≥ 3 w check-inie blokują) → inaczej „dołóż powtórzenie” / „zrób wszystkie serie”.
 - Zmiana zachowania: ocena techniki nie jest już wymagana do zwiększenia (blokuje tylko „słabsza”), RIR opcjonalny; zamiast tego wymagane 2 kolejne treningi na górze zakresu. Testy w tests/domain.test.ts zaktualizowane świadomie.
 - Skoki obciążenia i jednostki: najmniejszy skok z ustawień (hantle/maszyna/wyciąg/sztanga) albo z karty ćwiczenia; kg lub lb (serie zawsze zapisywane w kg); ostrzeżenie przy skoku > 10%; obniżki w dół do siatki skoku. Trening → „Jednostki i skoki obciążenia”.

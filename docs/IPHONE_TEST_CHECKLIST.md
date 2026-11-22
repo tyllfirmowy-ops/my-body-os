@@ -91,6 +91,12 @@ Przygotowanie
 - [ ] Trening → „Jednostki i skoki obciążenia”: lb pokazuje ciężary w lb, skok hantli zmienia propozycję.
 - [ ] Po zamianie ćwiczenia sugestia dotyczy zamiennika (własna historia).
 
+## 8d. Dostępność treningowa (po scaleniu)
+- [ ] Trening: nagłówek „cel 3/tydz. (2 też jest OK)”, licznik „ten tydzień: x/3”, brak oznaczeń dni opieki.
+- [ ] „Przełóż” przesuwa dzisiejszy trening; stuknięcie dnia w pasku oznacza go jako niedostępny („–”).
+- [ ] „Dostępność”: zmiana 3 → 2 treningi zmienia plan; okno godzin tylko informacyjnie.
+- [ ] Dieta: cel kcal w dniu treningowym zgadza się z planem treningów, także w dni opieki.
+
 ## 9. Krótka kontrola z wcześniejszych wersji
 - [ ] Karta ćwiczenia: animacja płynna, pauza, suwak, 0,5×, fazy. Telefon nie grzeje się wyraźnie po 2 minutach odtwarzania.
 - [ ] Zamiana ćwiczenia w trakcie treningu i powrót do ćwiczenia z planu.

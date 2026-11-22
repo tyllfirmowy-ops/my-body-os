@@ -24,6 +24,8 @@ export interface ProgressInput {
   kneeNoLoad?: boolean;
   /** powód, dla którego dziś nie zwiększamy (plan B, ból kolana w check-inie) */
   noIncrease?: string;
+  /** brak wpisanego bólu nie potwierdza bezpieczeństwa: zwiększenie tylko, gdy ból zaznaczono w ostatnim treningu */
+  requirePainRecord?: boolean;
 }
 
 export const GAP = { hold: 14, minus10: 28, minus15: 56 } as const;
@@ -60,7 +62,7 @@ export function suggestProgression(p: ProgressInput): Suggestion {
   if (p.safetyBlock) return { action: 'skip', weightKg: null, targetReps: range, reason: 'Aktywna blokada bezpieczeństwa. Pomiń to ćwiczenie dziś.' };
   if (p.kneeNoLoad) return { action: 'hold', weightKg: 0, targetReps: range, reason: 'Bez obciążenia do czasu oceny kolana przez specjalistę.' };
   const s0 = done(p.history[0]);
-  if (!s0.length) return { action: 'no_data', weightKg: null, targetReps: range, reason: 'Pierwszy raz: dobierz ciężar, przy którym zostają ok. 2–3 powtórzenia w zapasie.' };
+  if (!s0.length) return { action: 'no_data', weightKg: null, targetReps: range, reason: `Start: pierwsza seria lekko na rozgrzewkę, potem ciężar, przy którym po ${p.repMin}–${p.repMax} powtórzeniach zostają ok. 2–3 w zapasie. Zapiszę go jako punkt wyjścia.` };
   const w = workingWeight(s0);
   const basis: string[] = [`Ostatnio (${p.history[0].date}): ${s0.map((s) => `${String(s.weightKg).replace('.', ',')}×${s.reps}`).join(', ')}`];
   const res = (action: ProgressAction, weightKg: number | null, targetReps: string, reason: string): Suggestion => ({ action, weightKg, targetReps, reason, basis });
@@ -89,6 +91,7 @@ export function suggestProgression(p: ProgressInput): Suggestion {
   if (atTop(s0, w, p)) {
     if (p.noIncrease) return res('hold', w, range, `${p.noIncrease}: dziś bez zwiększania.`);
     if (s0.some((s) => s.rir === 0)) return res('hold', w, range, 'Górny zakres, ale bez zapasu (RIR 0). Powtórz, zanim zwiększysz.');
+    if (p.requirePainRecord && s0.some((s) => s.pain === undefined)) return res('hold', w, range, 'Ćwiczenie obciąża kolano: zaznacz ból (0–10) w seriach. Bez tej informacji nie zwiększam ciężaru.');
     const twice = sameW1 && atTop(s1, w, p);
     const clearReserve = s0.every((s) => s.rir !== undefined && s.rir >= 2);
     if (!twice && !clearReserve) return res('hold', w, range, `Pierwszy raz górny zakres (${p.repMax}). Powtórz; przy kolejnym takim wyniku zaproponuję więcej.`);

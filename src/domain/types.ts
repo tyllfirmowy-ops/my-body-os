@@ -234,6 +234,14 @@ export interface Settings {
   /** propozycje „Co mam teraz zjeść?” ukryte przez użytkownika (id propozycji) */
   suggestHidden?: string[];
   weightUnit?: 'kg' | 'lb';
+  /** cel treningów w tygodniu (domyślnie 3) */
+  trainingsPerWeek?: number;
+  /** preferowane okno treningowe (informacyjnie, nie obowiązkowa godzina) */
+  trainingWindow?: { from: string; to: string };
+  /** dni oznaczone jako niedostępne / przełożony trening */
+  trainingSkip?: string[];
+  /** od tego dnia plan treningów liczy planer tygodniowy (bez kalendarza opieki); wcześniejsze dni bez zmian */
+  scheduleV2From?: string;
   /** najmniejsze dostępne skoki obciążenia w jednostce użytkownika */
   loadSteps?: Partial<Record<'dumbbell' | 'machine' | 'cable' | 'barbell', number>>;
   backupReminderDays: number;

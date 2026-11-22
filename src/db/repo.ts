@@ -4,7 +4,7 @@ import { SEED_FOODS } from '../data/foods';
 import { EXTRA_FOODS } from '../data/foodsExtra';
 import { addDays, diffDays, range, today as todayFn, type LocalDate } from '../domain/dates';
 import { bmrMifflin, ageOn, type DatedValue } from '../domain/calc';
-import { planWorkouts, withDaughter, type CustodyInput, type PlannedWorkout } from '../domain/schedule';
+import { planWeekly, planWorkouts, withDaughter, type CustodyInput, type PlannedWorkout } from '../domain/schedule';
 import { evaluateSafety } from '../domain/safety';
 import { dayTargets, planOn } from '../domain/targets';
 import { completeness, reliableMacro, sumDay } from '../domain/intake';
@@ -40,6 +40,9 @@ export async function seedIfEmpty() {
   if (missing.length) await db.foods.bulkAdd(missing.map((f) => ({ ...f, updatedAt: now() })));
   if (!(await db.settings.get('settings'))) await db.settings.put({ id: 'settings', theme: 'dark', onboarded: false, backupReminderDays: 7, aiIncludeHealth: false });
   if (navigator.storage?.persist) navigator.storage.persist().catch(() => undefined);
+  // 0.8: dzień przejścia na planer tygodniowy (wcześniejsze dni liczone jak dotąd, bez przeliczania historii)
+  const st = await db.settings.get('settings');
+  if (st && !st.scheduleV2From) await db.settings.update('settings', { scheduleV2From: todayFn() });
 }
 
 // ---- prywatny profil (plik JSON spoza repozytorium) ----
@@ -112,14 +115,21 @@ export function snapshots(d: AppData, from: LocalDate, to: LocalDate, planned: S
   });
 }
 
+/** Planer obowiązujący dla daty: przed `scheduleV2From` dawny (zgodność historycznych bilansów), od niej tygodniowy. */
+export function scheduleSwitch(d: AppData, today: LocalDate): LocalDate { return d.settings?.scheduleV2From ?? today; }
+const refsOf = (d: AppData, before?: LocalDate) => d.sessions.filter((s) => !before || s.date < before).map((s) => ({ date: s.date, templateId: s.templateId, status: s.status }));
+export const weeklyOpts = (d: AppData) => ({ perWeek: d.settings?.trainingsPerWeek ?? 3, skip: d.settings?.trainingSkip ?? [] });
+
 /** Historyczne "plany" do rozliczeń: dzień był zaplanowany, jeśli plan liczony od tego dnia wskazywał go jako pierwszy. */
-export function historicalPlanned(d: AppData, from: LocalDate, to: LocalDate): Set<LocalDate> {
+export function historicalPlanned(d: AppData, from: LocalDate, to: LocalDate, today: LocalDate = todayFn()): Set<LocalDate> {
   const c = custodyInput(d); const out = new Set<LocalDate>();
   const per = planFor(d, to)?.workoutsPer14d ?? 4;
-  if (!c) return out;
+  const v2 = scheduleSwitch(d, today);
   for (const date of range(from, diffDays(from, to) + 1)) {
-    const prior = d.sessions.filter((s) => s.date < date).map((s) => ({ date: s.date, templateId: s.templateId, status: s.status }));
-    const p = planWorkouts({ from: date, horizon: 1, custody: c, sessions: prior, perCycle: per });
+    const prior = refsOf(d, date);
+    const p = date < v2
+      ? (c ? planWorkouts({ from: date, horizon: 1, custody: c, sessions: prior, perCycle: per }) : [])
+      : planWeekly({ from: date, horizon: 1, sessions: prior, ...weeklyOpts(d) });
     if (p.length) out.add(date);
   }
   return out;
@@ -132,13 +142,13 @@ export function derive(d: AppData, today: LocalDate = todayFn()) {
   const safety = evaluateSafety(morningToday, d.health?.kneeCleared ?? false);
   const readiness = evaluateReadiness(morningToday, safety.level);
   const refs = d.sessions.map((s) => ({ date: s.date, templateId: s.templateId, status: s.status }));
-  const upcoming: PlannedWorkout[] = custody && plan ? planWorkouts({ from: today, horizon: 28, custody, sessions: refs, perCycle: plan.workoutsPer14d }) : [];
+  const upcoming: PlannedWorkout[] = plan ? planWeekly({ from: today, horizon: 28, sessions: refs, ...weeklyOpts(d) }) : [];
   const todayWorkout = upcoming.find((u) => u.date === today);
   const doneToday = d.sessions.find((s) => s.date === today && s.status === 'completed');
   const inProgress = d.sessions.find((s) => s.status === 'in_progress');
   const start = d.profile?.startDate ?? today;
   const histFrom = addDays(today, -28) > start ? addDays(today, -28) : start;
-  const past = historicalPlanned(d, histFrom, addDays(today, -1));
+  const past = historicalPlanned(d, histFrom, addDays(today, -1), today);
   for (const u of upcoming) if (u.date === today) past.add(today);
   const snaps = snapshots(d, addDays(today, -35), today, past);
   const recs = plan ? coach(snaps.filter((s) => s.date >= start), today, plan.kcal) : [];

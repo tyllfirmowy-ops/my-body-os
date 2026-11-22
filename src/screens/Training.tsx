@@ -9,19 +9,27 @@ import { Pencil } from 'lucide-react';
 import { actualFor, historyFor, kneeBlocked, lastSetsFor, setsForSlot, swapExercise, swapOptions } from '../domain/workout';
 import { rigFor } from '../data/rigs';
 import { RigPlayer } from '../ui/RigView';
-import { formatPl, range } from '../domain/dates';
-import { withDaughter, cycleSummary } from '../domain/schedule';
+import { addDays, formatPl, range } from '../domain/dates';
+import { weekSummary } from '../domain/schedule';
 import { DEFAULT_STEPS, fmtWeight, fromDisplay, loadStepKg, plannedSetsFor, suggestProgression, toDisplay, type LoadEquip, type Suggestion, type WeightUnit } from '../domain/progression';
 import type { ProgressDecision, WorkoutSession, WorkoutSet } from '../domain/types';
 import type { AppData, Derived } from '../db/repo';
-import { Badge, Btn, Card, cx, Field, NumInput, Scale, Sheet, Stepper, Title, toast } from '../ui/kit';
+import { Badge, Btn, Card, cx, Field, inputCls, NumInput, Scale, Sheet, Stepper, Title, toast } from '../ui/kit';
 
 export function Training({ data, d }: ScreenProps) {
   const [card, setCard] = useState<ExerciseCard | null>(null);
   const [active, setActive] = useState<string | null>(d.inProgress?.id ?? null);
   const session = data.sessions.find((s) => s.id === active && s.status === 'in_progress');
-  const c = d.custody!;
-  const sum = cycleSummary(c, data.sessions, d.today, d.plan!.workoutsPer14d);
+  const perWeek = data.settings?.trainingsPerWeek ?? 3;
+  const sum = weekSummary(data.sessions, d.today, perWeek);
+  const skip = new Set(data.settings?.trainingSkip ?? []);
+  const win = data.settings?.trainingWindow ?? { from: '09:00', to: '15:00' };
+  const [availOpen, setAvailOpen] = useState(false);
+  async function toggleSkip(dt: string) {
+    const next = skip.has(dt) ? [...skip].filter((x) => x !== dt) : [...skip, dt];
+    await db.settings.update('settings', { trainingSkip: next.filter((x) => x >= addDays(d.today, -60)).sort() });
+    toast(skip.has(dt) ? 'Dzień znów dostępny' : 'Dzień niedostępny: plan przesunięty');
+  }
   const next = d.todayWorkout ?? d.upcoming[0];
   const plans = { A: effectivePlan('A', WORKOUTS, data.workoutTemplates, data.settings?.activeWorkouts), B: effectivePlan('B', WORKOUTS, data.workoutTemplates, data.settings?.activeWorkouts) };
   const [editSlot, setEditSlot] = useState<'A' | 'B' | null>(null);
@@ -38,7 +46,7 @@ export function Training({ data, d }: ScreenProps) {
 
   return (
     <>
-      <header className="pt-2"><h1 className="text-2xl font-bold">Trening</h1><p className="text-sm text-muted">FBW A/B · {d.plan!.workoutsPer14d} treningi na 14 dni · tydzień {d.weekIdx + 1}</p></header>
+      <header className="pt-2"><h1 className="text-2xl font-bold">Trening</h1><p className="text-sm text-muted">FBW A/B · cel {perWeek}/tydz.{perWeek > 2 ? ' (2 też jest OK)' : ''} · tydzień {d.weekIdx + 1}</p></header>
       {d.inProgress && <Card onClick={() => setActive(d.inProgress!.id)} className="border-accent"><div className="font-semibold">Wznów trening {d.inProgress.templateId}</div><div className="text-sm text-muted">Zapisane serie są bezpieczne.</div></Card>}
       <Card>
         <Title>Dziś</Title>
@@ -46,29 +54,34 @@ export function Training({ data, d }: ScreenProps) {
           : d.todayWorkout ? (<>
             <p className="text-lg font-semibold">Trening {d.todayWorkout.templateId}{d.readiness.level === 'B' ? ' (skrócony: 2 serie)' : ''}</p>
             {d.readiness.level === 'C' && <p className="text-sm text-warn mt-1">Plan C: trening nieobowiązkowy. Kolejny termin znajdzie się automatycznie.</p>}
-            <Btn className="w-full mt-3" onClick={() => start(d.todayWorkout!.templateId)}><Play size={16} className="inline -mt-0.5" /> Start</Btn>
+            <p className="text-xs text-muted mt-1">Kiedy pasuje (np. {win.from}–{win.to}); pora dnia nie zmienia efektów.</p>
+            <div className="flex gap-2 mt-3">
+              <Btn className="flex-1" onClick={() => start(d.todayWorkout!.templateId)}><Play size={16} className="inline -mt-0.5" /> Start</Btn>
+              <Btn kind="soft" onClick={() => toggleSkip(d.today)}>Przełóż</Btn>
+            </div>
           </>) : (<>
-            <p className="text-muted">{d.withDaughterToday ? 'Dzień z córką. Opcjonalnie: spacer lub wspólna aktywność.' : 'Dzień odpoczynku.'}</p>
+            <p className="text-muted">{skip.has(d.today) ? 'Dziś oznaczone jako niedostępne.' : 'Dzień odpoczynku.'}</p>
             {next && <p className="text-sm mt-1">Następny: {formatPl(next.date)}, trening {next.templateId}</p>}
-            {!d.withDaughterToday && <div className="flex gap-2 mt-3"><Btn kind="soft" className="flex-1" onClick={() => start(next?.templateId ?? 'A')}>Mimo to zacznij {next?.templateId ?? 'A'}</Btn></div>}
+            <div className="flex gap-2 mt-3"><Btn kind="soft" className="flex-1" onClick={() => start(next?.templateId ?? 'A')}>Mimo to zacznij {next?.templateId ?? 'A'}</Btn></div>
           </>)}
       </Card>
       <Card>
-        <Title right={<span className="text-xs text-muted num">cykl: {sum.done}/{sum.target}</span>}>Najbliższe 14 dni</Title>
+        <Title right={<span className="text-xs text-muted num">ten tydzień: {sum.done}/{sum.target}</span>}>Najbliższe 14 dni</Title>
         <div className="grid grid-cols-7 gap-1 text-center">
           {range(d.today, 14).map((dt) => {
             const pw = d.upcoming.find((u) => u.date === dt);
             const done = data.sessions.find((s) => s.date === dt && s.status === 'completed');
-            const kid = withDaughter(c, dt);
+            const off = skip.has(dt);
             return (
-              <div key={dt} className={cx('rounded-lg py-1.5 text-[11px] leading-tight', kid ? 'bg-accent/15' : 'bg-card2', dt === d.today && 'ring-2 ring-accent')}>
+              <button key={dt} aria-label={`${formatPl(dt)}: ${done ? 'zrobiony' : off ? 'niedostępny' : pw ? `trening ${pw.templateId}` : 'wolne'}`} onClick={() => !done && toggleSkip(dt)} className={cx('rounded-lg py-1.5 text-[11px] leading-tight', off ? 'bg-card2 opacity-50' : pw ? 'bg-accent/15' : 'bg-card2', dt === d.today && 'ring-2 ring-accent')}>
                 <div className="text-muted">{formatPl(dt).split(' ')[0]}</div><div className="num">{Number(dt.slice(8))}</div>
-                <div className="font-semibold h-4">{done ? '✓' : pw ? pw.templateId : kid ? '♥' : ''}</div>
-              </div>
+                <div className="font-semibold h-4">{done ? '✓' : off ? '–' : pw ? pw.templateId : ''}</div>
+              </button>
             );
           })}
         </div>
-        <p className="text-xs text-muted mt-2">♥ dzień z córką (bez siłowni) · A/B plan · opuszczone treningi nie kumulują się.</p>
+        <p className="text-xs text-muted mt-2">Stuknij dzień, gdy nie możesz ćwiczyć: plan sam się przesunie (min. 1 dzień przerwy między treningami). Pominięte treningi nie kumulują się i nie zwiększają obciążenia.</p>
+        <button className="text-xs text-accent underline mt-1" onClick={() => setAvailOpen(true)}>Dostępność: {perWeek}×/tydz. · {win.from}–{win.to}</button>
       </Card>
       {(['A', 'B'] as const).map((t) => (
         <Card key={t}>
@@ -92,6 +105,7 @@ export function Training({ data, d }: ScreenProps) {
       {card && <ExerciseSheet e={card} data={data} d={d} onClose={() => setCard(null)} onOpen={setCard} />}
       {editSlot && <WorkoutEditor slot={editSlot} data={data} onClose={() => setEditSlot(null)} />}
       {unitsOpen && <UnitsSheet data={data} onClose={() => setUnitsOpen(false)} />}
+      {availOpen && <AvailabilitySheet data={data} onClose={() => setAvailOpen(false)} />}
     </>
   );
 }
@@ -146,7 +160,7 @@ function progressFor(data: AppData, d: Derived, ex: ExerciseCard, te: { sets: nu
   return suggestProgression({
     history: historyFor(data.sessions, data.sets, ex.id, excludeSession), today: d.today, plannedSets, repMin: te.repMin, repMax: te.repMax,
     step: loadStepKg(ex, unitOf(data), data.settings?.loadSteps), safetyBlock: kneeBlock,
-    kneeNoLoad: ex.knee === 'moderate' && !data.health?.kneeCleared && !kneeBlock, noIncrease,
+    kneeNoLoad: ex.knee === 'moderate' && !data.health?.kneeCleared && !kneeBlock, noIncrease, requirePainRecord: ex.knee !== 'none' && !data.health?.kneeCleared,
   });
 }
 const ARROW: Record<Suggestion['action'], string> = { increase: '↑', decrease: '↓', reps: '+1 powt.', hold: '=', skip: 'pomiń', no_data: 'start' };
@@ -243,6 +257,10 @@ function SessionView({ data, d, s, onExit }: { data: AppData; d: Derived; s: Wor
                 </div>
                 {customKg === null ? <button className="text-xs text-accent underline" onClick={() => setCustomKg(toDisplay(sug.weightKg ?? lastW ?? 0, unit))}>Inny ciężar</button>
                   : <div className="flex items-center gap-2"><Stepper value={customKg} onChange={setCustomKg} step={toDisplay(loadStepKg(ex, unit, data.settings?.loadSteps), unit) || 1} unit={unit} /><Btn kind="soft" className="text-sm" onClick={() => decide('modified', fromDisplay(customKg, unit))}>Zapisz</Btn></div>}
+              </div> : sug.action === 'no_data' ? <div className="flex gap-2">
+                <Btn className="flex-1 text-sm min-h-11" onClick={() => decide('accepted', null)}>Zatwierdź start</Btn>
+                {customKg === null ? <Btn kind="soft" className="text-sm min-h-11" onClick={() => setCustomKg(0)}>Podaj ciężar</Btn>
+                  : <><Stepper value={customKg} onChange={setCustomKg} step={toDisplay(loadStepKg(ex, unit, data.settings?.loadSteps), unit) || 1} unit={unit} /><Btn kind="soft" className="text-sm" onClick={() => decide('modified', fromDisplay(customKg, unit))}>OK</Btn></>}
               </div> : null}
           </div>}
         {lvlB && idx >= 5 && <p className="text-xs text-warn mt-2">Plan B: to ćwiczenie jest opcjonalne.</p>}
@@ -390,6 +408,30 @@ function UnitsSheet({ data, onClose }: { data: AppData; onClose: () => void }) {
         <Field key={k} label={`${EQ_PL[k]} (domyślnie: ${unit === 'kg' ? 'wg ćwiczenia' : `${DEFAULT_STEPS.lb[k]} lb`})`}><NumInput value={steps[k]} onChange={(v) => setSteps({ ...steps, [k]: v && v > 0 ? v : undefined })} placeholder={unit === 'kg' ? 'wg ćwiczenia' : String(DEFAULT_STEPS.lb[k])} /></Field>
       ))}
       <p className="text-xs text-muted">Zapisane serie zawsze są w kg; zmiana jednostki zmienia tylko wyświetlanie i skoki.</p>
+      <Btn className="w-full" onClick={save}>Zapisz</Btn>
+    </Sheet>
+  );
+}
+
+function AvailabilitySheet({ data, onClose }: { data: AppData; onClose: () => void }) {
+  const [per, setPer] = useState(data.settings?.trainingsPerWeek ?? 3);
+  const [win, setWin] = useState(data.settings?.trainingWindow ?? { from: '09:00', to: '15:00' });
+  async function save() {
+    await db.settings.update('settings', { trainingsPerWeek: per, trainingWindow: win });
+    toast('Zapisano dostępność'); onClose();
+  }
+  return (
+    <Sheet open onClose={onClose} title="Dostępność treningowa">
+      <div className="flex items-center justify-between rounded-xl bg-card2 p-3">
+        <span className="text-sm">Treningi w tygodniu</span>
+        <Stepper value={per} onChange={(v) => setPer(Math.max(2, Math.min(4, Math.round(v))))} step={1} min={2} />
+      </div>
+      <p className="text-xs text-muted">Domyślnie 3. Minimum zaleceń to trening siłowy w co najmniej 2 dni tygodnia, więc tydzień z 2 treningami też jest w porządku.</p>
+      <div className="grid grid-cols-2 gap-2">
+        <Field label="Zwykle od"><input type="time" className={inputCls} value={win.from} onChange={(e) => setWin({ ...win, from: e.target.value })} /></Field>
+        <Field label="do"><input type="time" className={inputCls} value={win.to} onChange={(e) => setWin({ ...win, to: e.target.value })} /></Field>
+      </div>
+      <p className="text-xs text-muted">Okno jest tylko podpowiedzią. Badania nie pokazują, że pora dnia zmienia efekty treningu; liczy się regularność.</p>
       <Btn className="w-full" onClick={save}>Zapisz</Btn>
     </Sheet>
   );

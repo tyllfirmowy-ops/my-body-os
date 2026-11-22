@@ -284,4 +284,25 @@ def progression_reject(pg, url):
     check(pg.get_by_text(re.compile('Decyzja: mój ciężar')).count() > 0, 'ręczna zmiana nie zapisana')
     return {'ok': True}
 
-ALL = [exercise_card_and_swap, backup_roundtrip, recipe_flow, workout_plan_flow, coach_feedback, food_search, storage_diagnostics, morning_backup_reminder, recipe_portions_in_diary, meal_suggestions, library_recipes, onboarding_health_survey, progression_flow, progression_reject]
+def training_availability(pg, url):
+    demo(pg, url); tab(pg, 'Trening')
+    body = pg.locator('body').inner_text()
+    check('♥' not in body and 'córk' not in body.lower(), 'ekran treningu nadal zależy od opieki nad dzieckiem')
+    check(pg.get_by_text(re.compile('cel 3/tydz')).count() > 0, 'brak domyślnego celu 3/tydz.')
+    if pg.get_by_role('button', name='Przełóż').count():
+        pg.get_by_role('button', name='Przełóż').click(); pg.wait_for_timeout(400)
+        check(pg.get_by_text('Dziś oznaczone jako niedostępne.').count() > 0, 'przełożenie nie zadziałało')
+        check(pg.get_by_text(re.compile('^Następny:')).count() > 0, 'brak kolejnego terminu po przełożeniu')
+    strip = pg.locator('button[aria-label*="trening"]').first
+    lbl = strip.get_attribute('aria-label')
+    strip.click(); pg.wait_for_timeout(300)
+    check(pg.locator(f'button[aria-label="{lbl.split(":")[0]}: niedostępny"]').count() == 1, f'dzień nie oznaczony jako niedostępny: {lbl}')
+    pg.get_by_role('button', name=re.compile('^Dostępność:')).click(); pg.wait_for_timeout(200)
+    dialog(pg).get_by_role('button', name='Mniej').click()
+    dialog(pg).get_by_role('button', name='Zapisz').click(); pg.wait_for_timeout(300)
+    check(pg.get_by_text(re.compile('cel 2/tydz')).count() > 0, 'zmiana celu tygodniowego nie zapisana')
+    pg.reload(); pg.wait_for_timeout(900); tab(pg, 'Trening')
+    check(pg.get_by_text(re.compile('cel 2/tydz')).count() > 0, 'cel nie przetrwał odświeżenia')
+    return {'toggled': lbl}
+
+ALL = [exercise_card_and_swap, backup_roundtrip, recipe_flow, workout_plan_flow, coach_feedback, food_search, storage_diagnostics, morning_backup_reminder, recipe_portions_in_diary, meal_suggestions, library_recipes, onboarding_health_survey, progression_flow, progression_reject, training_availability]

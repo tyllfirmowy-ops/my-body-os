@@ -66,7 +66,7 @@ export function coach(days: DaySnapshot[], today: LocalDate, kcalTarget: number)
   }
 
   // 5. Opuszczone treningi (bez winy za opiekę i odpoczynek)
-  const missed = last14.filter((d) => d.workoutPlanned && !d.workoutDone && !d.withDaughter);
+  const missed = last14.filter((d) => d.workoutPlanned && !d.workoutDone);
   if (missed.length >= 2) {
     const reasons = missed.map((d) => d.evening?.workoutMissReason).filter(Boolean) as MissReason[];
     const top = mode(reasons);
@@ -74,9 +74,9 @@ export function coach(days: DaySnapshot[], today: LocalDate, kcalTarget: number)
       : top === 'fatigue' ? 'Trening w dzień z lepszym snem; w gorsze dni plan B (skrócony).'
       : top === 'pain' ? 'Zgłoś ból w check-inie. Ćwiczenia nóg zostaną ograniczone; umów ocenę kolana.'
       : top === 'motivation' ? 'Ustal stałą godzinę i spakuj torbę dzień wcześniej. Cel: tylko wejść na siłownię i zrobić 1. ćwiczenie.'
-      : 'Najbliższy wolny dzień bez córki jest już w kalendarzu treningów.';
+      : 'Przełóż trening na inny dzień w zakładce Trening; 2 treningi w tygodniu to też dobry wynik.';
     recs.push({ id: 'missed_workouts', priority: 60, title: 'Treningi: jedna zmiana', action, ...(top === 'pain' ? { health: true } : {}),
-      basis: `Opuszczone treningi w dni bez córki${top ? `, najczęstszy powód: ${MISS_LABEL[top]}` : ''}`, days: missed.length, completeness: `${reasons.length}/${missed.length} z podanym powodem`, limits: 'Dni opieki i zaplanowany odpoczynek nie są liczone jako opuszczone.' });
+      basis: `Opuszczone zaplanowane treningi${top ? `, najczęstszy powód: ${MISS_LABEL[top]}` : ''}`, days: missed.length, completeness: `${reasons.length}/${missed.length} z podanym powodem`, limits: 'Zaplanowany odpoczynek i przełożone dni nie są liczone jako opuszczone. Nie nadrabiamy pominiętych treningów.' });
   }
 
   // 6. Białko

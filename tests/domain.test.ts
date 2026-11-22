@@ -164,8 +164,9 @@ describe('coaching', () => {
     const o = r.find((x) => x.id === 'over_yesterday')!;
     expect(o.action).toMatch(/Bez odrabiania kalorii i bez karnego cardio/);
   });
-  it('opieka nad córką nie liczy się jako opuszczony trening', () => {
-    const days = Array.from({ length: 7 }, (_, i) => snap(addDays('2026-11-10', i), { workoutPlanned: true, withDaughter: true, kcal: 2400 }));
+  // 0.8: opieka nie ogranicza treningu; o tym, czy dzień był treningowy, decyduje planer (przełożone dni nie są planowane)
+  it('niezaplanowane dni nie liczą się jako opuszczony trening', () => {
+    const days = Array.from({ length: 7 }, (_, i) => snap(addDays('2026-11-10', i), { workoutPlanned: false, withDaughter: true, kcal: 2400 }));
     expect(coach(days, '2026-11-17', 2450).find((x) => x.id === 'missed_workouts')).toBeUndefined();
   });
   it('raport tygodniowy liczy braki danych', () => {

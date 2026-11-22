@@ -1,4 +1,4 @@
-import { addDays, diffDays, type LocalDate } from './dates';
+import { addDays, diffDays, mondayOf, type LocalDate } from './dates';
 
 /** 2-2-3, cykl 14 dni od poniedziałku: 1 = córka u użytkownika. */
 export const PATTERN_223 = [1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1, 0, 0, 0] as const;
@@ -65,4 +65,54 @@ export function cycleSummary(custody: CustodyInput, sessions: SessionRef[], date
   let freeDays = 0;
   for (let i = 0; i < 14; i++) if (!withDaughter(custody, addDays(cs, i))) freeDays++;
   return { cycleStart: cs, cycleEnd: ce, done, target: perCycle, freeDays };
+}
+
+// ---- Planowanie od 0.8: dostępność ogólna, bez zależności od kalendarza opieki ----
+
+export interface WeeklyOpts {
+  from: LocalDate; horizon: number; sessions: SessionRef[];
+  /** cel treningów w tygodniu (pon–nd); domyślnie 3 */
+  perWeek?: number;
+  /** min. odstęp w dniach między treningami tego samego typu FBW (2 ≈ 48 h; heurystyka regeneracji) */
+  minGapDays?: number;
+  /** dni oznaczone przez użytkownika jako niedostępne / przełożone */
+  skip?: Set<LocalDate> | LocalDate[];
+}
+
+/**
+ * Plan FBW A/B od `from`: maks. `perWeek` treningów w tygodniu (wliczając wykonane), min. odstęp, pomija dni niedostępne.
+ * Pominięte treningi nie kumulują się (plan zawsze od dziś), rotacja A/B z ostatniego wykonanego treningu.
+ */
+export function planWeekly(o: WeeklyOpts): PlannedWorkout[] {
+  const perWeek = Math.max(1, Math.min(6, o.perWeek ?? 3));
+  const gap = o.minGapDays ?? 2;
+  const skip = o.skip instanceof Set ? o.skip : new Set(o.skip ?? []);
+  const done = o.sessions.filter((s) => s.status === 'completed').sort((a, b) => a.date.localeCompare(b.date));
+  const last = done.at(-1);
+  let nextType: 'A' | 'B' = last ? (last.templateId === 'A' ? 'B' : 'A') : 'A';
+  let lastDate = last?.date;
+  const perWk = new Map<LocalDate, number>();
+  for (const s of done) perWk.set(mondayOf(s.date), (perWk.get(mondayOf(s.date)) ?? 0) + 1);
+  const doneToday = done.some((s) => s.date === o.from);
+  const plan: PlannedWorkout[] = [];
+  for (let i = 0; i < o.horizon; i++) {
+    const d = addDays(o.from, i);
+    if (i === 0 && doneToday) continue;
+    if (skip.has(d)) continue;
+    if (lastDate && diffDays(lastDate, d) < gap) continue;
+    const wk = mondayOf(d);
+    if ((perWk.get(wk) ?? 0) >= perWeek) continue;
+    plan.push({ date: d, templateId: nextType });
+    perWk.set(wk, (perWk.get(wk) ?? 0) + 1);
+    lastDate = d;
+    nextType = nextType === 'A' ? 'B' : 'A';
+  }
+  return plan;
+}
+
+/** Bilans tygodnia: wykonane vs cel; 2 treningi to wciąż realizacja minimum (≥ 2 dni w tygodniu wg WHO/ACSM). */
+export function weekSummary(sessions: SessionRef[], date: LocalDate, perWeek: number) {
+  const ws = mondayOf(date), we = addDays(ws, 6);
+  const done = sessions.filter((s) => s.status === 'completed' && s.date >= ws && s.date <= we).length;
+  return { weekStart: ws, weekEnd: we, done, target: perWeek, minimum: Math.min(2, perWeek) };
 }
