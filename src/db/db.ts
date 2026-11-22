@@ -1,7 +1,7 @@
 import Dexie, { type EntityTable } from 'dexie';
 import type {
   BodyMeasurement, CalendarOverride, CustodyConfig, EveningCheckIn, FoodEntry, FoodProduct, HealthProfile, LabResult,
-  MorningCheckIn, PlanVersion, RecommendationFeedback, Settings, SymptomLog, UserProfile, WaterLog, WorkoutSession, WorkoutSet,
+  MorningCheckIn, PlanVersion, Recipe, DayTemplateRec, RecommendationFeedback, Settings, SymptomLog, UserProfile, WaterLog, WorkoutSession, WorkoutSet,
 } from '../domain/types';
 
 export class BodyDB extends Dexie {
@@ -22,6 +22,8 @@ export class BodyDB extends Dexie {
   labs!: EntityTable<LabResult, 'id'>;
   feedback!: EntityTable<RecommendationFeedback, 'id'>;
   settings!: EntityTable<Settings, 'id'>;
+  recipes!: EntityTable<Recipe, 'id'>;
+  mealTemplates!: EntityTable<DayTemplateRec, 'id'>;
 
   constructor(name = 'my-body-os') {
     super(name);
@@ -35,11 +37,14 @@ export class BodyDB extends Dexie {
     });
     // v2: szybkie wpisy kcal miały makro zapisane jako 0. Oznaczamy je jako nieznane (dane zostają, zmienia się interpretacja).
     this.version(2).stores({}).upgrade((tx) => tx.table('entries').toCollection().modify(migrateEntryV2));
+    // v3: własne przepisy i edytowalne szablony dni (nowe tabele, istniejące dane bez zmian).
+    this.version(3).stores({ recipes: 'id, name', mealTemplates: 'id' });
   }
 }
 
 export const db = new BodyDB();
-export const TABLES = ['profile', 'health', 'plans', 'morning', 'evening', 'measurements', 'foods', 'entries', 'water', 'sessions', 'sets', 'custody', 'overrides', 'symptoms', 'labs', 'feedback', 'settings'] as const;
+export const TABLES = ['profile', 'health', 'plans', 'morning', 'evening', 'measurements', 'foods', 'entries', 'water', 'sessions', 'sets', 'custody', 'overrides', 'symptoms', 'labs', 'feedback', 'settings', 'recipes', 'mealTemplates'] as const;
+export const CURRENT_SCHEMA = 3;
 export type TableName = (typeof TABLES)[number];
 
 export const uid = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`);

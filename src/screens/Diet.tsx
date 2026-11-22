@@ -1,12 +1,15 @@
 import { useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, Copy, ListChecks, Plus, Star, Trash2, Siren, Repeat } from 'lucide-react';
+import { BookOpen, ChevronLeft, ChevronRight, Copy, ListChecks, Pencil, Plus, Star, Trash2, Siren, Repeat } from 'lucide-react';
 import type { ScreenProps } from '../App';
 import { db, now, uid } from '../db/db';
 import { dayIntake, targetFor } from '../db/repo';
 import { DAY_TEMPLATES, EMERGENCY_MEALS, type DayTemplate } from '../data/foods';
 import { addDays, formatPl } from '../domain/dates';
 import { scaleNutrients } from '../domain/calc';
-import { candidatesForSwap, fitDayToTargets, shoppingList, swapProduct, type ProductMap } from '../domain/nutrition';
+import { candidatesForSwap, swapProduct, type ProductMap } from '../domain/nutrition';
+import { effectiveTemplates, productEntry, shoppingFrom } from '../domain/recipes';
+import { RecipesSheet, TemplateEditor, safeFit } from './Recipes';
+import type { AppData } from '../db/repo';
 import type { FoodEntry, FoodProduct } from '../domain/types';
 import { Badge, Bar, Btn, Card, cx, Field, inputCls, NumInput, Sheet, Title, toast } from '../ui/kit';
 import { FoodPicker, addQuickEntry, basisLabel } from './FoodPicker';
@@ -20,7 +23,8 @@ export function Diet({ data, d }: ScreenProps) {
   const [date, setDate] = useState(d.today);
   const [addMeal, setAddMeal] = useState<number | null>(null);
   const [edit, setEdit] = useState<FoodEntry | null>(null);
-  const [sheet, setSheet] = useState<'template' | 'shop' | 'sos' | 'product' | 'plan' | null>(null);
+  const [sheet, setSheet] = useState<'template' | 'shop' | 'sos' | 'product' | 'plan' | 'recipes' | null>(null);
+  const [editTpl, setEditTpl] = useState<ReturnType<typeof effectiveTemplates>[number] | 'new' | null>(null);
   const products = useMemo(() => new Map(data.foods.map((f) => [f.id, f])), [data.foods]);
   const entries = data.entries.filter((e) => e.date === date);
   const tot = dayIntake(data, date);
@@ -30,10 +34,11 @@ export function Diet({ data, d }: ScreenProps) {
   const plan = { ...basePlan, kcal: t.kcal, proteinG: t.proteinG, fatG: t.fatG, carbsG: t.carbsG, fiberG: [t.fiberG, Math.max(t.fiberG, basePlan.fiberG[1])] as [number, number] };
   const mealCarbs = [1, 2, 3, 4, 5].map((m) => entries.filter((e) => e.meal === m).reduce((a, e) => a + e.snapshot.carbs, 0));
   const warnings = tot ? ruleWarnings(t, tot, mealCarbs) : [];
+  const templates = effectiveTemplates(DAY_TEMPLATES, data.mealTemplates);
+  const tTrain = dayTargets(basePlan, true), tRest = dayTargets(basePlan, false);
 
   async function addEntry(meal: number, p: FoodProduct, grams: number) {
-    const n = scaleNutrients(p.per100, grams);
-    await db.entries.add({ id: uid(), createdAt: now(), updatedAt: now(), date, meal, productId: p.id, grams, snapshot: { ...n, name: p.name }, source: 'manual' });
+    await db.entries.add(productEntry(p, grams, date, meal, uid(), now()));
   }
   async function copyFrom(src: string, meal?: number) {
     const e = data.entries.filter((x) => x.date === src && (meal === undefined || x.meal === meal));
@@ -42,14 +47,11 @@ export function Diet({ data, d }: ScreenProps) {
     toast(`Skopiowano ${e.length} pozycji`);
   }
   async function applyTemplate(tpl: DayTemplate) {
-    const fit = fitDayToTargets(products, tpl, { kcal: t.kcal, proteinG: t.proteinG, fatG: t.fatG, carbsG: t.carbsG });
-    const fitted = fit.day;
-    const rows: FoodEntry[] = fitted.meals.flatMap((m, i) => m.items.map((it) => {
-      const p = products.get(it.productId)!;
-      return { id: uid(), createdAt: now(), updatedAt: now(), date, meal: i + 1, productId: p.id, grams: it.grams, snapshot: { ...scaleNutrients(p.per100, it.grams), name: p.name }, source: 'template' as const };
-    }));
+    const fit = safeFit(products, tpl, t);
+    if (!fit) return toast('Szablon zawiera produkt spoza bazy. Popraw go w edytorze.');
+    const rows: FoodEntry[] = fit.day.meals.flatMap((m, i) => m.items.map((it) => productEntry(products.get(it.productId)!, it.grams, date, Math.min(5, i + 1), uid(), now(), 'template')));
     await db.entries.bulkAdd(rows); setSheet(null);
-    toast(`Dzień ${tpl.id}: ${Math.round(fit.totals.kcal)} kcal, B ${Math.round(fit.totals.protein)} g${fit.swapped.length ? `, zamieniono ${fit.swapped.length} źle tolerowane` : ''}${fit.ok ? '' : ' (poza tolerancją)'}`);
+    toast(`${tpl.name ?? tpl.id}: ${Math.round(fit.totals.kcal)} kcal, B ${Math.round(fit.totals.protein)} g${fit.swapped.length ? `, zamieniono ${fit.swapped.length} źle tolerowane` : ''}${fit.ok ? '' : ' (poza tolerancją)'}`);
   }
   const fiberLow = plan.fiberG[0];
 
@@ -81,10 +83,11 @@ export function Diet({ data, d }: ScreenProps) {
         {tot && tot.fiber > fiberLow + 10 && <p className="text-xs text-muted mt-2">Błonnik {Math.round(tot.fiber)} g. Jeśli to dużo więcej niż zwykle, zwiększaj stopniowo (np. połowa porcji warzyw i strączków przez 1–2 tyg.), żeby nie obciążać jelit.</p>}
       </Card>
 
-      <div className="grid grid-cols-4 gap-2 text-xs">
-        <QuickBtn icon={<ListChecks size={18} />} label="Szablon A/B/C" onClick={() => setSheet('template')} />
-        <QuickBtn icon={<Copy size={18} />} label="Kopiuj wczoraj" onClick={() => copyFrom(addDays(date, -1))} />
-        <QuickBtn icon={<Plus size={18} />} label="Lista zakupów" onClick={() => setSheet('shop')} />
+      <div className="grid grid-cols-5 gap-1.5 text-[11px]">
+        <QuickBtn icon={<ListChecks size={18} />} label="Szablony" onClick={() => setSheet('template')} />
+        <QuickBtn icon={<BookOpen size={18} />} label="Przepisy" onClick={() => setSheet('recipes')} />
+        <QuickBtn icon={<Copy size={18} />} label="Z wczoraj" onClick={() => copyFrom(addDays(date, -1))} />
+        <QuickBtn icon={<Plus size={18} />} label="Zakupy" onClick={() => setSheet('shop')} />
         <QuickBtn icon={<Siren size={18} />} label="Awaryjnie" onClick={() => setSheet('sos')} />
       </div>
 
@@ -116,14 +119,26 @@ export function Diet({ data, d }: ScreenProps) {
         onQuick={async (name, kcal, protein) => { await addQuickEntry(date, addMeal, name, kcal, protein, uid()); toast('Dodano szacunek'); }} onNew={() => setSheet('product')} />}
       {sheet === 'plan' && <PlanSettingsSheet plan={basePlan} today={d.today} onClose={() => setSheet(null)} />}
       {edit && <EditEntry entry={edit} product={products.get(edit.productId)} foods={data.foods} onClose={() => setEdit(null)} />}
-      <Sheet open={sheet === 'template'} onClose={() => setSheet(null)} title="Wstaw dzień z szablonu">
+      <Sheet open={sheet === 'template' && !editTpl} onClose={() => setSheet(null)} title="Szablony dni">
         <p className="text-sm text-muted">Gramatury źródeł białka, tłuszczu i węglowodanów zostaną dopasowane do celu tego dnia ({t.kcal} kcal, B {t.proteinG}, T {t.fatG}, W {t.carbsG}); produkty źle tolerowane zostaną zamienione. Wartości referencyjne: sprawdź etykiety.</p>
-        {DAY_TEMPLATES.map((tpl) => { const fit = fitDayToTargets(products, tpl, { kcal: t.kcal, proteinG: t.proteinG, fatG: t.fatG, carbsG: t.carbsG }); return (
-          <Card key={tpl.id} onClick={() => applyTemplate(tpl)}><div className="font-semibold">Dzień {tpl.id} {!fit.ok && <Badge tone="warn">poza tolerancją</Badge>}</div><div className="text-sm text-muted">{tpl.meals.map((m) => m.name).join(' · ')}</div>
-            <div className="text-xs text-muted num mt-1">Po dopasowaniu: {Math.round(fit.totals.kcal)} kcal · B {Math.round(fit.totals.protein)} · T {Math.round(fit.totals.fat)} · W {Math.round(fit.totals.carbs)}{fit.swapped.length ? ` · zamiany: ${fit.swapped.map((x) => `${x.from} → ${x.to}`).join(', ')}` : ''}</div></Card>
+        {templates.map((tpl) => { const fit = safeFit(products, tpl, t); return (
+          <Card key={tpl.id}>
+            <div className="flex items-start gap-2">
+              <button className="flex-1 text-left" onClick={() => applyTemplate(tpl)}>
+                <div className="font-semibold">{tpl.name} {tpl.edited && !tpl.custom && <Badge>zmieniony</Badge>}{tpl.custom && <Badge>własny</Badge>}{fit && !fit.ok && <Badge tone="warn">poza tolerancją</Badge>}</div>
+                <div className="text-sm text-muted">{tpl.meals.map((m) => m.name).join(' · ')}</div>
+                {fit ? <div className="text-xs text-muted num mt-1">Po dopasowaniu: {Math.round(fit.totals.kcal)} kcal · B {Math.round(fit.totals.protein)} · T {Math.round(fit.totals.fat)} · W {Math.round(fit.totals.carbs)}{fit.swapped.length ? ` · zamiany: ${fit.swapped.map((x) => `${x.from} → ${x.to}`).join(', ')}` : ''}</div> : <div className="text-xs text-warn">Produkt spoza bazy: popraw szablon.</div>}
+                <div className="text-xs text-accent mt-1">Dotknij, by wstawić do dziennika</div>
+              </button>
+              <button aria-label={`Edytuj ${tpl.name}`} className="p-2" onClick={() => setEditTpl(tpl)}><Pencil size={16} /></button>
+            </div>
+          </Card>
         ); })}
+        <Btn kind="soft" className="w-full" onClick={() => setEditTpl('new')}><Plus size={16} className="inline -mt-0.5" /> Nowy wariant</Btn>
       </Sheet>
-      {sheet === 'shop' && <Shopping open onClose={() => setSheet(null)} products={products} t={t} />}
+      {editTpl && <TemplateEditor tpl={editTpl} data={data} products={products} tTrain={tTrain} tRest={tRest} onClose={() => setEditTpl(null)} />}
+      {sheet === 'recipes' && <RecipesSheet data={data} date={date} t={t} mealsPerDay={basePlan.mealsPerDay} onClose={() => setSheet(null)} />}
+      {sheet === 'shop' && <Shopping open onClose={() => setSheet(null)} products={products} t={t} templates={templates} data={data} />}
       <Sheet open={sheet === 'sos'} onClose={() => setSheet(null)} title="Posiłki awaryjne">
         {EMERGENCY_MEALS.map((m) => <div key={m.where}><div className="font-semibold">{m.where}</div><p className="text-sm text-muted">{m.text}</p></div>)}
         <p className="text-xs text-muted">Wpisz potem produkt jako własny (kcal z etykiety lub szacunek oznaczony jako szacunek).</p>
@@ -157,7 +172,7 @@ function EditEntry({ entry, product, foods, onClose }: { entry: FoodEntry; produ
   }
   return (
     <Sheet open onClose={onClose} title={entry.snapshot.name}>
-      {!product ? <p className="text-sm text-muted">Szybki wpis: {Math.round(entry.snapshot.kcal)} kcal, {Math.round(entry.snapshot.protein)} g białka (szacunek).</p> : <>
+      {!product ? <p className="text-sm text-muted">{entry.recipeId ? `Przepis: ${Math.round(entry.snapshot.kcal)} kcal, B ${Math.round(entry.snapshot.protein)} g. Wartości zapisane w chwili wpisu; aby zmienić porcję, usuń wpis i dodaj ponownie z przepisu.` : `Szybki wpis: ${Math.round(entry.snapshot.kcal)} kcal, ${Math.round(entry.snapshot.protein)} g białka (szacunek).`}</p> : <>
       <Field label="Gramatura (g)"><NumInput value={g} onChange={setG} /></Field>
       <div className="flex gap-2">
         <Btn kind="soft" className="flex-1 text-sm" onClick={() => toggle('favorite')}><Star size={14} className="inline" /> {product?.favorite ? 'Usuń z ulubionych' : 'Ulubiony'}</Btn>
@@ -174,19 +189,23 @@ function EditEntry({ entry, product, foods, onClose }: { entry: FoodEntry; produ
   );
 }
 
-function Shopping({ open, onClose, products, t }: { open: boolean; onClose: () => void; products: ProductMap; t: DayTargets }) {
-  const [counts, setCounts] = useState<Record<string, number>>({ A: 1, B: 1, C: 1 });
-  const days = DAY_TEMPLATES.flatMap((tpl) => Array(counts[tpl.id] ?? 0).fill(fitDayToTargets(products, tpl, { kcal: t.kcal, proteinG: t.proteinG, fatG: t.fatG, carbsG: t.carbsG }).day));
-  const list = shoppingList(products, days);
+function Shopping({ open, onClose, products, t, templates, data }: { open: boolean; onClose: () => void; products: ProductMap; t: DayTargets; templates: (DayTemplate & { name?: string })[]; data: AppData }) {
+  const [counts, setCounts] = useState<Record<string, number>>(() => Object.fromEntries(templates.map((x, i) => [x.id, i < 3 ? 1 : 0])));
+  const [rc, setRc] = useState<Record<string, number>>({});
+  const groups = [
+    ...templates.map((tpl) => ({ items: (safeFit(products, tpl, t)?.day ?? tpl).meals.flatMap((m) => m.items), times: counts[tpl.id] ?? 0 })),
+    ...data.recipes.map((r) => ({ items: r.items, times: rc[r.id] ?? 0 })),
+  ];
+  const list = shoppingFrom(products, groups);
+  const Step = ({ v, set }: { v: number; set: (n: number) => void }) => <div className="flex items-center gap-2"><button className="w-8 h-8 rounded-lg bg-card" onClick={() => set(Math.max(0, v - 1))}>−</button><span className="num font-semibold w-4 text-center">{v}</span><button className="w-8 h-8 rounded-lg bg-card" onClick={() => set(v + 1)}>+</button></div>;
   return (
     <Sheet open={open} onClose={onClose} title="Lista zakupów / meal prep">
-      <div className="grid grid-cols-3 gap-2">
-        {DAY_TEMPLATES.map((t) => (
-          <div key={t.id} className="rounded-xl bg-card2 p-2 text-center"><div className="text-xs text-muted">Dzień {t.id}</div>
-            <div className="flex items-center justify-center gap-2 mt-1"><button className="w-8 h-8 rounded-lg bg-card" onClick={() => setCounts({ ...counts, [t.id]: Math.max(0, counts[t.id] - 1) })}>−</button><span className="num font-semibold">{counts[t.id]}</span><button className="w-8 h-8 rounded-lg bg-card" onClick={() => setCounts({ ...counts, [t.id]: counts[t.id] + 1 })}>+</button></div></div>
-        ))}
-      </div>
+      <div className="text-xs text-muted">Dni z szablonów (gramatury dopasowane do dzisiejszego celu)</div>
+      {templates.map((x) => <div key={x.id} className="flex items-center justify-between rounded-xl bg-card2 px-3 py-1.5 text-sm"><span>{x.name ?? `Dzień ${x.id}`}</span><Step v={counts[x.id] ?? 0} set={(n) => setCounts({ ...counts, [x.id]: n })} /></div>)}
+      {data.recipes.length > 0 && <div className="text-xs text-muted">Przepisy (cały przepis = wszystkie porcje)</div>}
+      {data.recipes.map((r) => <div key={r.id} className="flex items-center justify-between rounded-xl bg-card2 px-3 py-1.5 text-sm"><span>{r.name} <span className="text-muted">({r.servings} porc.)</span></span><Step v={rc[r.id] ?? 0} set={(n) => setRc({ ...rc, [r.id]: n })} /></div>)}
       <div className="divide-y divide-line">{list.map((i) => <div key={i.productId} className="flex justify-between py-2 text-sm"><span>{i.name}</span><span className="num text-muted">{i.grams >= 1000 ? `${(i.grams / 1000).toFixed(2)} kg` : `${i.grams} g`}</span></div>)}</div>
+      {!list.length && <p className="text-sm text-muted">Wybierz dni lub przepisy.</p>}
       <p className="text-xs text-muted">Gramatury dla produktów suchych/surowych zgodnie z opisem produktu.</p>
     </Sheet>
   );

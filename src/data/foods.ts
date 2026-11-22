@@ -47,7 +47,7 @@ export const SEED_FOODS: FoodProduct[] = seeds.map(([id, name, vals, basis, role
 
 export interface TemplateItem { productId: string; grams: number }
 export interface MealTemplate { name: string; items: TemplateItem[] }
-export interface DayTemplate { id: 'A' | 'B' | 'C'; meals: MealTemplate[] }
+export interface DayTemplate { id: string; name?: string; meals: MealTemplate[] }
 
 // Gramatury po przeliczeniu do ~2450 kcal / ≥165 g białka (patrz tests/nutrition.test.ts).
 export const DAY_TEMPLATES: DayTemplate[] = [

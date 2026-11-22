@@ -15,8 +15,8 @@ export function sumDay(entries: FoodEntry[]): DayIntake | undefined {
   const kcal = totals.kcal;
   const keys: MacroKey[] = ['protein', 'fat', 'carbs', 'fiber'];
   const coverage = Object.fromEntries(keys.map((k) => {
-    const unknownKcal = entries.filter((e) => e.unknown?.includes(k)).reduce((a, e) => a + e.snapshot.kcal, 0);
-    return [k, kcal > 0 ? Math.max(0, 1 - unknownKcal / kcal) : entries.some((e) => e.unknown?.includes(k)) ? 0 : 1];
+    const unknownKcal = entries.reduce((a, e) => a + (e.unknown?.includes(k) ? e.snapshot.kcal : Math.min(e.snapshot.kcal, e.unknownKcal?.[k] ?? 0)), 0);
+    return [k, kcal > 0 ? Math.max(0, 1 - unknownKcal / kcal) : entries.some((e) => e.unknown?.includes(k) || (e.unknownKcal?.[k] ?? 0) > 0) ? 0 : 1];
   })) as Record<MacroKey, number>;
   return { ...totals, meals: new Set(entries.map((e) => e.meal)).size, entries: entries.length, coverage };
 }

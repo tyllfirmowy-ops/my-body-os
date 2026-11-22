@@ -1,5 +1,12 @@
 # Changelog
 ## 0.6.0 — 2026-11-22 (ETAP 3, w toku)
+### 3B Przepisy i szablony dni
+- Dexie v3: nowe tabele `recipes` i `mealTemplates` (istniejące dane bez zmian, kopie sprzed v3 nie kasują przepisów przy imporcie).
+- `domain/recipes.ts`: suma przepisu (kcal, B/T/W, błonnik) z modelem kompletności (nieznane makro składnika ≠ 0), porcja, skalowanie porcji, kopia, porcje pod cel posiłku (dzień treningowy / bez treningu), ostrzeżenia i zamienniki dla produktów źle tolerowanych i mlecznych, lista zakupów z szablonów i przepisów, walidacja szablonu.
+- Wpis z przepisu: jeden wpis ze snapshotem wartości (`productId: recipe:<id>`), część kcal z nieznanym makro w `FoodEntry.unknownKcal`; `sumDay` liczy pokrycie także z tej części. Edycja przepisu nie zmienia historii.
+- Ekran Diety: „Przepisy” (lista, edytor, kopiowanie, ulubione, usuwanie, dodanie porcji do dziennika), „Szablony” z edycją A/B/C bez zmiany kodu (zmieniony szablon nadpisuje domyślny, „Przywróć domyślny”), własne warianty, podgląd dopasowania na dzień treningowy i bez treningu, wstawianie składników przepisu do szablonu. Lista zakupów z dowolnych szablonów i przepisów.
+- `FoodProduct.unknown` (opcjonalne): makro nieznane w źródle, przenoszone do wpisów.
+
 ### 3A Bezpieczeństwo danych
 - Format kopii v2: liczby rekordów na tabelę, suma SHA-256 tabel, wersja schematu Dexie i aplikacji. Kopie v1 nadal się wczytują (bez sumy kontrolnej; sprawdzany format i rekordy).
 - `inspectBackup`: podgląd przed importem (data, liczba rekordów, integralność, brakujące tabele). Odrzuca plik ucięty, zmieniony, z nieznaną tabelą lub z nowszego schematu.

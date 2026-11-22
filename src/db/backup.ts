@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { db, migrateEntryV2, TABLES, type BodyDB, type TableName } from './db';
+import { db, migrateEntryV2, TABLES, CURRENT_SCHEMA, type BodyDB, type TableName } from './db';
 
 export const BACKUP_FORMAT = 'my-body-os-backup';
 export const BACKUP_VERSION = 2;
@@ -73,7 +73,7 @@ export async function inspectBackup(raw: unknown): Promise<Inspect> {
     if ((await checksumTables(rawTables)) !== b.checksum) return { ok: false, error: 'Suma kontrolna się nie zgadza. Plik uszkodzony lub zmieniony.' };
     integrity = 'verified';
   }
-  if (b.schema && b.schema > 2) return { ok: false, error: 'Kopia z nowszej wersji bazy. Zaktualizuj aplikację przed importem.' };
+  if (b.schema && b.schema > CURRENT_SCHEMA) return { ok: false, error: 'Kopia z nowszej wersji bazy. Zaktualizuj aplikację przed importem.' };
   return { ok: true, version: b.version, exportedAt: b.exportedAt, app: b.app, schema: b.schema, counts, total: Object.values(counts).reduce((a, x) => a + x, 0),
     missing: TABLES.filter((t) => !(t in b.tables)), integrity };
 }

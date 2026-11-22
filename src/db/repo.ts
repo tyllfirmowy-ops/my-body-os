@@ -13,22 +13,24 @@ import { evaluateAdaptation, stepTarget } from '../domain/adaptation';
 import { coach, type DaySnapshot } from '../domain/coaching';
 import type {
   BodyMeasurement, CalendarOverride, CustodyConfig, EveningCheckIn, FoodEntry, FoodProduct, HealthProfile, LabResult, MorningCheckIn,
-  PlanVersion, RecommendationFeedback, Settings, SymptomLog, UserProfile, WaterLog, WorkoutSession, WorkoutSet,
+  PlanVersion, Recipe, DayTemplateRec, RecommendationFeedback, Settings, SymptomLog, UserProfile, WaterLog, WorkoutSession, WorkoutSet,
 } from '../domain/types';
 
 export interface AppData {
   profile?: UserProfile; health?: HealthProfile; plans: PlanVersion[]; morning: MorningCheckIn[]; evening: EveningCheckIn[];
   measurements: BodyMeasurement[]; foods: FoodProduct[]; entries: FoodEntry[]; water: WaterLog[]; sessions: WorkoutSession[]; sets: WorkoutSet[];
   custody?: CustodyConfig; overrides: CalendarOverride[]; symptoms: SymptomLog[]; labs: LabResult[]; feedback: RecommendationFeedback[]; settings?: Settings;
+  recipes: Recipe[]; mealTemplates: DayTemplateRec[];
 }
 
 export async function loadAll(): Promise<AppData> {
-  const [profile, health, plans, morning, evening, measurements, foods, entries, water, sessions, sets, custody, overrides, symptoms, labs, feedback, settings] = await Promise.all([
+  const [profile, health, plans, morning, evening, measurements, foods, entries, water, sessions, sets, custody, overrides, symptoms, labs, feedback, settings, recipes, mealTemplates] = await Promise.all([
     db.profile.get('me'), db.health.get('me'), db.plans.orderBy('validFrom').toArray(), db.morning.toArray(), db.evening.toArray(),
     db.measurements.orderBy('date').toArray(), db.foods.toArray(), db.entries.toArray(), db.water.toArray(), db.sessions.orderBy('date').toArray(),
     db.sets.toArray(), db.custody.get('custody'), db.overrides.toArray(), db.symptoms.toArray(), db.labs.toArray(), db.feedback.toArray(), db.settings.get('settings'),
+    db.recipes.toArray(), db.mealTemplates.toArray(),
   ]);
-  return { profile, health, plans, morning, evening, measurements, foods, entries, water, sessions, sets, custody, overrides, symptoms, labs, feedback, settings };
+  return { profile, health, plans, morning, evening, measurements, foods, entries, water, sessions, sets, custody, overrides, symptoms, labs, feedback, settings, recipes, mealTemplates };
 }
 
 export async function seedIfEmpty() {

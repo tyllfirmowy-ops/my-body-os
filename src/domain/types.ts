@@ -107,6 +107,8 @@ export interface FoodProduct {
   ingredients?: string;
   favorite?: boolean;
   custom?: boolean;
+  /** makro nieznane w źródle (np. niepełna etykieta OFF): w per100 = 0, ale to NIE jest zero */
+  unknown?: MacroKey[];
   updatedAt: number;
 }
 
@@ -118,6 +120,25 @@ export interface FoodEntry extends Meta {
   grams: number;
   snapshot: Nutrients & { name: string }; // wartości zapisane w momencie wpisu (historia nie zmienia się po edycji produktu)
   unknown?: MacroKey[];      // makro nieznane (np. szybki wpis kcal): w snapshot = 0, ale NIE jest to zero
+  /** część kcal wpisu z nieznanym makro (np. przepis z jednym składnikiem bez pełnej etykiety) */
+  unknownKcal?: Partial<Record<MacroKey, number>>;
+  recipeId?: string;
+}
+
+export interface RecipeItem { productId: string; grams: number }
+export interface Recipe extends Meta {
+  name: string;
+  servings: number;
+  items: RecipeItem[];
+  notes?: string;
+  favorite?: boolean;
+}
+
+export interface MealTemplateRec { name: string; items: RecipeItem[] }
+/** Szablon dnia edytowany w aplikacji: id 'A'/'B'/'C' nadpisuje domyślny, inne id = własny wariant. */
+export interface DayTemplateRec extends Meta {
+  name: string;
+  meals: MealTemplateRec[];
 }
 
 export interface PlanRules {

@@ -26,6 +26,8 @@ async function seed(d: BodyDB) {
   await d.symptoms.put({ id: 'y1', date: '2026-11-20', time: '12:00', products: 'mleko', ...T } as never);
   await d.labs.put({ id: 'l1', date: '2026-10-01', name: 'Testowy', value: 1, unit: 'u', ...T } as never);
   await d.feedback.put({ id: 'fb1', date: '2026-11-20', ruleId: 'r', value: 'not_helpful', ...T } as never);
+  await d.recipes.put({ id: 'rc1', name: 'Test', servings: 2, items: [{ productId: 'f1', grams: 100 }], ...T } as never);
+  await d.mealTemplates.put({ id: 'A', name: 'Mój A', meals: [{ name: 'x', items: [{ productId: 'f1', grams: 50 }] }], ...T } as never);
   await d.settings.put({ id: 'settings', theme: 'dark', onboarded: true, backupReminderDays: 7, aiIncludeHealth: false });
 }
 const fresh = () => new BodyDB('t3a-' + Math.random());
@@ -118,7 +120,7 @@ describe('3A kopia zapasowa', () => {
     v1.close();
     const up = new BodyDB(name); await up.open();
     const dump = await exportAll(up);
-    expect(dump.schema).toBe(2);
+    expect(dump.schema).toBe(3);
     const b = fresh();
     expect((await importAll(JSON.parse(JSON.stringify(dump)), b)).ok).toBe(true);
     expect((await b.entries.get('q'))!.unknown).toEqual(['protein', 'fat', 'carbs', 'fiber']);

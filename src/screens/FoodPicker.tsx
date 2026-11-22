@@ -11,9 +11,9 @@ const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,
 
 type Tab = 'local' | 'online' | 'scan' | 'quick';
 
-export function FoodPicker({ foods, entries, onClose, onAdd, onQuick, onNew }: {
+export function FoodPicker({ foods, entries, onClose, onAdd, onQuick, onNew, title }: {
   foods: FoodProduct[]; entries: FoodEntry[]; onClose: () => void;
-  onAdd: (p: FoodProduct, g: number) => Promise<void>; onQuick: (name: string, kcal: number, protein: number) => Promise<void>; onNew: () => void;
+  onAdd: (p: FoodProduct, g: number) => Promise<void>; onQuick?: (name: string, kcal: number, protein: number) => Promise<void>; onNew: () => void; title?: string;
 }) {
   const [tab, setTab] = useState<Tab>('local');
   const [q, setQ] = useState('');
@@ -75,9 +75,9 @@ export function FoodPicker({ foods, entries, onClose, onAdd, onQuick, onNew }: {
     );
   }
   return (
-    <Sheet open onClose={onClose} title="Dodaj produkt">
-      <div className="grid grid-cols-4 gap-1 rounded-xl bg-card2 p-1 text-xs">
-        {([['local', 'Moje', Search], ['online', 'Online', Search], ['scan', 'Skanuj', Barcode], ['quick', 'Szybko', Zap]] as const).map(([k, l, I]) => (
+    <Sheet open onClose={onClose} title={title ?? 'Dodaj produkt'}>
+      <div className={cx('grid gap-1 rounded-xl bg-card2 p-1 text-xs', onQuick ? 'grid-cols-4' : 'grid-cols-3')}>
+        {([['local', 'Moje', Search], ['online', 'Online', Search], ['scan', 'Skanuj', Barcode], ['quick', 'Szybko', Zap]] as const).filter(([k]) => onQuick || k !== 'quick').map(([k, l, I]) => (
           <button key={k} onClick={() => setTab(k)} className={cx('flex flex-col items-center gap-0.5 rounded-lg py-2', tab === k ? 'bg-card font-semibold' : 'text-muted')}><I size={16} />{l}</button>
         ))}
       </div>
@@ -97,7 +97,7 @@ export function FoodPicker({ foods, entries, onClose, onAdd, onQuick, onNew }: {
         <p className="text-xs text-muted">Open Food Facts to otwarta baza produktów z etykiet. Dane wpisują użytkownicy: przy ważnych produktach porównaj z opakowaniem. Produkt zapisze się w Twojej bazie i będzie dostępny offline.</p>
       </>)}
       {tab === 'scan' && <Scanner busy={busy} onCode={byCode} />}
-      {tab === 'quick' && (<>
+      {tab === 'quick' && onQuick && (<>
         <p className="text-sm text-muted">Gdy nie znasz produktu (restauracja, impreza): wpisz szacunek. Zapisze się jako szacunek.</p>
         <Field label="Co to było"><input className={inputCls} value={quick.name} onChange={(e) => setQuick({ ...quick, name: e.target.value })} placeholder="np. obiad w restauracji" /></Field>
         <div className="grid grid-cols-2 gap-2">
