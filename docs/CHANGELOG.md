@@ -9,6 +9,12 @@
 - EVIDENCE.md: ACSM 2026 (PMID 41843416), WHO 2021, Bruggisser 2023 (pora treningu), heurystyki planowania.
 - Testy: tests/w2b.test.ts (12), E2E `training_availability`.
 
+### Kalorie liczone indywidualnie
+- `energy.planFor` zastępuje `planFromTdee`: deficyt z docelowego tempa (spokojnie 0,5%, standard 0,7% masy/tydz.), przycięty limitem deficytu (BMI < 30: 500 kcal, BMI ≥ 30: 750 kcal, zawsze ≤ 25% TDEE) i minimum kalorii; białko 1,8 g/kg masy referencyjnej (przy BMI > 25: masa przy BMI 25); tłuszcz 28% kcal i ≥ 0,6 g/kg; reszta węglowodany.
+- Minimum kalorii indywidualne (`kcalFloor`: max(1500 M / 1200 K, przemiana spoczynkowa)) zamiast stałych 2100 kcal: w dopasowaniu kalorii, ręcznej edycji i kontekście dla AI (który podaje też płeć zamiast stałego „mężczyzna”).
+- Zakładanie konta: plan z nowej formuły (tempo standard). Kalkulator w Energii: wybór tempa, informacja, co ograniczyło deficyt. Istniejące plany bez zmian (zmiana tylko po akceptacji, nowa PlanVersion).
+- EVIDENCE.md: Frankenfield 2005, Helms 2014, Garthe 2011, Murphy i Koehler 2022, AHA/ACC/TOS 2013, Morton 2018, Leidy 2015.
+
 ### Raport tygodnia i drugi użytkownik
 - Raport tygodnia (4 pytania, ok. 30 s): samopoczucie, dieta + głód, kolano (tylko gdy zgłoszone w ankiecie zdrowotnej), co zmienić; opcjonalna notatka pokazywana za tydzień. Dane, które aplikacja zna (treningi, waga, kalorie, sen), wyświetlane bez pytania.
 - Każda odpowiedź ma skutek (`domain/weeklyCheckin.ts`, `checkinEffects`): ciężka dieta z głodem → wejście `strongHungerOrWeakness` silnika kalorii (bez obniżki, możliwa propozycja podniesienia do akceptacji); słabe samopoczucie / „mniej treningów” → propozycja celu 2 treningi na najbliższy tydzień (`Settings.perWeekOverride`, `planWeekly.perWeekFor`); kolano „wyraźnie” → bez dokładania ciężaru w ćwiczeniach na kolano przez tydzień; „prostsze posiłki” / ciężka dieta → podpowiedzi posiłków najpierw szybkie (`preferQuick`). Brak raportu = brak skutków.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { estimateTdee, planFromTdee, observedTdee } from '../src/domain/energy';
+import { estimateTdee, planFor, kcalFloor, deficitCap, referenceWeight, observedTdee } from '../src/domain/energy';
 import { parseSync, normalizeSleep } from '../src/domain/sync';
 import { weeklyStats, weeklyMarkdown } from '../src/domain/report';
 import { addDays } from '../src/domain/dates';
@@ -14,10 +14,25 @@ describe('zapotrzebowanie', () => {
   it('więcej kroków = wyższe TDEE', () => {
     expect(estimateTdee(2152.5, 110, 190, { ...hubert, stepsPerDay: 10000 }).tdee).toBeGreaterThan(estimateTdee(2152.5, 110, 190, hubert).tdee);
   });
-  it('plan: deficyt 15%, białko 1,7 g/kg celu, minimum 2100', () => {
-    const p = planFromTdee(2720, 97, 'gentle');
-    expect(p.kcal).toBe(2300); expect(p.proteinG).toBe(165);
-    expect(planFromTdee(2300, 97, 'standard').kcal).toBe(2100);
+  it('plan indywidualny: 190 cm / 110 kg mężczyzna, tempo 0,7%/tydz. przycięte limitem deficytu (BMI ≥ 30: ≤ 750 i ≤ 25% TDEE)', () => {
+    const p = planFor({ tdee: 2850, bmr: 2152, weightKg: 110, heightCm: 190, sex: 'male', pace: 'standard' });
+    expect(p.wantedDeficit).toBe(847); expect(p.cap).toBe(713); expect(p.bound).toBe('cap');
+    expect(p.kcal).toBe(2150); expect(p.floor).toBe(2150);
+    expect(p.proteinG).toBe(160); // 1,8 g/kg × 90,3 kg (masa przy BMI 25)
+  });
+  it('kobieta 165 cm / 70 kg (BMI 25,7): limit 500 kcal, minimum = przemiana spoczynkowa', () => {
+    const p = planFor({ tdee: 2100, bmr: 1400, weightKg: 70, heightCm: 165, sex: 'female', pace: 'standard' });
+    expect(p.cap).toBe(500); expect(p.kcal).toBe(1600); expect(p.floor).toBe(1400);
+    expect(p.proteinG).toBe(125); // 1,8 × 68,1 kg
+  });
+  it('szczupły mężczyzna, tempo spokojne: deficyt z tempa (0,5%/tydz.), białko od aktualnej masy', () => {
+    const p = planFor({ tdee: 2600, bmr: 1750, weightKg: 75, heightCm: 180, sex: 'male', pace: 'gentle' });
+    expect(p.bound).toBe('rate'); expect(p.kcal).toBe(2200); expect(p.proteinG).toBe(135);
+  });
+  it('minimum kalorii: nie mniej niż 1200/1500 kcal i nie mniej niż przemiana spoczynkowa', () => {
+    expect(planFor({ tdee: 1500, bmr: 1350, weightKg: 60, heightCm: 160, sex: 'female', pace: 'standard' })).toMatchObject({ kcal: 1350, bound: 'floor' });
+    expect(kcalFloor('female', 1000)).toBe(1200); expect(kcalFloor('male', 1400)).toBe(1500); expect(kcalFloor('male', 2152)).toBe(2150);
+    expect(deficitCap(80, 180, 2600)).toBe(500); expect(referenceWeight(60, 170)).toBe(60);
   });
   const w28 = (f: (i: number) => number) => Array.from({ length: 28 }, (_, i) => ({ date: addDays('2026-10-01', i), value: f(i) }));
   const days = (n: number, kcal: number, c = 'confirmed') => Array.from({ length: n }, (_, i) => ({ date: addDays('2026-10-01', i), kcal, completeness: c }));

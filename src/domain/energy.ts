@@ -49,16 +49,49 @@ export function estimateTdee(bmr: number, weightKg: number, heightCm: number, a:
 }
 
 export type Pace = 'gentle' | 'standard';
-export const PACE_DEFICIT: Record<Pace, number> = { gentle: 0.15, standard: 0.2 };
+/**
+ * Docelowe tempo spadku masy (% masy ciała/tydz.). Helms 2014: 0,5–1%/tydz. dla zachowania mięśni;
+ * Garthe 2011: 0,7% vs 1,4% z treningiem siłowym → więcej masy beztłuszczowej i siły przy wolniejszym tempie.
+ */
+export const PACE_RATE: Record<Pace, number> = { gentle: 0.005, standard: 0.007 };
+export const PACE_LABEL: Record<Pace, string> = { gentle: 'Spokojnie (~0,5% masy/tydz.)', standard: 'Standard (~0,7% masy/tydz.)' };
 
-/** Plan z TDEE: deficyt 15–20%, białko 1,7 g/kg masy docelowej, tłuszcz ~28% kcal, reszta węglowodany. */
-export function planFromTdee(tdee: number, goalKg: number, pace: Pace, floor = 2100) {
-  const kcal = Math.max(floor, Math.round((tdee * (1 - PACE_DEFICIT[pace])) / 50) * 50);
-  const proteinG = Math.round((goalKg * 1.7) / 5) * 5;
-  const fatG = Math.round((kcal * 0.28) / 9 / 5) * 5;
+export const bmiOf = (kg: number, cm: number) => kg / (cm / 100) ** 2;
+/** Masa referencyjna do białka i tłuszczu: aktualna, a przy BMI > 25 masa odpowiadająca BMI 25 (nie liczymy białka na tkankę tłuszczową). */
+export const referenceWeight = (kg: number, cm: number) => Math.min(kg, 25 * (cm / 100) ** 2);
+/**
+ * Minimum kalorii: dolne wartości z wytycznych AHA/ACC/TOS 2013 (1500 kcal mężczyźni, 1200 kobiety)
+ * i nie mniej niż szacowana przemiana spoczynkowa (reguła projektowa: ochrona mięśni, sytości i wytrwałości).
+ */
+export const kcalFloor = (sex: 'male' | 'female', bmr: number) => Math.max(sex === 'female' ? 1200 : 1500, Math.floor(bmr / 50) * 50);
+/**
+ * Górny limit deficytu: przy treningu siłowym deficyt > ~500 kcal/dzień blokuje przyrost masy beztłuszczowej (Murphy i Koehler 2022);
+ * przy otyłości (BMI ≥ 30) dopuszczamy do 750 kcal (AHA/ACC/TOS 2013: 500–750). Zawsze ≤ 25% TDEE (reguła projektowa).
+ */
+export const deficitCap = (kg: number, cm: number, tdee: number) => Math.round(Math.min(bmiOf(kg, cm) >= 30 ? 750 : 500, tdee * 0.25));
+
+export interface PlanCalcInput { tdee: number; bmr: number; weightKg: number; heightCm: number; sex: 'male' | 'female'; pace: Pace }
+export type PlanBound = 'rate' | 'cap' | 'floor';
+
+/**
+ * Indywidualny plan redukcji: deficyt z docelowego tempa (% masy), przycięty limitem deficytu i minimum kalorii.
+ * Białko 1,8 g/kg masy referencyjnej (Morton 2018: korzyść do ~1,6 g/kg, górna granica przedziału ~2,2; w deficycie bliżej górnej części),
+ * tłuszcz 28% kcal, ale nie mniej niż 0,6 g/kg masy referencyjnej; reszta węglowodany.
+ */
+export function planFor(i: PlanCalcInput) {
+  const wanted = (i.weightKg * PACE_RATE[i.pace] * 7700) / 7;
+  const cap = deficitCap(i.weightKg, i.heightCm, i.tdee);
+  const floor = kcalFloor(i.sex, i.bmr);
+  const byRate = Math.round((i.tdee - Math.min(wanted, cap)) / 50) * 50;
+  const kcal = Math.max(floor, byRate);
+  const bound: PlanBound = kcal === floor && byRate < floor ? 'floor' : wanted > cap ? 'cap' : 'rate';
+  const ref = referenceWeight(i.weightKg, i.heightCm);
+  const proteinG = Math.round((ref * 1.8) / 5) * 5;
+  const fatG = Math.max(Math.round((kcal * 0.28) / 9 / 5) * 5, Math.round((ref * 0.6) / 5) * 5);
   const carbsG = Math.max(0, Math.round((kcal - proteinG * 4 - fatG * 9) / 4));
-  const deficit = tdee - kcal;
-  return { kcal, proteinG, fatG, carbsG, deficit, expectedLossKgWeek: Math.round(((deficit * 7) / 7700) * 100) / 100 };
+  const deficit = Math.round(i.tdee - kcal);
+  return { kcal, proteinG, fatG, carbsG, deficit, floor, cap, refWeightKg: Math.round(ref * 10) / 10, bound,
+    expectedLossKgWeek: Math.round(((deficit * 7) / 7700) * 100) / 100, wantedDeficit: Math.round(wanted) };
 }
 
 export type Reliability = 'high' | 'medium' | 'low' | 'insufficient';

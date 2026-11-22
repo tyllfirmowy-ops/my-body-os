@@ -76,8 +76,11 @@ def second_user_clean(pg, url, ctx):
     body = pg.locator('body').inner_text()
     check('dzieck' not in body.lower() and 'córk' not in body.lower(), 'nowy użytkownik widzi elementy opieki nad dzieckiem')
     check(store(pg, 'sessions') == [] and store(pg, 'weeklyCheckins') == [], 'nowy użytkownik ma cudze dane')
+    plan = store(pg, 'plans')[0]
+    # domyślny formularz: 180 cm, 100 kg, 30 lat, mężczyzna → białko 1,8 g/kg × 81 kg (BMI 25) = 145 g; kalorie z jego TDEE, nie stałe 2100
+    check(plan['proteinG'] == 145 and 1800 <= plan['kcal'] <= 2600 and plan['kcal'] != 2100, f'plan nowego użytkownika: {plan["kcal"]} kcal, B {plan["proteinG"]}')
     pg.get_by_role('button', name='Wypełnij').click(); pg.wait_for_timeout(300)
     check(dialog(pg).get_by_text('Kolano w tym tygodniu').count() == 0, 'pytanie o kolano u osoby bez problemu z kolanem')
-    return {'custody': 'pominięty', 'kneeQuestion': False}
+    return {'custody': 'pominięty', 'kneeQuestion': False, 'plan': f"{plan['kcal']} kcal, B {plan['proteinG']} g, T {plan['fatG']} g, W {plan['carbsG']} g"}
 
 ALL = [weekly_report, weekly_snooze, second_user_clean]

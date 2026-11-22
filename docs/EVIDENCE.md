@@ -63,6 +63,19 @@ Zasada: każda reguła zdrowotna i żywieniowa ma źródło albo jest jawnie ozn
 | Ból rzepkowo-udowy / ocena urazu kolana | kliniczne | wytyczne JOSPT/APTA dot. bólu rzepkowo-udowego |
 | Wartości odżywcze produktów | referencyjne | USDA FoodData Central / etykiety (oznaczone w aplikacji) |
 
+## Kalorie i makro dla każdego użytkownika (sprawdzone 2026-11-22)
+| Źródło | Data | Wniosek | Ograniczenia | Użycie w aplikacji |
+|---|---|---|---|---|
+| Frankenfield i in., J Am Diet Assoc 105(5):775, doi 10.1016/j.jada.2005.02.005 | 2005 | Mifflin-St Jeor najczęściej trafia w ±10% zmierzonej przemiany spoczynkowej u osób z otyłością i bez | U pojedynczej osoby błąd bywa większy | BMR z Mifflin-St Jeor; TDEE = BMR × praca + kroki + trening + cardio; potem kalibracja z trendu wagi i dziennika (observedTdee). |
+| Helms, Aragon, Fitschen, JISSN, PMID 24864135 | 2014 | Tempo ok. 0,5–1% masy/tydz. dla zachowania mięśni; tłuszcz 15–30% kcal | Przegląd narracyjny, sportowcy sylwetkowi | Tempo „spokojnie” 0,5%, „standard” 0,7% masy/tydz.; tłuszcz 28% kcal. |
+| Garthe i in., IJSNEM 21(2), PMID 21558571 | 2011 | 0,7% vs 1,4% masy/tydz. z treningiem siłowym: wolniej = więcej masy beztłuszczowej i siły | Sportowcy wyczynowi, mała próba | Domyślne tempo 0,7%/tydz. |
+| Murphy, Koehler, Scand J Med Sci Sports, PMID 34623696 | 2022 | Deficyt ok. 500 kcal/dzień blokuje przyrost masy beztłuszczowej przy treningu siłowym; siła rośnie podobnie | Metaregresja, różne populacje, krótkie badania | Limit deficytu 500 kcal przy BMI < 30. |
+| Jensen i in., wytyczne AHA/ACC/TOS 2013, Circulation 129(25 Suppl 2):S102 | 2013 | Redukcja: 1200–1500 kcal kobiety / 1500–1800 mężczyźni albo deficyt 500–750 kcal | Wytyczne kliniczne dla otyłości, nie dla sportowców | Przy BMI ≥ 30 limit deficytu 750 kcal; minimum kalorii 1200 (K) / 1500 (M). |
+| Morton i in., Br J Sports Med 52:376, PMID 28698222 | 2018 | Korzyść z białka dla masy beztłuszczowej do ok. 1,6 g/kg/dzień (górna granica przedziału ok. 2,2) | Głównie bez deficytu kalorii | Białko 1,8 g/kg masy referencyjnej (w deficycie bliżej górnej części przedziału). |
+| Leidy i in., Am J Clin Nutr, PMID 25926512 | 2015 | Przy odchudzaniu 1,2–1,6 g/kg poprawia sytość i skład ciała | Dane w przeliczeniu na masę aktualną, osoby z nadwagą | Uzasadnia, że przy nadwadze nie liczymy białka na pełną masę (masa referencyjna przy BMI 25). |
+
+Reguły projektowe: masa referencyjna = masa przy BMI 25, gdy BMI > 25; minimum kalorii nie niższe niż szacowana przemiana spoczynkowa; limit deficytu ≤ 25% TDEE; białko 1,8 g/kg (wybór w przedziale 1,6–2,2); tłuszcz ≥ 0,6 g/kg masy referencyjnej. Nowy plan powstaje przy zakładaniu konta albo po akceptacji w kalkulatorze; istniejący plan nie zmienia się sam.
+
 ## Kolejność ćwiczeń, rozgrzewka, rozciąganie (sprawdzone 2026-11-22)
 | Źródło | Data | Wniosek | Ograniczenia | Użycie w aplikacji |
 |---|---|---|---|---|
@@ -80,7 +93,7 @@ Reguły projektowe: dobór konkretnych ćwiczeń rozgrzewki i rozciągania (bez 
 | WCAG 2.2 SC 2.5.8 | 2023 | Minimum 24 × 24 px albo odpowiedni odstęp (poziom AA) | Próg dostępności, łagodniejszy niż Apple | Dolna granica dla drobnych linków tekstowych. |
 
 ## Reguły projektowe (konserwatywne założenia, nie twierdzenia naukowe)
-- Podłoga 2100 kcal dla tego profilu, kalibracja 14 dni przed pierwszą korektą, korekta −150 kcal, min. 14 dni między zmianami.
+- Minimum kalorii indywidualne (energy.kcalFloor), dawniej stałe 2100 kcal; kalibracja 14 dni przed pierwszą korektą, korekta −150 kcal, min. 14 dni między zmianami.
 - Makro w analizach tylko przy pokryciu ≥80% kcal dnia (brak danych ≠ 0).
 - Propozycje posiłków: budżet posiłku = pozostałe kcal / pozostałe posiłki; porcje przepisu co 0,25.
 - Progres (W2): zwiększenie dopiero po 2 kolejnych treningach na górze zakresu (albo 1 z RIR ≥ 2 w każdej serii); przy bólu ≥ 4/10 brak automatycznej zmiany ciężaru (pominięcie lub zamiennik); obniżka ok. 10% przy 2 treningach z rzędu poniżej zakresu i przy RIR 0 poniżej zakresu; skok > 10% tylko jako świadomy wybór; spadek łącznych powtórzeń > 20% = bez zwiększania; obniżki zaokrąglane w dół do siatki skoku.

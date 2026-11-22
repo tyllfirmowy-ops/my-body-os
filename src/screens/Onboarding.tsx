@@ -7,7 +7,7 @@ import { PATTERN_223, cycleIndex } from '../domain/schedule';
 import { Btn, Card, cx, Field, inputCls, NumInput, toast } from '../ui/kit';
 import { ActivityForm } from './Energy';
 import { bmrMifflin } from '../domain/calc';
-import { estimateTdee, planFromTdee, type ActivityProfile } from '../domain/energy';
+import { estimateTdee, planFor, type ActivityProfile } from '../domain/energy';
 import { DEFAULT_RULES } from '../domain/targets';
 
 const DEMO: PrivateProfileT = {
@@ -21,8 +21,9 @@ export function Onboarding({ data }: { data: AppData }) {
   const [step, setStep] = useState<'profile' | 'manual' | 'health' | 'custody' | 'measure'>(data.profile ? (data.custody ? 'measure' : 'custody') : 'profile');
   const [manual, setManual] = useState({ name: '', sex: 'male' as 'male' | 'female', heightCm: 180, ageYears: 30, weightKg: 100, goalKg: 90 });
   const [act, setAct] = useState<ActivityProfile>({ job: 'desk', stepsPerDay: 6000, workoutsPerWeek: 2, workoutMin: 60, workoutType: 'strength', cardioMinPerWeek: 0 });
-  const est = estimateTdee(bmrMifflin({ weightKg: manual.weightKg, heightCm: manual.heightCm, age: manual.ageYears, sex: manual.sex }), manual.weightKg, manual.heightCm, act);
-  const calc = planFromTdee(est.tdee, manual.goalKg, 'gentle', manual.sex === 'male' ? 1800 : 1400);
+  const bmr0 = bmrMifflin({ weightKg: manual.weightKg, heightCm: manual.heightCm, age: manual.ageYears, sex: manual.sex });
+  const est = estimateTdee(bmr0, manual.weightKg, manual.heightCm, act);
+  const calc = planFor({ tdee: est.tdee, bmr: bmr0, weightKg: manual.weightKg, heightCm: manual.heightCm, sex: manual.sex, pace: 'standard' });
   const [refDate, setRefDate] = useState(today());
   const [withD, setWithD] = useState<boolean | null>(null);
   const [pw, setPw] = useState('');
@@ -104,7 +105,7 @@ export function Onboarding({ data }: { data: AppData }) {
           <ActivityForm a={act} onChange={setAct} />
           <div className="rounded-xl bg-card2 p-3 text-sm">
             {est.lines.map((l) => <div key={l}>{l}</div>)}
-            <div className="font-semibold mt-1">TDEE ok. {est.tdee} kcal → plan {calc.kcal} kcal (−15%), B {calc.proteinG} g, T {calc.fatG} g, W {calc.carbsG} g</div>
+            <div className="font-semibold mt-1">TDEE ok. {est.tdee} kcal → plan {calc.kcal} kcal (deficyt ok. {calc.deficit} kcal, ok. {String(calc.expectedLossKgWeek).replace('.', ',')} kg/tydz.), B {calc.proteinG} g, T {calc.fatG} g, W {calc.carbsG} g</div>
             <div className="text-xs text-muted">Hipoteza startowa. Po 3–4 tygodniach aplikacja przeliczy ją z Twojej wagi i jedzenia.</div>
           </div>
           <Btn className="w-full" onClick={saveManual}>Dalej</Btn>

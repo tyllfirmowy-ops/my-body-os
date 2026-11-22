@@ -1,7 +1,8 @@
 import { blockAverages, mean, type DatedValue } from './calc';
 import { addDays, diffDays, type LocalDate } from './dates';
 
-export const KCAL_FLOOR = 2100; // konserwatywny limit projektowy dla tego profilu, nie próg medyczny
+/** Dawny stały limit (profil 190 cm / ~110 kg). Nowe obliczenia: energy.kcalFloor (płeć + przemiana spoczynkowa). */
+export const KCAL_FLOOR = 2100;
 
 export type AdaptStatus = 'calibration' | 'insufficient_data' | 'on_track' | 'slow_waist_down' | 'slow' | 'stagnation_check' | 'stagnation' | 'too_fast' | 'cooldown';
 export interface AdaptResult {
@@ -24,6 +25,8 @@ export interface AdaptInput {
   stepsAvg?: number | null;
   strongHungerOrWeakness?: boolean;
   healthFlag?: boolean;          // aktywne istotne objawy zdrowotne
+  /** indywidualne minimum kalorii (energy.kcalFloor); brak = dawny limit projektowy */
+  kcalFloor?: number;
 }
 
 /** Silnik adaptacji redukcji. Deterministyczny, niezależny od UI. Nigdy nie zmienia planu sam: tylko propozycja. */
@@ -76,14 +79,15 @@ export function evaluateAdaptation(i: AdaptInput): AdaptResult {
   if (diffDays(i.lastPlanChange, i.today) < 14) {
     return { status: 'cooldown', weeklyLossKg: loss, reliable: true, checks, message: 'Ostatnia korekta była mniej niż 14 dni temu. Obserwujemy jej efekt.' };
   }
-  const newKcal = Math.max(KCAL_FLOOR, i.kcalTarget - 150);
+  const floor = i.kcalFloor ?? KCAL_FLOOR;
+  const newKcal = Math.max(floor, i.kcalTarget - 150);
   const canCut = newKcal < i.kcalTarget;
   return {
     status: 'stagnation', weeklyLossKg: loss, reliable: true, checks,
     message: 'Potwierdzona stagnacja przy dobrej realizacji planu. Proponuję jedną korektę.',
     proposal: canCut
       ? { kind: 'kcal', kcalDelta: newKcal - i.kcalTarget, newKcal, reason: `Brak spadku przez 14+ dni przy ${logged.length}/14 dniach dziennika.`, alternative: 'Zamiast tego: +1000 kroków dziennie (jeśli kolano pozwala).' }
-      : { kind: 'activity', stepsDelta: 1000, reason: `Kalorie są już na limicie ${KCAL_FLOOR} kcal (poniżej tylko po konsultacji ze specjalistą).`, alternative: 'Konsultacja z dietetykiem klinicznym.' },
+      : { kind: 'activity', stepsDelta: 1000, reason: `Kalorie są już na limicie ${floor} kcal (poniżej tylko po konsultacji ze specjalistą).`, alternative: 'Konsultacja z dietetykiem klinicznym.' },
   };
 }
 

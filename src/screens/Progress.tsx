@@ -124,7 +124,7 @@ function AiSheet({ data, d, stats, onClose }: { data: ScreenProps['data']; d: Sc
   const [health, setHealth] = useState(data.settings?.aiIncludeHealth ?? false);
   const [days, setDays] = useState<14 | 28>(14);
   const p = data.profile!;
-  const text = aiContext({ stats, adapt: d.adapt!, recs: d.recs, plan: d.plan!, profile: { heightCm: p.heightCm, age: ageOn(p, d.today), goals: p.goals.map((g) => `${g.kg} kg`).join(', ') },
+  const text = aiContext({ stats, adapt: d.adapt!, recs: d.recs, plan: d.plan!, kcalFloor: d.kcalFloor, profile: { heightCm: p.heightCm, sex: p.sex, age: ageOn(p, d.today), goals: p.goals.map((g) => `${g.kg} kg`).join(', ') },
     health: health ? [...(data.health?.conditions ?? []), data.health?.kneeNote ?? '', data.health?.dairyAvoid ? 'objawy po nabiale (bez diagnozy)' : ''].filter(Boolean) : undefined, days });
   return (
     <Sheet open onClose={onClose} title="Kopiuj raport dla AI">

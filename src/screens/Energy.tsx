@@ -4,7 +4,7 @@ import type { AppData, Derived } from '../db/repo';
 import { mean, ageOn, bmrMifflin } from '../domain/calc';
 import { validatePlanEdit, fillCarbs } from '../domain/planEdit';
 import { addDays, diffDays } from '../domain/dates';
-import { estimateTdee, JOB_LABEL, observedTdee, planFromTdee, type ActivityProfile, type Pace } from '../domain/energy';
+import { estimateTdee, JOB_LABEL, kcalFloor, observedTdee, PACE_LABEL, planFor, type ActivityProfile, type Pace } from '../domain/energy';
 import { Btn, copyText, cx, Field, inputCls, NumInput, Sheet, toast, Toggle } from '../ui/kit';
 import { dayTargets, DEFAULT_CYCLING, DEFAULT_RULES } from '../domain/targets';
 
@@ -43,14 +43,15 @@ export function EnergySheet({ data, d, onClose }: { data: AppData; d: Derived; o
   const intake = d.snaps.filter((s) => s.kcal !== undefined).map((s) => ({ date: s.date, kcal: s.kcal!, completeness: s.completeness ?? 'incomplete' }));
   const obs = observedTdee(d.weights, intake, addDays(d.today, -1));
   const base = obs.usableForPlan && obs.tdee ? obs.tdee : est.tdee;
-  const plan = planFromTdee(base, goal, pace);
+  const plan = planFor({ tdee: base, bmr, weightKg: weight, heightCm: p.heightCm, sex: p.sex, pace });
+  void goal;
   const cur = d.plan!;
 
   async function saveActivity() { await db.profile.update('me', { activity: a, updatedAt: now() }); toast('Wywiad zapisany'); }
   async function apply() {
     await db.profile.update('me', { activity: a, updatedAt: now() });
     await db.plans.add({ ...cur, id: uid(), createdAt: now(), updatedAt: now(), validFrom: d.today, kcal: plan.kcal, proteinG: plan.proteinG, fatG: plan.fatG, carbsG: plan.carbsG,
-      reason: `Kalkulator: TDEE ${base} kcal (${obs.usableForPlan ? `z Twoich danych, wiarygodność ${REL[obs.reliability]}` : 'szacunek z wywiadu'}), deficyt ${Math.round(PACE_PCT[pace] * 100)}%`, approvedByUser: true, source: 'calculated' });
+      reason: `Kalkulator: TDEE ${base} kcal (${obs.usableForPlan ? `z Twoich danych, wiarygodność ${REL[obs.reliability]}` : 'szacunek z wywiadu'}), tempo ${PACE_LABEL[pace]}, deficyt ${plan.deficit} kcal`, approvedByUser: true, source: 'calculated' });
     toast(`Nowy plan: ${plan.kcal} kcal`); onClose();
   }
   return (
@@ -66,10 +67,11 @@ export function EnergySheet({ data, d, onClose }: { data: AppData; d: Derived; o
         <div>{obs.tdee ? `${obs.tdee} kcal (zakres ${obs.range![0]}–${obs.range![1]}), wiarygodność: ${REL[obs.reliability]}. ${obs.reason}` : obs.reason}</div>
         <div className="text-xs text-muted mt-1">{obs.usableForPlan ? 'Propozycja planu liczona od tej wartości.' : 'Propozycja planu liczona ze wzoru. Wynik z danych będzie użyty przy wiarygodności co najmniej średniej: zaznaczaj wieczorem „wpisałem wszystko” i waż się ≥4 razy w tygodniu.'}</div>
       </div>
-      <div className="flex gap-2">{(['gentle', 'standard'] as const).map((k) => <button key={k} onClick={() => setPace(k)} className={cx('flex-1 min-h-11 rounded-lg text-sm', pace === k ? 'bg-accent text-accent-ink font-semibold' : 'bg-card2')}>{k === 'gentle' ? 'Łagodnie (−15%)' : 'Standard (−20%)'}</button>)}</div>
+      <div className="flex gap-2">{(['gentle', 'standard'] as const).map((k) => <button key={k} onClick={() => setPace(k)} className={cx('flex-1 min-h-11 rounded-lg text-sm', pace === k ? 'bg-accent text-accent-ink font-semibold' : 'bg-card2')}>{PACE_LABEL[k]}</button>)}</div>
       <div className="rounded-xl bg-accent/10 p-3 text-sm">
         <div className="font-semibold">Propozycja: {plan.kcal} kcal · B {plan.proteinG} g · T {plan.fatG} g · W {plan.carbsG} g</div>
-        <div className="text-muted">Deficyt ok. {plan.deficit} kcal/dzień, czyli orientacyjnie {plan.expectedLossKgWeek} kg/tydz. Białko 1,7 g/kg masy docelowej ({goal} kg). Minimum 2100 kcal.</div>
+        <div className="text-muted">Deficyt ok. {plan.deficit} kcal/dzień, czyli orientacyjnie {String(plan.expectedLossKgWeek).replace('.', ',')} kg/tydz.{plan.bound === 'cap' ? ` Tempo przycięte do limitu deficytu ${plan.cap} kcal, żeby chronić mięśnie przy treningu siłowym.` : plan.bound === 'floor' ? ` Kalorie na Twoim minimum ${plan.floor} kcal.` : ''}</div>
+        <div className="text-muted">Białko 1,8 g/kg masy referencyjnej ({String(plan.refWeightKg).replace('.', ',')} kg), tłuszcz ok. 28% kcal. Minimum dla Ciebie: {plan.floor} kcal.</div>
         <div className="text-muted mt-1">Obecny plan: {cur.kcal} kcal ({cur.kcal >= plan.kcal ? `o ${cur.kcal - plan.kcal} kcal więcej` : `o ${plan.kcal - cur.kcal} kcal mniej`}).</div>
       </div>
       <p className="text-xs text-muted">Kalorie spalone wg zegarka nie są doliczane do jedzenia (zegarki często je zawyżają). Zapotrzebowanie koryguje trend wagi.</p>
@@ -77,7 +79,6 @@ export function EnergySheet({ data, d, onClose }: { data: AppData; d: Derived; o
     </Sheet>
   );
 }
-const PACE_PCT: Record<Pace, number> = { gentle: 0.15, standard: 0.2 };
 const REL = { high: 'wysoka', medium: 'średnia', low: 'niska', insufficient: 'brak' } as const;
 
 export function HealthSyncHelp({ onClose }: { onClose: () => void }) {
@@ -167,7 +168,8 @@ export function PlanEditorSheet({ data, d, onClose }: { data: AppData; d: Derive
   const obs = observedTdee(d.weights, d.snaps.filter((s) => s.kcal !== undefined).map((s) => ({ date: s.date, kcal: s.kcal!, completeness: s.completeness ?? 'incomplete' })), addDays(d.today, -1));
   const tdee = obs.usableForPlan && obs.tdee ? obs.tdee : est.tdee;
   const lastChange = [...data.plans].sort((a, b) => b.validFrom.localeCompare(a.validFrom))[0]?.validFrom;
-  const check = validatePlanEdit(f, { weightKg: weight, goalKg: p.goals[0]?.kg ?? weight, tdee, daysSinceLastChange: lastChange ? diffDays(lastChange, d.today) : null });
+  const floor = kcalFloor(p.sex, bmr);
+  const check = validatePlanEdit(f, { weightKg: weight, goalKg: p.goals[0]?.kg ?? weight, tdee, daysSinceLastChange: lastChange ? diffDays(lastChange, d.today) : null, floor });
   async function save() {
     await db.plans.add({ ...cur, id: uid(), createdAt: now(), updatedAt: now(), validFrom: d.today, kcal: f.kcal, proteinG: f.proteinG, fatG: f.fatG, carbsG: f.carbsG,
       reason: `Ręczna zmiana: ${f.reason.trim()}${f.specialistApproved ? ' (ustalone ze specjalistą)' : ''}`, approvedByUser: true, source: 'manual' });
@@ -184,7 +186,7 @@ export function PlanEditorSheet({ data, d, onClose }: { data: AppData; d: Derive
         <div>TDEE: {tdee} kcal ({obs.usableForPlan ? `z Twoich danych, wiarygodność ${REL[obs.reliability]}` : 'szacunek ze wzoru i wywiadu'}){check.deficitPct !== null && <> → deficyt ok. <b>{check.deficitPct}%</b></>}</div>
       </div>
       <Field label="Powód zmiany"><input className={inputCls} value={f.reason} onChange={(e) => setF({ ...f, reason: e.target.value })} placeholder="np. zalecenie dietetyka" /></Field>
-      {f.kcal < 2100 && <Toggle on={f.specialistApproved} onChange={(v) => setF({ ...f, specialistApproved: v })} label="Poniżej 2100 kcal: ustaliłem to ze specjalistą" />}
+      {f.kcal < floor && <Toggle on={f.specialistApproved} onChange={(v) => setF({ ...f, specialistApproved: v })} label={`Poniżej ${floor} kcal: ustaliłem to ze specjalistą`} />}
       {check.errors.map((e) => <p key={e} className="text-sm text-danger">✕ {e}</p>)}
       {check.warnings.map((w) => <p key={w} className="text-sm text-warn">⚠ {w}</p>)}
       {!confirm ? <Btn className="w-full" disabled={!check.canSave} onClick={() => setConfirm(true)}>Dalej</Btn> : (

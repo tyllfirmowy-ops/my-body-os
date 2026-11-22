@@ -2,7 +2,7 @@ import { macroKcal } from './calc';
 import { KCAL_FLOOR } from './adaptation';
 
 export interface PlanEditInput { kcal: number; proteinG: number; fatG: number; carbsG: number; reason: string; specialistApproved: boolean }
-export interface PlanEditContext { weightKg: number; goalKg: number; tdee: number | null; daysSinceLastChange: number | null }
+export interface PlanEditContext { weightKg: number; goalKg: number; tdee: number | null; daysSinceLastChange: number | null; floor?: number }
 export interface PlanEditCheck { errors: string[]; warnings: string[]; macroKcal: number; deficitPct: number | null; canSave: boolean }
 
 /**
@@ -15,7 +15,8 @@ export function validatePlanEdit(i: PlanEditInput, c: PlanEditContext): PlanEdit
   if (![i.kcal, i.proteinG, i.fatG, i.carbsG].every((v) => Number.isFinite(v) && v >= 0)) errors.push('Wszystkie wartości muszą być liczbami ≥ 0.');
   if (i.kcal < 1200 || i.kcal > 5000) errors.push('Kalorie poza zakresem 1200–5000 kcal.');
   if (Math.abs(mk - i.kcal) > Math.max(50, i.kcal * 0.03)) errors.push(`Makro daje ${Math.round(mk)} kcal, a cel to ${i.kcal} kcal (różnica > 3%). Użyj „Dopasuj węglowodany”.`);
-  if (i.kcal < KCAL_FLOOR && !i.specialistApproved) errors.push(`Poniżej ${KCAL_FLOOR} kcal tylko po konsultacji ze specjalistą (zaznacz potwierdzenie).`);
+  const floor = c.floor ?? KCAL_FLOOR;
+  if (i.kcal < floor && !i.specialistApproved) errors.push(`Poniżej ${floor} kcal tylko po konsultacji ze specjalistą (zaznacz potwierdzenie).`);
   if (!i.reason.trim()) errors.push('Podaj powód zmiany (zapisze się w historii planu).');
   const pPerKg = i.proteinG / Math.max(1, c.goalKg);
   if (pPerKg < 1.2) warnings.push(`Białko ${pPerKg.toFixed(1)} g/kg masy docelowej: na redukcji z treningiem zwykle zaleca się więcej (ok. 1,6–2,2).`);

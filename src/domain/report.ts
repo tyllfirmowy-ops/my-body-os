@@ -104,11 +104,11 @@ export function weeklyMarkdown(s: WeeklyStats, adapt: AdaptResult, recs: Recomme
 
 export function aiContext(p: {
   stats: WeeklyStats; adapt: AdaptResult; recs: Recommendation[]; plan: { kcal: number; proteinG: number; fatG: number; carbsG: number; validFrom: string };
-  profile: { heightCm: number; age: number; goals: string }; health?: string[]; days: number;
+  profile: { heightCm: number; age: number; goals: string; sex?: 'male' | 'female' }; health?: string[]; days: number; kcalFloor?: number;
 }): string {
   return [
     `Kontekst z aplikacji My Body OS (dane własne, ostatnie ${p.days} dni). Nie jestem pacjentem w trakcie diagnozy; proszę o ocenę planu.`,
-    `Profil: mężczyzna, ${p.profile.age} lat, ${p.profile.heightCm} cm. Cele: ${p.profile.goals}.`,
+    `Profil: ${p.profile.sex === 'female' ? 'kobieta' : 'mężczyzna'}, ${p.profile.age} lat, ${p.profile.heightCm} cm. Cele: ${p.profile.goals}.`,
     `Plan od ${p.plan.validFrom}: ${p.plan.kcal} kcal, B ${p.plan.proteinG} g, T ${p.plan.fatG} g, W ${p.plan.carbsG} g.`,
     `Waga śr. 7 dni: ${f(p.stats.weightAvg, ' kg')} (${p.stats.weightN}/7 ważeń), zmiana tyg.: ${signed(p.stats.weightChange, ' kg')}, trend 14d: ${signed(p.stats.trend14, ' kg')}, 28d: ${signed(p.stats.trend28, ' kg')}.`,
     `Talia: ${p.stats.waistChange === null ? 'brak' : signed(p.stats.waistChange, ' cm')}. Kcal śr.: ${f(p.stats.kcalAvg)} (${p.stats.intakeDays}/7 dni). Białko: ${f(p.stats.proteinAvg, ' g')}. Kroki: ${f(p.stats.stepsAvg)}.`,
@@ -117,6 +117,6 @@ export function aiContext(p: {
     `Silnik reguł: ${p.adapt.message}`,
     p.recs.length ? `Wykryte problemy: ${p.recs.slice(0, 3).map((r) => r.title).join('; ')}.` : 'Wykryte problemy: brak.',
     p.health?.length ? `Ograniczenia zdrowotne: ${p.health.join('; ')}.` : 'Ograniczenia zdrowotne: pominięte przez użytkownika.',
-    'Pytanie: czy rekomendujesz jedną korektę planu na kolejne 14 dni? Uwzględnij, że zmiany kalorii mają być małe (150–200 kcal) i nie poniżej 2100 kcal bez konsultacji.',
+    `Pytanie: czy rekomendujesz jedną korektę planu na kolejne 14 dni? Uwzględnij, że zmiany kalorii mają być małe (150–200 kcal) i nie poniżej ${p.kcalFloor ?? 2100} kcal bez konsultacji.`,
   ].join('\n');
 }
